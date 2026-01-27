@@ -1,3 +1,5 @@
+日本語版は[README_ja.md](README_ja.md)をご覧ください。
+
 # Twitchbot
 
 Translation + TTS bot for Twitch chat. It subscribes to chat events, translates messages, and can read them aloud using the configured TTS engines. The entry point is `twitchbot.py`, which wires config, OAuth, translation, TTS, and bot components.
