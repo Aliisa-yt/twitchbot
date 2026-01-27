@@ -1,4 +1,4 @@
-日本語版は[README_jp.md](README_jp.md)をご覧ください。
+日本語版は[README_ja.md](README_ja.md)をご覧ください。
 
 # Twitchbot
 
