@@ -1,0 +1,6 @@
+{
+  "ignores": [
+    ".github/copilot-instructions.md",
+    ".coveragerc"
+  ]
+}

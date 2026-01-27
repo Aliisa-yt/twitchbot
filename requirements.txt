@@ -1,0 +1,17 @@
+aiohttp
+deepl
+emoji
+gTTS
+numpy
+PyAudio
+pywin32
+soundfile
+twitchio[starlette]
+types-pyaudio
+types-pywin32
+pytest
+pytest-asyncio
+pyinstaller
+pyinstaller-hooks-contrib
+dataclasses-json
+google-cloud-translate

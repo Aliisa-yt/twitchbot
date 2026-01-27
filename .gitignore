@@ -1,0 +1,49 @@
+# Python
+__pycache__/
+*.py[cod]
+*.log
+*.log.[0-9]*
+*.manifest
+
+# User Configuration (keep example files)
+twitchbot.ini
+
+# VSCode
+.vscode/
+*.code-workspace
+
+# IDEs
+.idea/
+*.iml
+*.swp
+*.swo
+*~
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Cache & Temp
+.cache/
+# 自動生成される一時ファイルは名称がランダムのため、tmp_で始まるものを除外
+tmp_*/
+.env
+.ipynb_checkpoints/
+.pytest_cache/
+.tio.tokens.json
+tokens.json
+
+# Virtual Environments
+venv/
+__pypackages__/
+
+# System files
+.DS_Store
+
+# Coverage
+.coverage
+.coverage.*
+htmlcov/
+cover/

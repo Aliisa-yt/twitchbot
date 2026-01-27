@@ -1,0 +1,124 @@
+[tool.ruff]
+
+# Excluded directories and files
+exclude = [
+    ".bzr",
+    ".direnv",
+    ".eggs",
+    ".git",
+    ".git-rewrite",
+    ".hg",
+    ".mypy_cache",
+    ".nox",
+    ".pants.d",
+    ".pytype",
+    ".ruff_cache",
+    ".svn",
+    ".tox",
+    ".venv",
+    "__pypackages__",
+    "_build",
+    ".github",
+    "buck-out",
+    "build",
+    "dist",
+    "node_modules",
+    ".coveragerc",
+]
+
+# Formatter Settings
+line-length = 120
+indent-width = 4
+target-version = "py313"
+
+[tool.ruff.lint]
+select = ["ALL"]
+ignore = [
+    "D",
+    "ANN",
+    "ERA001",
+    "T201",
+    "FBT003",
+    "PLR0913",
+    "PLR2004",
+    "RUF001",
+    "RUF002",
+    "RUF003",
+    "RUF100",
+    "E741",
+    "COM812",
+    "TD002",
+    "TD003",
+    "FIX002",
+    "TRY301",
+    "TRY400",
+    "S101",
+    "S105",
+    "UP036",
+]
+fixable = ["ALL"]
+unfixable = []
+dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
+extend-per-file-ignores = { "tests/**/*" = ["S106", "S108", "SLF001"] }
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "lf"
+docstring-code-format = true
+
+[tool.ruff.pydocstyle]
+convention = "google"
+
+[tool.mypy]
+python_version = "3.13"
+exclude = "dic/.*"
+warn_redundant_casts = true
+warn_return_any = true
+warn_unreachable = true
+warn_unused_configs = true
+warn_unused_ignores = true
+
+[[tool.mypy.overrides]]
+module = ["soundfile.*", "gtts.*"]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+addopts = "-ra"
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+filterwarnings = [
+    "ignore:There is no current event loop:DeprecationWarning",
+    "ignore:coroutine .* was never awaited:RuntimeWarning",
+]
+
+[tool.coverage.run]
+source = ["core", "handlers", "utils", "config", "models"]
+omit = [
+    "tests/*",
+    "*/__pycache__/*",
+    "*/.venv/*",
+    "*/site-packages/*",
+    "twitchbot.py",
+]
+branch = true
+
+[tool.coverage.report]
+precision = 2
+show_missing = true
+skip_covered = false
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "def __str__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+    "class .*\\bProtocol\\):",
+    "@(abc\\.)?abstractmethod",
+]
+
+[tool.coverage.html]
+directory = "htmlcov"

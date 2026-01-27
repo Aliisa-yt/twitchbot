@@ -1,0 +1,144 @@
+[GENERAL]
+DEBUG = False
+
+[TWITCH]
+OWNER_NAME = "your_channel_name"
+
+# ==================== Translation BOT settings ====================
+[BOT]
+BOT_NAME = "your_bot_name"
+COLOR = "golden_rod"
+LOGIN_MESSAGE = "Translation BOT is ready (Press Ctrl+C to quit)"
+DONT_LOGIN_MESSAGE = True
+SHOW_BYNAME = True
+SHOW_EXTENDEDFORMAT = True
+SHOW_BYLANG = True
+CONSOLE_OUTPUT = True
+IGNORE_USERS = ["nightbot", "streamelements", "moobot", "streamlabs", "wizebot"]
+
+# ==================== Translation engine settings ====================
+[TRANSLATION]
+ENGINE = ["google_cloud", "deepl", "google"]
+GOOGLE_SUFFIX = "co.jp"
+NATIVE_LANGUAGE = "ja"
+SECOND_LANGUAGE = "en"
+
+# ==================== Convert dictionary settings ====================
+[DICTIONARY]
+PATH = "dic"
+KATAKANA_DIC = ["bep-eng.dic", "user.dic"]
+ROMAJI_DIC = "romaji_dict.json"
+
+# ==================== Text-To-Speech settings ====================
+[TTS]
+ORIGINAL_TEXT = True
+TRANSLATED_TEXT = False
+ENABLED_LANGUAGES = []
+KATAKANAISE = True
+EMOTE_TEXT = True
+LIMIT_SAME_EMOTE = 2
+LIMIT_TOTAL_EMOTES = 6
+LIMIT_CHARACTERS = 0
+LIMIT_TIME = 0
+ALLOW_TTS_TWEAK = True
+
+# ==================== TTS format settings ====================
+[TTS_FORMAT]
+ORIGINAL_MESSAGE = {
+    "all" : "{message}",
+	}
+
+TRANSLATED_MESSAGE = {
+    "all" : "{mention} {message} {emote}",
+	}
+
+REPLY_MESSAGE = {
+    "ja" : "{reply_name}さんに返信{comma} {mention} {message} {emote}",
+    "all" : "Replying to {reply_name}{comma} {mention} {message} {emote}",
+	}
+
+WAITING_COMMA = {
+    "ja" : "、",
+    "all" : ",",
+	}
+
+WAITING_PERIOD = {
+    "ja" : "。",
+    "all" : ".",
+	}
+
+# ==================== Cast settings ====================
+[CAST]
+DEFAULT = [
+    # {"lang" : "ja", "engine" : "bouyomichan", "cast" : "1", "param" : "v100,s100,t100"},
+    {"lang" : "all", "engine" : "gtts"},
+	]
+
+STREAMER = [
+    # {"lang" : "ja", "engine" : "cevio_ai", "cast" : "さとうささら", "param" : "v45,s50"},
+    # {"lang" : "ja", "engine" : "coeiroink", "cast" : "0", "param" : "v1.0,s1.0,t0.0,a1.0"},
+    # {"lang" : "ja", "engine" : "coeiroink2", "cast" : "つくよみちゃん", "param" : "v1.0,s1.0,t0.01"},
+    {"lang" : "ja", "engine" : "voicevox", "cast" : "0", "param" : "v1.0,s1.0,t0.0,a1.0"},
+	]
+
+MODERATOR = []
+
+VIP = []
+
+SUBSCRIBER = []
+
+OTHERS = []
+
+SYSTEM = [
+    # {"lang" : "ja", "engine" : "voicevox", "cast" : "30", "param" : "v90,s95,t2"},
+    {"lang" : "ja", "engine" : "cevio_ai", "cast" : "さとうささら", "param" : "v30"},
+	]
+
+# ==================== CeVIO AI-specific settings ====================
+[CEVIO_AI]
+EARLY_SPEECH = True
+AUTO_STARTUP = True
+
+# ==================== CeVIO CS7-specific settings ====================
+[CEVIO_CS7]
+EARLY_SPEECH = False
+AUTO_STARTUP = False
+
+# ==================== BouyomiChan-specific settings ====================
+[BOUYOMICHAN]
+SERVER = "127.0.0.1:50001"
+TIMEOUT = 5.0
+AUTO_STARTUP = True
+EXECUTE_PATH = "${LOCALAPPDATA}\\Programs\\BouyomiChan_0_1_11_0_Beta21\\BouyomiChan.exe"
+
+# ==================== VOICEVOX-specific settings ====================
+[VOICEVOX]
+SERVER = "127.0.0.1:50021"
+TIMEOUT = 5.0
+EARLY_SPEECH = True
+AUTO_STARTUP = True
+EXECUTE_PATH = "${LOCALAPPDATA}\\Programs\\VOICEVOX\\VOICEVOX.exe"
+
+# ==================== COEIROINK(v1 only)-specific settings ====================
+[COEIROINK]
+SERVER = "127.0.0.1:50031"
+TIMEOUT = 5.0
+EARLY_SPEECH = False
+AUTO_STARTUP = True
+EXECUTE_PATH = "${LOCALAPPDATA}\\Programs\\COEIROINK-GPU-v.1.7.3\\COEIROINK.exe"
+
+# ==================== COEIROINK(v2 only)-specific settings ====================
+[COEIROINK2]
+SERVER = "127.0.0.1:50032"
+TIMEOUT = 5.0
+EARLY_SPEECH = False
+AUTO_STARTUP = True
+EXECUTE_PATH = "${LOCALAPPDATA}\\Programs\\COEIROINK_WIN_GPU_v.2.11.2\\COEIROINKv2.exe"
+
+# ==================== Miscellaneous Settings ====================
+[TIME_SIGNAL]
+TEXT = True
+VOICE = True
+CLOCK12 = True
+AM_NAME = "午前"
+PM_NAME = "午後"
