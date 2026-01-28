@@ -127,7 +127,7 @@ async def main() -> None:
             # Display version on console
             print(f"twitchbot ver.{config.GENERAL.VERSION}")
             async with Bot(config, token_data) as bot:
-                await bot.start()
+                await bot.start(with_adapter=False)
 
 
 if __name__ == "__main__":
