@@ -11,7 +11,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, ClassVar, Final
 
-from dataclasses_json import DataClassJsonMixin, dataclass_json
+from dataclasses_json import DataClassJsonMixin, LetterCase, dataclass_json
 
 from core.tts.engines.vv_core import VVCore
 from utils.logger_utils import LoggerUtils
@@ -27,32 +27,29 @@ __all__: list[str] = ["CoeiroInk2"]
 
 logger: logging.Logger = LoggerUtils.get_logger(__name__)
 
-DEFAULT_HOST: Final[str] = "127.0.0.1"
-DEFAULT_PORT: Final[int] = 50032
-DEFAULT_TIMEOUT: Final[float] = 10.0
 DEFAULT_UUID: Final[str] = "3c37646f-3881-5374-2a83-149267990abc"  # Default UUID for CoeiroInk2
 
 
-@dataclass_json
+@dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass
 class _Styles(DataClassJsonMixin):
-    styleName: str  # noqa: N815
-    styleId: int  # noqa: N815
-    base64Icon: str  # noqa: N815
-    base64Portrait: str | None  # noqa: N815
+    style_name: str
+    style_id: int
+    base64_icon: str
+    base64_portrait: str | None
 
 
-@dataclass_json
+@dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass
 class _SpeakerMeta(DataClassJsonMixin):
-    speakerName: str  # noqa: N815
-    speakerUuid: str  # noqa: N815
-    styles: list[_Styles]  # noqa: N815
-    version: str  # noqa: N815
-    base64Portrait: str  # noqa: N815
+    speaker_name: str
+    speaker_uuid: str
+    styles: list[_Styles]
+    version: str
+    base64_portrait: str
 
 
-@dataclass_json
+@dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass
 class _Phoneme(DataClassJsonMixin):
     phoneme: str
@@ -60,74 +57,74 @@ class _Phoneme(DataClassJsonMixin):
     accent: int
 
 
-@dataclass_json
+@dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass
 class _WavRange(DataClassJsonMixin):
     start: int
     end: int
 
 
-@dataclass_json
+@dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass
 class _PhonemePitches(DataClassJsonMixin):
     phoneme: str
-    wavRange: _WavRange  # noqa: N815
+    wav_range: _WavRange
 
 
-@dataclass_json
+@dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass
 class _MoraDurations(DataClassJsonMixin):
     mora: str
     hira: str
-    phonemePitches: list[_PhonemePitches]  # noqa: N815
-    wavRange: _WavRange  # noqa: N815
+    phoneme_pitches: list[_PhonemePitches]
+    wav_range: _WavRange
 
 
-@dataclass_json
+@dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass
 class _Prosody(DataClassJsonMixin):
     plain: list[str]
     detail: list[list[_Phoneme]]
 
 
-@dataclass_json
+@dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass
 class _WavMakingParam(DataClassJsonMixin):
-    speakerUuid: str  # noqa: N815
-    styleId: int  # noqa: N815
-    text: str  # noqa: N815
-    prosodyDetail: list[list[_Phoneme]]  # noqa: N815
-    speedScale: float  # noqa: N815
+    speaker_uuid: str
+    style_id: int
+    text: str
+    prosody_detail: list[list[_Phoneme]]
+    speed_scale: float
 
 
-@dataclass_json
+@dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass
 class _WavWithDuration(DataClassJsonMixin):
-    wavBase64: str  # noqa: N815
-    moraDurations: list[_MoraDurations]  # noqa: N815
-    startTrimBuffer: float  # noqa: N815
-    endTrimBuffer: float  # noqa: N815
+    wav_base64: str
+    mora_durations: list[_MoraDurations]
+    start_trim_buffer: float
+    end_trim_buffer: float
 
 
-@dataclass_json
+@dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass
 class _WavProcessingParam(DataClassJsonMixin):
-    volumeScale: float  # noqa: N815
-    pitchScale: float  # noqa: N815
-    intonationScale: float  # noqa: N815
-    prePhonemeLength: float  # noqa: N815
-    postPhonemeLength: float  # noqa: N815
-    outputSamplingRate: int  # noqa: N815
-    sampledIntervalValue: int  # noqa: N815
-    adjustedF0: list[float]  # noqa: N815
-    processingAlgorithm: str  # noqa: N815
-    startTrimBuffer: float  # noqa: N815
-    endTrimBuffer: float  # noqa: N815
-    pauseLength: float  # noqa: N815
-    pauseStartTrimBuffer: float  # noqa: N815
-    pauseEndTrimBuffer: float  # noqa: N815
-    wavBase64: str  # noqa: N815
-    moraDurations: list[_MoraDurations]  # noqa: N815
+    volume_scale: float
+    pitch_scale: float
+    intonation_scale: float
+    pre_phoneme_length: float
+    post_phoneme_length: float
+    output_sampling_rate: int
+    sampled_interval_value: int
+    adjusted_f0: list[float]
+    processing_algorithm: str
+    start_trim_buffer: float
+    end_trim_buffer: float
+    pause_length: float
+    pause_start_trim_buffer: float
+    pause_end_trim_buffer: float
+    wav_base64: str
+    mora_durations: list[_MoraDurations]
 
 
 class CoeiroInk2(VVCore):
@@ -153,13 +150,13 @@ class CoeiroInk2(VVCore):
         # Get a list of available speakers
         CoeiroInk2.speakers = await self._api_request(
             method="get",
-            url=f"http://{self.host}:{self.port}/v1/speakers",
+            url=f"{self.url}/v1/speakers",
             model=_SpeakerMeta,
             is_list=True,
             log_action="GET speakers",
         )
         speakers_list: str = "Available speakers: " + ", ".join(
-            f"{speaker.speakerName} ({speaker.speakerUuid})" for speaker in CoeiroInk2.speakers
+            f"{speaker.speaker_name} ({speaker.speaker_uuid})" for speaker in CoeiroInk2.speakers
         )
         logger.debug(speakers_list)
         logger.info("%s process initialised", self.__class__.__name__)
@@ -176,7 +173,7 @@ class CoeiroInk2(VVCore):
         """
         _prosody: _Prosody = await self._api_request(
             method="post",
-            url=f"http://{self.host}:{self.port}/v1/estimate_prosody",
+            url=f"{self.url}/v1/estimate_prosody",
             model=_Prosody,
             data={"text": ttsparam.content},
             log_action="POST estimate_prosody",
@@ -185,7 +182,7 @@ class CoeiroInk2(VVCore):
         _wav_making_param: _WavMakingParam = self._set_wav_making_param(ttsparam, _prosody)
         _wav_with_duration: _WavWithDuration = await self._api_request(
             method="post",
-            url=f"http://{self.host}:{self.port}/v1/predict_with_duration",
+            url=f"{self.url}/v1/predict_with_duration",
             model=_WavWithDuration,
             data=_wav_making_param.to_dict(),
             log_action="POST predict_with_duration",
@@ -194,7 +191,7 @@ class CoeiroInk2(VVCore):
         _wav_processing_param: _WavProcessingParam = self._set_wav_processing_param(ttsparam, _wav_with_duration)
         synthesis_response: bytes = await self._api_request(
             method="post",
-            url=f"http://{self.host}:{self.port}/v1/process",
+            url=f"{self.url}/v1/process",
             model=None,
             data=_wav_processing_param.to_dict(),
             log_action="POST process",
@@ -205,11 +202,11 @@ class CoeiroInk2(VVCore):
     def _set_wav_making_param(self, ttsparam: TTSParam, prosody: _Prosody) -> _WavMakingParam:
         """Set the parameters for wav making based on the TTS parameters and prosody."""
         return _WavMakingParam(
-            speakerUuid=self._get_speaker_uuid(ttsparam),
-            styleId=0,  # Default style ID
+            speaker_uuid=self._get_speaker_uuid(ttsparam),
+            style_id=0,  # Default style ID
             text=ttsparam.content,
-            prosodyDetail=prosody.detail,
-            speedScale=self._adjust_reading_speed(
+            prosody_detail=prosody.detail,
+            speed_scale=self._adjust_reading_speed(
                 self._convert_parameters(ttsparam.tts_info.voice.speed, self.PARAMETER_RANGE["speedScale"]),
                 len(ttsparam.content),
             ),
@@ -218,26 +215,28 @@ class CoeiroInk2(VVCore):
     def _set_wav_processing_param(self, ttsparam: TTSParam, wav_with_duration: _WavWithDuration) -> _WavProcessingParam:
         """Set the parameters for wav processing based on the TTS parameters and wav with duration."""
         return _WavProcessingParam(
-            volumeScale=self._convert_parameters(ttsparam.tts_info.voice.volume, self.PARAMETER_RANGE["volumeScale"]),
-            # pitchScale=self._convert_parameters(ttsparam.tts_info.voice.tone, self.PARAMETER_RANGE["pitchScale"]),
-            pitchScale=0.0,  # CoeiroInk(v2) does not support pitchScale
-            # intonationScale=self._convert_parameters(
+            volume_scale=self._convert_parameters(ttsparam.tts_info.voice.volume, self.PARAMETER_RANGE["volumeScale"]),
+            # pitch_scale=self._convert_parameters(
+            #     ttsparam.tts_info.voice.tone, self.PARAMETER_RANGE["pitchScale"]
+            # ),
+            pitch_scale=0.0,  # CoeiroInk(v2) does not support pitchScale
+            # intonation_scale=self._convert_parameters(
             #     ttsparam.tts_info.voice.intonation, self.PARAMETER_RANGE["intonationScale"]
             # ),
-            intonationScale=1.00,  # CoeiroInk(v2) does not support intonationScale
-            prePhonemeLength=0.05,
-            postPhonemeLength=0.05,
-            outputSamplingRate=44100,  # Resampling is performed on values other than 44100.
-            sampledIntervalValue=0,
-            adjustedF0=[],
-            processingAlgorithm="coeiroink",
-            startTrimBuffer=wav_with_duration.startTrimBuffer,
-            endTrimBuffer=wav_with_duration.endTrimBuffer,
-            pauseLength=0.25,
-            pauseStartTrimBuffer=0.0,
-            pauseEndTrimBuffer=0.0,
-            wavBase64=wav_with_duration.wavBase64,
-            moraDurations=wav_with_duration.moraDurations,
+            intonation_scale=1.0,  # CoeiroInk(v2) does not support intonationScale
+            pre_phoneme_length=0.05,
+            post_phoneme_length=0.05,
+            output_sampling_rate=44100,  # Resampling is performed on values other than 44100.
+            sampled_interval_value=0,
+            adjusted_f0=[],
+            processing_algorithm="coeiroink",
+            start_trim_buffer=wav_with_duration.start_trim_buffer,
+            end_trim_buffer=wav_with_duration.end_trim_buffer,
+            pause_length=0.25,
+            pause_start_trim_buffer=0.0,
+            pause_end_trim_buffer=0.0,
+            wav_base64=wav_with_duration.wav_base64,
+            mora_durations=wav_with_duration.mora_durations,
         )
 
     def _get_speaker_uuid(self, ttsparam: TTSParam) -> str:
@@ -246,8 +245,8 @@ class CoeiroInk2(VVCore):
         If the speaker name is invalid, the default UUID will be used.
         """
         for speaker_meta in CoeiroInk2.speakers:
-            if speaker_meta.speakerName == ttsparam.tts_info.voice.cast:
-                return speaker_meta.speakerUuid
+            if speaker_meta.speaker_name == ttsparam.tts_info.voice.cast:
+                return speaker_meta.speaker_uuid
 
         logger.warning("As the specified speaker name is invalid, the default value will be used instead.")
         return DEFAULT_UUID
