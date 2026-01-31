@@ -151,7 +151,7 @@ class TestBotEventHandlers:
         with caplog.at_level(logging.ERROR):
             await bot_instance.event_error(payload)
 
-        assert "An exception occurred during the event" in caplog.text
+        assert "Event error: Test error" in caplog.text
 
     @pytest.mark.asyncio
     async def test_event_ready_subscribes_to_events(self, bot_instance: Bot) -> None:
