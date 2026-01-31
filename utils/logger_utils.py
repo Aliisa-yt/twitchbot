@@ -21,7 +21,7 @@ type LevelType = Literal[
     "CRITICAL",
 ]
 
-_LOG_FILE_SIZE: Final[int] = 1 * 1024 * 1024  # 1MB
+_LOG_FILE_SIZE: Final[int] = 2 * 1024 * 1024  # 2MB
 _LOG_BACKUP_COUNT: Final[int] = 2  # Number of backup files to keep
 
 DEFAULT_LOG_LEVEL: Final[int] = logging.INFO
@@ -189,7 +189,7 @@ class LoggerUtils:
 
         file_handler.setLevel(logging.DEBUG)
         file_formatter = Formatter(
-            "%(asctime)s %(levelname)-8s %(process)5d %(thread)5d %(lineno)4d %(name)-36s\t%(funcName)s\t%(message)s"
+            "%(asctime)s %(levelname)-8s %(process)5d %(thread)5d %(lineno)4d %(name)-38s\t%(funcName)s\t%(message)s"
         )
         file_handler.setFormatter(file_formatter)
         self.root_logger.addHandler(file_handler)
