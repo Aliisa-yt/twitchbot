@@ -24,6 +24,7 @@ from models.voice_models import (
     UserTypeInfo,
     Voice,
 )
+from models.voicevox_models import AudioQueryType, Speaker
 
 __all__: list[str] = [
     "CLEARCHAT_PATTERN",
@@ -35,7 +36,9 @@ __all__: list[str] = [
     "SERVER_CONFIG_PATTERN",
     "TWO_LANGUAGE_DESIGNATIONS_PATTERN",
     "URL_PATTERN",
+    "AudioQueryType",
     "Config",
+    "Speaker",
     "TTSEngine",
     "TTSInfo",
     "TTSInfoPerLanguage",

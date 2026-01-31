@@ -1,19 +1,17 @@
-"""
-In version 0.20.0, parameters were added to _AudioQueryType
-pauseLength: float | None
-pauseLengthScale: float
+"""VOICEVOX text-to-speech engine implementation.
+
+Provides integration with VOICEVOX API for high-quality Japanese speech synthesis.
+Supports version 0.20.0+ with pauseLength and pauseLengthScale parameters.
 """
 
 from __future__ import annotations
 
 import contextlib
-from dataclasses import dataclass
 from typing import TYPE_CHECKING, Final
-
-from dataclasses_json import DataClassJsonMixin, dataclass_json
 
 from core.tts.engines.vv_core import VVCore
 from handlers.async_comm import AsyncCommError
+from models.voicevox_models import AudioQueryType
 from utils.logger_utils import LoggerUtils
 
 if TYPE_CHECKING:
@@ -27,51 +25,12 @@ __all__: list[str] = ["VoiceVox"]
 
 logger: logging.Logger = LoggerUtils.get_logger(__name__)
 
-# Default synthesis parameters
-_DEFAULT_PRE_PHONEME_LENGTH: Final[float] = 0.05
-_DEFAULT_POST_PHONEME_LENGTH: Final[float] = 0.05
-_DEFAULT_PAUSE_LENGTH: Final[float] = 0.25
-_DEFAULT_PAUSE_LENGTH_SCALE: Final[float] = 1.00
-_DEFAULT_OUTPUT_SAMPLING_RATE: Final[int] = 24000
-_DEFAULT_OUTPUT_STEREO: Final[bool] = False
-_DEFAULT_SPEAKER_ID: Final[int] = 0
-
-
-@dataclass_json
-@dataclass
-class _MoraType(DataClassJsonMixin):
-    text: str
-    consonant: str | None
-    consonant_length: float | None
-    vowel: str
-    vowel_length: float
-    pitch: float
-
-
-@dataclass_json
-@dataclass
-class _AccentPhraseType(DataClassJsonMixin):
-    moras: list[_MoraType]
-    accent: int
-    pause_mora: _MoraType | None
-    is_interrogative: bool
-
-
-@dataclass_json
-@dataclass
-class _AudioQueryType(DataClassJsonMixin):
-    accent_phrases: list[_AccentPhraseType]
-    speedScale: float  # noqa: N815
-    pitchScale: float  # noqa: N815
-    intonationScale: float  # noqa: N815
-    volumeScale: float  # noqa: N815
-    prePhonemeLength: float  # noqa: N815
-    postPhonemeLength: float  # noqa: N815
-    pauseLength: float | None  # noqa: N815
-    pauseLengthScale: float  # noqa: N815
-    outputSamplingRate: int  # noqa: N815
-    outputStereo: bool  # noqa: N815
-    kana: str
+_DEFAULT_PRE_PHONEME_LENGTH: Final[float] = 0.05  # Silence before speech
+_DEFAULT_POST_PHONEME_LENGTH: Final[float] = 0.05  # Silence after speech
+_DEFAULT_PAUSE_LENGTH: Final[float] = 0.25  # Pause duration between phrases
+_DEFAULT_PAUSE_LENGTH_SCALE: Final[float] = 1.00  # Pause length multiplier
+_DEFAULT_OUTPUT_SAMPLING_RATE: Final[int] = 24000  # Audio sampling rate in Hz
+_DEFAULT_OUTPUT_STEREO: Final[bool] = False  # Mono output by default
 
 
 class VoiceVox(VVCore):
@@ -82,6 +41,10 @@ class VoiceVox(VVCore):
     """
 
     def __init__(self) -> None:
+        """Initialize the VOICEVOX engine instance.
+
+        Sets up speaker cache and initializes parent VVCore instance.
+        """
         logger.debug("%s initializing", self.__class__.__name__)
         super().__init__()
 
@@ -104,7 +67,6 @@ class VoiceVox(VVCore):
             bool: Always returns True indicating successful initialization.
         """
         super().initialize_engine(tts_engine)
-        # Output a message to the console
         print("Loaded speech synthesis engine: VOICEVOX")
         return True
 
@@ -118,8 +80,12 @@ class VoiceVox(VVCore):
             param (UserTypeInfo): User-specific voice configuration containing speaker IDs.
         """
         await super().async_init(param)
-        # Get the list of Speaker IDs to use
-        for _id in param.get_cast_list(self.fetch_engine_name()):
+        self.available_speakers = await self.fetch_available_speakers()
+        cast_list: list[str] = param.get_cast_list(self.fetch_engine_name())
+
+        id_list: list[int] = [self._get_speaker_id_from_cast(cast) for cast in cast_list]
+
+        for _id in id_list:
             try:
                 with contextlib.suppress(ValueError):
                     await self._api_request(
@@ -143,21 +109,20 @@ class VoiceVox(VVCore):
         Returns:
             bytes: WAV audio data of the synthesized speech.
         """
-        _api_data: _AudioQueryType = await self._api_request(
+        _api_data: AudioQueryType = await self._api_request(
             method="post",
             url=f"{self.url}/audio_query",
-            model=_AudioQueryType,
+            model=AudioQueryType,
             params={"text": ttsparam.content, "speaker": str(self._get_speaker_id(ttsparam))},
             log_action="POST audio_query",
         )
 
-        # Reflect parameters such as speaking speed and pitch
         self._set_synthesis_parameters(_api_data, ttsparam)
 
         synthesis_response: bytes = await self._api_request(
             method="post",
             url=f"{self.url}/synthesis",
-            model=None,  # No model needed for raw bytes response
+            model=None,
             data=_api_data.to_dict(),
             params={"speaker": str(self._get_speaker_id(ttsparam)), "interrogative_upspeak": "true"},
             log_action="POST synthesis",
@@ -165,7 +130,7 @@ class VoiceVox(VVCore):
 
         return synthesis_response
 
-    def _set_synthesis_parameters(self, audio_query: _AudioQueryType, ttsparam: TTSParam) -> None:
+    def _set_synthesis_parameters(self, audio_query: AudioQueryType, ttsparam: TTSParam) -> None:
         """Apply user-specified synthesis parameters to the audio query.
 
         Args:
@@ -216,8 +181,9 @@ class VoiceVox(VVCore):
         """
         try:
             if ttsparam.tts_info.voice.cast is None:
-                raise TypeError
-            return int(ttsparam.tts_info.voice.cast)
+                msg: str = "Speaker cast is None"
+                raise TypeError(msg)
+            return self._get_speaker_id_from_cast(ttsparam.tts_info.voice.cast)
         except (ValueError, TypeError):
-            logger.warning("use default value because speakerID is invalid")
-            return _DEFAULT_SPEAKER_ID
+            logger.warning("Using default speaker ID because cast value is invalid")
+            return self.default_speaker_id

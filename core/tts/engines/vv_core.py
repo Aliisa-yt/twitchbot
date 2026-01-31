@@ -1,3 +1,10 @@
+"""Base class for VOICEVOX-compatible text-to-speech engines.
+
+Provides core functionality for communicating with VOICEVOX and compatible TTS APIs,
+including audio query generation, speaker management, and parameter conversion.
+Subclasses should implement api_command_procedure() to handle engine-specific synthesis.
+"""
+
 from __future__ import annotations
 
 import asyncio
@@ -13,6 +20,7 @@ from core.tts.interface import (
     TTSNotSupportedError,
 )
 from handlers.async_comm import AsyncCommError, AsyncCommTimeoutError, AsyncHttp
+from models.voicevox_models import Speaker, _SpeakerStyle
 from utils.logger_utils import LoggerUtils
 
 if TYPE_CHECKING:
@@ -29,14 +37,23 @@ __all__: list[str] = ["VVCore"]
 
 logger: logging.Logger = LoggerUtils.get_logger(__name__)
 
-STARTUP_TIMEOUT: Final[float] = 10.0  # Timeout for TTS engine startup detection
-RETRY_INTERVAL: Final[float] = 2.0  # Retry interval for checking TTS engine status
+RETRY_INTERVAL: Final[float] = 2.0  # Interval between retries when checking engine status
+ENGINE_INITIALIZATION_TIMEOUT: Final[float] = RETRY_INTERVAL * 6 + 0.5  # Total timeout for engine initialization
 
 T = TypeVar("T", bound="DataClassJsonMixin")
 
 
 class VVCore(Interface):
-    # Parameter valid range and default values
+    """Base class for VOICEVOX-compatible text-to-speech engines.
+
+    Provides core functionality for communicating with VOICEVOX and compatible TTS APIs,
+    including audio query generation, speaker management, and parameter conversion.
+    Subclasses should implement api_command_procedure() to handle engine-specific synthesis.
+
+    Attributes:
+        PARAMETER_RANGE (dict): Valid ranges and defaults for synthesis parameters.
+    """
+
     PARAMETER_RANGE: Final[dict[str, tuple[float, float, float]]] = {
         "speedScale": (0.50, 2.00, 1.00),
         "pitchScale": (-0.15, 0.15, 0.00),
@@ -57,6 +74,55 @@ class VVCore(Interface):
         self.async_http = AsyncHttp()
         self.async_http.initialize_session()
         self.async_http.add_handler("audio/wav", lambda raw: raw)
+        self._available_speakers: list[Speaker] = []
+        self._id_cache: dict[str, int] = {}
+
+    @property
+    def default_speaker_id(self) -> int:
+        """Get the default speaker ID.
+
+        Returns:
+            int: The default speaker ID.
+        """
+        return self._available_speakers[0].styles[0].id if self._available_speakers else 0
+
+    @property
+    def available_speakers(self) -> list[Speaker]:
+        """Access the list of available VOICEVOX speakers.
+
+        Returns:
+            list[Speaker]: List of available VOICEVOX speakers.
+        """
+        return self._available_speakers
+
+    @available_speakers.setter
+    def available_speakers(self, value: list[Speaker]) -> None:
+        """Set the list of available VOICEVOX speakers.
+
+        Args:
+            value (list[Speaker]): New list of available VOICEVOX speakers.
+        """
+        logger.debug("Updating available speakers with %d entries", len(value))
+        self._available_speakers = value
+
+    @property
+    def id_cache(self) -> dict[str, int]:
+        """Access the internal speaker ID cache.
+
+        Returns:
+            dict[str, int]: Mapping of cast strings to speaker IDs.
+        """
+        return self._id_cache
+
+    @id_cache.setter
+    def id_cache(self, value: dict[str, int]) -> None:
+        """Set the internal speaker ID cache.
+
+        Args:
+            value (dict[str, int]): New mapping of cast strings to speaker IDs.
+        """
+        logger.debug("Updating speaker ID cache with %d entries", len(value))
+        self._id_cache = value
 
     @staticmethod
     def fetch_engine_name() -> str:
@@ -65,7 +131,6 @@ class VVCore(Interface):
         Returns:
             str: The distinguished name of the TTS engine.
         """
-        # return "vv_core"
         return ""
 
     def initialize_engine(self, tts_engine: TTSEngine) -> bool:
@@ -80,28 +145,45 @@ class VVCore(Interface):
         return True
 
     async def async_init(self, param: UserTypeInfo) -> None:
+        """Asynchronously initialize the TTS engine.
+
+        Detects engine startup and waits until the service is accessible.
+
+        Args:
+            param (UserTypeInfo): User-specific voice configuration.
+        """
         _ = param
         await self._detect_engine_startup()
 
     async def _detect_engine_startup(self) -> None:
+        """Detect and wait for TTS engine startup with retries.
+
+        Polls the TTS engine's version endpoint until it becomes accessible, with automatic
+        retries at regular intervals. The version endpoint is used as a side-effect-free
+        check for engine availability. Times out if the engine is not accessible within
+        ENGINE_INITIALIZATION_TIMEOUT.
+
+        Raises:
+            (Logs error): If the TTS engine is not running or not accessible after timeout.
+        """
         try:
-            async with asyncio.timeout(STARTUP_TIMEOUT):
+            async with asyncio.timeout(ENGINE_INITIALIZATION_TIMEOUT):
                 while True:
                     try:
-                        await self._api_request(
+                        version: str = await self._api_request(
                             method="get",
-                            url=self.url,
+                            url=f"{self.url}/version",
                             model=None,
-                            log_action="GET",
+                            log_action="GET version",
                         )
-                        logger.info("The TTS engine is running and can be accessed.")
+                        logger.info("The TTS engine version %s is running and can be accessed.", version)
                     except AsyncCommTimeoutError:
                         logger.debug("The TTS engine is not running. It will try again in %.1f second.", RETRY_INTERVAL)
-                        await asyncio.sleep(RETRY_INTERVAL)  # Wait before retrying
+                        await asyncio.sleep(RETRY_INTERVAL)
                     else:
-                        return  # Exit the loop if the engine is accessible
+                        return
         except TimeoutError:
-            msg = "The TTS engine is not running or is not accessible. Please check the server status."
+            msg: str = "The TTS engine is not running or is not accessible. Please check the server status."
             logger.error(msg)
 
     async def close(self) -> None:
@@ -110,10 +192,13 @@ class VVCore(Interface):
         logger.info("%s process termination", self.__class__.__name__)
 
     async def speech_synthesis(self, ttsparam: TTSParam) -> None:
-        """Perform speech synthesis using the TTS parameters provided.
+        """Perform text-to-speech synthesis and save audio file.
+
+        Calls the engine-specific api_command_procedure() to synthesize audio, saves the result
+        to a temporary WAV file, and triggers playback via the callback.
 
         Args:
-            ttsparam (TTSParam): The parameters for the TTS synthesis.
+            ttsparam (TTSParam): The parameters for the TTS synthesis including text and voice settings.
         Raises:
             TTSFileError: If there is an error creating or saving the audio file.
             AsyncCommError: If there is a communication error with the TTS API.
@@ -130,7 +215,6 @@ class VVCore(Interface):
                 raise TTSNotSupportedError(msg)
             logger.debug("TTS synthesis completed successfully, audio data length: %d bytes", len(audio_data))
 
-            # Create the audio file path and save the audio data
             voice_file: Path = self.create_audio_filename(suffix="wav")
             self.save_audio_file(voice_file, audio_data)
             ttsparam.filepath = voice_file
@@ -142,7 +226,6 @@ class VVCore(Interface):
         except OSError as err:
             logger.error("System error during TTS synthesis: %s", err)
         except TypeError as err:
-            # This exception occurs if the API parameters have changed due to an update
             logger.error("'%s': %s", self.fetch_engine_name().upper(), err)
         except RuntimeError as err:
             logger.error("An error occurred in the TTS process: %s", err)
@@ -161,9 +244,6 @@ class VVCore(Interface):
         """
         raise NotImplementedError
 
-    # This overload is for when a model is specified, returning a single item.
-    # It is used for endpoints that return a single item, such as speaker details.
-    # This is indicated by the `is_list` parameter being set to False.
     @overload
     async def _api_request(
         self,
@@ -178,9 +258,6 @@ class VVCore(Interface):
         is_list: Literal[False] = False,
     ) -> T: ...
 
-    # This overload is for when a model is specified, returning a list of items.
-    # It is used for endpoints that return multiple items, such as speaker lists.
-    # This is indicated by the `is_list` parameter being set to True.
     @overload
     async def _api_request(
         self,
@@ -195,9 +272,6 @@ class VVCore(Interface):
         is_list: Literal[True],
     ) -> list[T]: ...
 
-    # This overload is for when no model is specified, returning raw bytes.
-    # It is used for endpoints that return audio data directly, such as synthesis endpoints.
-    # In this case, the model parameter is None, and the return type is bytes.
     @overload
     async def _api_request(
         self,
@@ -210,7 +284,7 @@ class VVCore(Interface):
         log_action: str = ...,
         total_timeout: float | None = ...,
         is_list: bool = ...,
-    ) -> bytes: ...
+    ) -> Any: ...
 
     async def _api_request(
         self,
@@ -251,27 +325,38 @@ class VVCore(Interface):
                 raise ValueError(msg)
 
             if model is None:
-                # If no model is specified, return the raw response.
-                # Note: During engine initialization a GET returns text/html and a POST may return None.
-                # Audio responses (audio/wav) are handled by callers that know the expected type.
                 return response
 
+            # Use infer_missing=True for compatibility with engines that omit optional fields
             if is_list:
-                return [model.from_dict(item) for item in response]
-            return model.from_dict(response)
+                return [model.from_dict(item, infer_missing=True) for item in response]
+            return model.from_dict(response, infer_missing=True)
         except (ValidationError, TypeError, AttributeError) as err:
             msg: str = f"The response data from the API is invalid: {err}"
+            logger.error(msg)
+            raise AsyncCommError(msg) from err
+        except KeyError as err:
+            msg: str = f"The response data from the API is missing expected fields: {err}"
+            logger.error(msg)
             raise AsyncCommError(msg) from err
 
     def _convert_parameters(self, value: int | float | None, param_range: tuple[float, float, float]) -> float:  # noqa: PYI041
-        """Convert the TTS parameter value to a float within the specified range.
+        """Convert and normalize TTS parameter value to float within specified range.
+
+        Handles three input types:
+        - int: Treated as percentage (divided by 100)
+        - float: Used directly
+        - None: Returns default value
 
         Args:
             value (int | float | None): The TTS parameter value to convert.
-            param_range (tuple[float, float, float]): A tuple containing the lower limit, upper limit,
-                                                      and default value.
+                - int values are divided by 100 (e.g., 100 -> 1.0, 150 -> 1.5)
+                - float values are used directly
+                - None returns the default value
+            param_range (tuple[float, float, float]): (min_limit, max_limit, default_value).
+
         Returns:
-            float: The converted value within the specified range, or the default value if `value` is None.
+            float: The normalized value clamped to [min_limit, max_limit], or default if value is None.
         """
         (lower_limit, upper_limit, default) = param_range
 
@@ -282,7 +367,7 @@ class VVCore(Interface):
             lower_limit, upper_limit = upper_limit, lower_limit
 
         if isinstance(value, int):
-            # For an int type, the value is multiplied by 100.
+            # Integer values represent percentage (100 = 1.0, 50 = 0.5)
             value = float(value) / 100.0
             return max(min(value, upper_limit), lower_limit)
 
@@ -293,17 +378,87 @@ class VVCore(Interface):
         return default
 
     def _adjust_reading_speed(self, speed: float, message_length: int) -> float:
-        """Adjust the reading speed based on the message length.
+        """Adjust reading speed based on message length for natural pacing.
+
+        When early_speech is enabled and message length exceeds 30 characters,
+        applies a cubic polynomial adjustment to prevent unnaturally fast speech
+        for longer messages. The adjustment factor is clamped to maximum 1.40x.
 
         Args:
-            speed (float): The original reading speed.
-            message_length (int): The length of the message in characters.
+            speed (float): The base reading speed multiplier.
+            message_length (int): Length of the message in characters.
+
         Returns:
-            float: The adjusted reading speed.
+            float: The adjusted speed, or original speed if early_speech is disabled or length <= 30.
         """
-        # If the text exceeds 30 characters, the speed will adjust accordingly
         if self.earlyspeech and message_length > 30:
             logger.debug("Original speed value: '%.2f'", speed)
+            # Cubic polynomial for smooth acceleration: 0.0000008*x^3 + 0.002*x + 1.0 (x = message_length - 30)
             speed = min(speed * (0.0000008 * (message_length - 30) ** 3.0 + 0.002 * (message_length - 30) + 1.0), 1.40)
             logger.debug("Accelerated speed value: '%.2f'", speed)
         return speed
+
+    async def fetch_available_speakers(self) -> list[Speaker]:
+        """Fetch available speakers from the TTS engine.
+
+        Returns:
+            list[Speaker]: List of available speakers with their styles and features.
+        """
+        speakers: list[Speaker] = await self._api_request(
+            method="get",
+            url=f"{self.url}/speakers",
+            model=Speaker,
+            is_list=True,
+            log_action="GET speakers",
+        )
+        logger.debug("Available speakers: %s", speakers)
+        return speakers
+
+    def _get_speaker_id_from_cast(self, cast: str) -> int:
+        """Retrieve speaker ID from cast string with caching.
+
+        Supports three cast string formats with automatic caching for performance:
+        1. Numeric ID: "0", "14" -> returns int directly
+        2. Name|Style: "四国めたん|ノーマル" -> returns matching style ID
+        3. Name only: "四国めたん" -> defaults to "ノーマル" style
+
+        Results are cached to avoid repeated speaker list searches.
+
+        Args:
+            cast (str): The cast string in one of the supported formats.
+
+        Returns:
+            int: The speaker ID, or default_speaker_id if not found or cast is empty.
+        """
+        if not cast:
+            logger.warning("Using default speaker ID because cast string is empty")
+            return self.default_speaker_id
+
+        if cast in self.id_cache:
+            speaker_id: int = self.id_cache[cast]
+            logger.debug("Retrieved cached speaker ID for cast '%s': %d", cast, speaker_id)
+            return speaker_id
+
+        if cast.isdecimal():
+            self.id_cache[cast] = int(cast)
+            return int(cast)
+
+        name, style = cast.split("|", maxsplit=1) if "|" in cast else (cast, "")
+        if not name:
+            logger.warning("Using default speaker ID because speaker name is empty")
+            self.id_cache[cast] = self.default_speaker_id
+            return self.default_speaker_id
+
+        if not style:
+            style = "ノーマル"
+
+        speaker: Speaker | None = next((s for s in self.available_speakers if s.name == name), None)
+        if speaker:
+            speaker_style: _SpeakerStyle | None = next((st for st in speaker.styles if st.name == style), None)
+            if speaker_style:
+                self.id_cache[cast] = speaker_style.id
+                return speaker_style.id
+
+        logger.warning("Using default speaker ID because speaker name '%s' or style '%s' not found", name, style)
+        self.id_cache[cast] = self.default_speaker_id
+        return self.default_speaker_id
