@@ -1,8 +1,6 @@
-"""Data models for chat messages, including content, author, translation, and TTS parameters.
+"""Data models for chat messages.
 
-This module defines the ChatMessage data class, which encapsulates various attributes of a chat message,
-such as its content, author information, translation details, and text-to-speech (TTS) parameters.
-It also includes properties and methods for formatting messages based on TTS settings and templates.
+Defines ChatMessage dataclass for content, author information, translation details, and TTS parameters.
 """
 
 from __future__ import annotations
@@ -10,12 +8,10 @@ from __future__ import annotations
 from dataclasses import InitVar, dataclass, field
 from typing import TYPE_CHECKING
 
-from handlers.fragment_handler import EmoteHandler, MentionHandler
 from models.re_models import REPLY_PATTERN
 from models.translation_models import TranslationInfo
 from models.voice_models import TTSParam
 from utils.logger_utils import LoggerUtils
-from utils.string_utils import StringUtils
 
 if TYPE_CHECKING:
     import logging
@@ -25,6 +21,7 @@ if TYPE_CHECKING:
     from twitchio import ChatMessage as TwitchMessage
     from twitchio import ChatMessageFragment, ChatMessageReply, Chatter
 
+    from handlers.fragment_handler import EmoteHandler, MentionHandler
     from models.config_models import Config, TTSFormat
 
 
@@ -60,6 +57,10 @@ class ChatMessage:
     fragments: list[ChatMessageFragment] = field(default_factory=list)
 
     def __post_init__(self, twitch_message: TwitchMessage, config: Config) -> None:
+        # Lazy import to avoid circular import when models/__init__.py exports ChatMessage
+        from handlers.fragment_handler import EmoteHandler, MentionHandler  # noqa: PLC0415
+        from utils.string_utils import StringUtils  # noqa: PLC0415
+
         self.content = StringUtils.ensure_str(twitch_message.text)
 
         self.text: str = ""
@@ -100,6 +101,8 @@ class ChatMessage:
         Raises:
             ValueError: If reply display name cannot be extracted when REPLY_PATTERN is matched.
         """
+        from utils.string_utils import StringUtils  # noqa: PLC0415
+
         reply: ChatMessageReply | None = twitch_message.reply
         if reply is None:
             logger.debug("Reply payload is missing; skipping reply info processing")
