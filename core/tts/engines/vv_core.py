@@ -36,7 +36,7 @@ __all__: list[str] = ["SpeakerID", "VVCore"]
 logger: logging.Logger = LoggerUtils.get_logger(__name__)
 
 RETRY_INTERVAL: Final[float] = 2.0  # Interval between retries when checking engine status
-ENGINE_INITIALIZATION_TIMEOUT: Final[float] = RETRY_INTERVAL * 6 + 0.5  # Total timeout for engine initialization
+ENGINE_STARTUP_TIMEOUT: Final[float] = RETRY_INTERVAL * 10 + 0.5  # Total timeout for engine startup detection
 
 T = TypeVar("T", bound="DataClassJsonMixin")
 
@@ -143,11 +143,11 @@ class VVCore(Interface):
     async def _detect_engine_startup(self) -> None:
         """Wait for TTS engine to be accessible with retries.
 
-        Polls the version endpoint until accessible within ENGINE_INITIALIZATION_TIMEOUT.
+        Polls the version endpoint until accessible within ENGINE_STARTUP_TIMEOUT.
         Logs errors if engine is not accessible after timeout.
         """
         try:
-            async with asyncio.timeout(ENGINE_INITIALIZATION_TIMEOUT):
+            async with asyncio.timeout(ENGINE_STARTUP_TIMEOUT):
                 while True:
                     try:
                         version: str = await self._api_request(
@@ -158,7 +158,9 @@ class VVCore(Interface):
                         )
                         logger.info("The TTS engine version %s is running and can be accessed.", version)
                     except AsyncCommTimeoutError:
-                        logger.debug("The TTS engine is not running. It will try again in %.1f second.", RETRY_INTERVAL)
+                        logger.debug(
+                            "The TTS engine is not running. It will try again in %.1f seconds.", RETRY_INTERVAL
+                        )
                         await asyncio.sleep(RETRY_INTERVAL)
                     else:
                         return
