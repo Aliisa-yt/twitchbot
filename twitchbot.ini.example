@@ -76,9 +76,9 @@ DEFAULT = [
 
 STREAMER = [
     # {"lang" : "ja", "engine" : "cevio_ai", "cast" : "さとうささら", "param" : "v45,s50"},
-    # {"lang" : "ja", "engine" : "coeiroink", "cast" : "0", "param" : "v1.0,s1.0,t0.0,a1.0"},
-    # {"lang" : "ja", "engine" : "coeiroink2", "cast" : "つくよみちゃん", "param" : "v1.0,s1.0,t0.01"},
-    {"lang" : "ja", "engine" : "voicevox", "cast" : "0", "param" : "v1.0,s1.0,t0.0,a1.0"},
+    # {"lang" : "ja", "engine" : "coeiroink", "cast" : "つくよみちゃん|れいせい", "param" : "v1.0,s1.0,t0.0,a1.0"},
+    # {"lang" : "ja", "engine" : "coeiroink2", "cast" : "つくよみちゃん|れいせい", "param" : "v1.0,s1.0,t0.01"},
+    {"lang" : "ja", "engine" : "voicevox", "cast" : "四国めたん|ノーマル", "param" : "v1.0,s1.0,t0.0,a1.0"},
 	]
 
 MODERATOR = []
@@ -90,7 +90,7 @@ SUBSCRIBER = []
 OTHERS = []
 
 SYSTEM = [
-    # {"lang" : "ja", "engine" : "voicevox", "cast" : "30", "param" : "v90,s95,t2"},
+    # {"lang" : "ja", "engine" : "voicevox", "cast" : "No.7|アナウンス", "param" : "v90,s95,t2"},
     {"lang" : "ja", "engine" : "cevio_ai", "cast" : "さとうささら", "param" : "v30"},
 	]
 
