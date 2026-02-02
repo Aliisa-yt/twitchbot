@@ -141,7 +141,8 @@ class AsyncHttp:
         Returns:
             Any: The response data, parsed as JSON if applicable.
         """
-        logger.debug("'url': '%s', 'params': '%s', 'data': '%s', 'timeout': '%s'", url, params, data, total_timeout)
+        # Log only the first 500 characters of data to avoid excessive log size
+        logger.debug("'url': '%s', 'params': '%s', 'data': '%.500s', 'timeout': '%s'", url, params, data, total_timeout)
         proxies = proxies if isinstance(proxies, dict) else {}
 
         return await self._request(
@@ -228,7 +229,8 @@ class AsyncHttp:
         Returns:
             Any: The response data, parsed as JSON if applicable.
         """
-        logger.debug("[%s] url=%s timeout=%s kwargs=%s", method, url, total_timeout, kwargs)
+        # Log only the first 500 characters of data to avoid excessive log size
+        logger.debug("[%s] url=%s timeout=%s kwargs=%.500s", method, url, total_timeout, kwargs)
         proxy: str | None = (proxies or {}).get("https") or (proxies or {}).get("http")
         # Set a timeout for the request
         if total_timeout <= 0:
