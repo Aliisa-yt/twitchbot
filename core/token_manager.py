@@ -1,21 +1,21 @@
 from __future__ import annotations
 
-import json
 import os
 import time
 import urllib.parse
 import webbrowser
 from dataclasses import dataclass
-from pathlib import Path
 from typing import TYPE_CHECKING, Any, Final, Self
 
 import aiohttp
 from twitchio import Client, Scopes
 
+from core.token_storage import TokenStorage
 from utils.logger_utils import LoggerUtils
 
 if TYPE_CHECKING:
     import logging
+    from pathlib import Path
 
     from twitchio.user import User
 
@@ -96,7 +96,7 @@ class TokenManager:
     handled by the caller when required.
 
     Attributes:
-        cache_file (Path): The path to the cache file where tokens will be stored.
+        storage (TokenStorage): The token storage backend using SQLite3.
         client_id (str): The Twitch API client ID.
         client_secret (str): The Twitch API client secret.
         bot_id (str): The unique identifier for the bot user.
@@ -105,15 +105,15 @@ class TokenManager:
         refresh_token (str): The refresh token for the bot user.
     """
 
-    def __init__(self, cache_file: str | Path) -> None:
-        """Initialize the TokenManager with the path to the cache file.
+    def __init__(self, db_path: str | Path) -> None:
+        """Initialize the TokenManager with the path to the database file.
 
-        This cache file is used to store access and refresh tokens for the Twitch API.
+        This database file is used to store access and refresh tokens for the Twitch API.
 
         Args:
-            cache_file (str | Path): The path to the cache file where tokens will be stored.
+            db_path (str | Path): The path to the SQLite database file where tokens will be stored.
         Raises:
-            RuntimeError: If the cache file path is empty or if required environment variables are not set.
+            RuntimeError: If the database path is empty or if required environment variables are not set.
         """
 
         def _require_env_var(name: str) -> str:
@@ -126,38 +126,19 @@ class TokenManager:
 
         logger.debug("Initializing %s", self.__class__.__name__)
 
-        cache_file = Path(cache_file)
-        if str(cache_file).strip() == "":
-            msg: str = "The cache file path is empty."
-            raise RuntimeError(msg)
-        self.cache_file: Path = cache_file
-        logger.debug("Cache file set to: %s", self.cache_file)
+        # Initialize the token storage backend
+        self.storage: TokenStorage = TokenStorage(db_path)
+        logger.debug("Token storage initialized")
 
-        # Load client ID and secret from environment variables
-        # These should be set in your environment before running the bot.
-        # If not set, a RuntimeError will be raised.
-        # Ensure these variables are set in your environment or pass them directly.
-        #
-        # Example: export TWITCH_API_CLIENT_ID="your_client_id"
-        #          export TWITCH_API_CLIENT_SECRET="your_client_secret"
-        #
-        # Note: These environment variables are required for OAuth2 authentication with Twitch API.
-        #       Make sure to set them in your environment or pass them directly.
-        #       If you are running this code in a production environment, consider using a secure method
-        #       to store and retrieve these sensitive values.
-        #       For example, you can use environment variables, a configuration file, or a secret management service.
-        #       Ensure that these values are kept secure and not hard-coded in your source code.
-        #       The client ID and secret are used to authenticate your application with the Twitch API.
-        #       They are essential for making API requests and accessing user data.
+        # Load client ID and secret from environment variables.
+        # These are required for OAuth2 authentication with the Twitch API.
+        # Example:
+        #   export TWITCH_API_CLIENT_ID="your_client_id"
+        #   export TWITCH_API_CLIENT_SECRET="your_client_secret"
         self.client_id: str = _require_env_var("TWITCH_API_CLIENT_ID")
         self.client_secret: str = _require_env_var("TWITCH_API_CLIENT_SECRET")
 
-        # Initialize instance variables for storing bot and owner IDs, access token, and refresh token.
-        # These will be set during the OAuth authorization flow.
-        # The bot ID is the unique identifier for the bot user,
-        # and the owner ID is the unique identifier for the bot owner.
-        # The access token is used to authenticate API requests,
-        # and the refresh token is used to obtain a new access token when the current one expires.
+        # Initialize IDs and tokens; populated during the OAuth authorization flow.
         self.bot_id: str = ""
         self.owner_id: str = ""
         self.user_access_token: str = ""
@@ -183,31 +164,19 @@ class TokenManager:
     # Token storage and management
     # -----------------------------------
     def _load_tokens(self) -> dict[str, Any]:
-        """Load tokens from the cache file."""
-        try:
-            with self.cache_file.open(encoding="utf-8") as f:
-                return json.load(f)
-        except FileNotFoundError:
-            return {}
-        except json.JSONDecodeError:
-            logger.warning("Token cache '%s' is corrupted; ignoring.", self.cache_file)
-            return {}
+        """Load tokens from the storage."""
+        with self.storage:
+            return self.storage.load_tokens()
 
     def _save_tokens(self, data: dict[str, Any]) -> None:
-        """Save tokens to the cache file."""
-        # Ensure parent exists and write atomically to avoid corruption
-        self.cache_file.parent.mkdir(parents=True, exist_ok=True)
-        tmp: Path = self.cache_file.with_suffix(self.cache_file.suffix + ".tmp")
-        with tmp.open("w", encoding="utf-8") as f:
-            json.dump(data, f, indent=2)
-        tmp.replace(self.cache_file)
+        """Save tokens to the storage."""
+        with self.storage:
+            self.storage.save_tokens(data)
 
     def _is_expired(self, tokens: dict[str, Any]) -> bool:
         """Check if the access token is expired."""
-        obtained = float(tokens.get("obtained_at", 0))
-        expires = float(tokens.get("expires_in", 0))
-        expiry: float = obtained + expires
-        return time.time() >= (expiry - 60.0)  # refresh 1 minute before expiry
+        with self.storage:
+            return self.storage.is_expired(tokens)
 
     # -----------------------------------
     # OAuth Authorization Code Flow
@@ -278,6 +247,18 @@ class TokenManager:
     # Twitch API helpers
     # -----------------------------------
     async def _get_id_by_name(self, owner_name: str, bot_name: str) -> UserIDs:
+        """Get user IDs for the owner and bot by their Twitch usernames.
+
+        Args:
+            owner_name (str): The Twitch username of the bot owner.
+            bot_name (str): The Twitch username of the bot account.
+
+        Returns:
+            UserIDs: A dataclass containing the owner ID and bot ID.
+
+        Raises:
+            RuntimeError: If either user is not found.
+        """
         owner_id: str = ""
         bot_id: str = ""
         owner_name = owner_name.strip().lower()
@@ -289,8 +270,7 @@ class TokenManager:
         async with Client(client_id=self.client_id, client_secret=self.client_secret) as client:
             await client.login()
             users: list[User] = await client.fetch_users(logins=[owner_name, bot_name])
-            # If the order of the return values of fetch_users were guaranteed, processing could be simplified.
-            # However, it is not explicitly stated that the order is guaranteed.
+            # The order of fetch_users results is not guaranteed.
             for user in users:
                 name: str | None = getattr(user, "name", None)
                 if name is None:
