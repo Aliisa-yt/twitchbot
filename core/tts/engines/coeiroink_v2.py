@@ -8,7 +8,7 @@ This is an implementation of the CoeiroInk (v2) engine, which is currently in an
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, ClassVar, Final
+from typing import TYPE_CHECKING, Final
 
 from core.tts.engines.vv_core import SpeakerID, VVCore
 from models.coeiroink_v2_models import Prosody, SpeakerMeta, WavMakingParam, WavProcessingParam, WavWithDuration
@@ -29,7 +29,14 @@ DEFAULT_UUID: Final[str] = "3c37646f-3881-5374-2a83-149267990abc"  # Default UUI
 
 
 class CoeiroInk2(VVCore):
-    speakers: ClassVar[list[SpeakerMeta]] = []
+    """CoeiroInk (v2) text-to-speech engine implementation.
+
+    Provides Japanese speech synthesis via CoeiroInk (v2) API.
+    Inherits from VVCore for common VOICEVOX-compatible functionality.
+
+    Note: A bug has been identified in GPU version v2.12.x whereby setting the intonation and pitch to
+          non-default values via external control triggers an internal error.
+    """
 
     def __init__(self) -> None:
         """Initialize the CoeiroInk2 engine instance."""
