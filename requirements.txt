@@ -16,3 +16,4 @@ google-cloud-translate
 types-pyaudio
 types-pywin32
 types-dataclasses-json
+coverage
