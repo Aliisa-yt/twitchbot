@@ -4,7 +4,17 @@ This package contains dataclass definitions for configuration, translation, voic
 and regular expression patterns used throughout the application.
 """
 
+from __future__ import annotations
+
+from models.coeiroink_v2_models import (
+    Prosody,
+    SpeakerMeta,
+    WavMakingParam,
+    WavProcessingParam,
+    WavWithDuration,
+)
 from models.config_models import Config, TTSEngine
+from models.message_models import ChatMessage
 from models.re_models import (
     CLEARCHAT_PATTERN,
     CLEARMSG_PATTERN,
@@ -37,8 +47,11 @@ __all__: list[str] = [
     "TWO_LANGUAGE_DESIGNATIONS_PATTERN",
     "URL_PATTERN",
     "AudioQueryType",
+    "ChatMessage",
     "Config",
+    "Prosody",
     "Speaker",
+    "SpeakerMeta",
     "TTSEngine",
     "TTSInfo",
     "TTSInfoPerLanguage",
@@ -46,4 +59,7 @@ __all__: list[str] = [
     "TranslationInfo",
     "UserTypeInfo",
     "Voice",
+    "WavMakingParam",
+    "WavProcessingParam",
+    "WavWithDuration",
 ]
