@@ -1,6 +1,7 @@
+from __future__ import annotations
+
 import asyncio
 import inspect
-import json
 import time
 from pathlib import Path
 from typing import Any
@@ -15,12 +16,12 @@ def test_init_missing_env_vars_raises(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("TWITCH_API_CLIENT_ID", raising=False)
     monkeypatch.delenv("TWITCH_API_CLIENT_SECRET", raising=False)
     with pytest.raises(RuntimeError):
-        TokenManager(Path("cache.json"))
+        TokenManager(Path("tokens.db"))
 
 
 def test_context_managers_are_noop(tmp_path: Path) -> None:
-    cache: Path = tmp_path / "tokens.json"
-    manager = TokenManager(cache)
+    db_path: Path = tmp_path / "tokens.db"
+    manager = TokenManager(db_path)
     # sync context manager returns self
     with manager as m:
         assert m is manager
@@ -34,7 +35,7 @@ def test_context_managers_are_noop(tmp_path: Path) -> None:
 
 
 def test_is_expired_boundary() -> None:
-    manager = TokenManager(Path("does-not-matter.json"))
+    manager = TokenManager(Path("does-not-matter.db"))
     now: float = time.time()
     # Set expires_in so that (obtained + expires - 60) is just in the future -> not expired
     tokens_not_expired = {"obtained_at": now, "expires_in": 120}
@@ -47,16 +48,16 @@ def test_is_expired_boundary() -> None:
 
 @pytest.mark.asyncio
 async def test_start_authorization_flow_uses_cached_tokens(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    cache = tmp_path / "tokens.json"
-    # Write a valid, non-expired token into cache
+    db_path = tmp_path / "tokens.db"
+    manager = TokenManager(db_path)
+    # Write a valid, non-expired token into storage
     tokens = {
         "access_token": "cached_a",
         "refresh_token": "cached_r",
         "expires_in": 3600,
         "obtained_at": time.time(),
     }
-    cache.write_text(json.dumps(tokens))
-    manager = TokenManager(cache)
+    manager._save_tokens(tokens)  # noqa: SLF001
 
     # If exchange_code_for_tokens or _get_authorization_code_via_browser is called, the test should fail
     def fail_exchange(*_args, **_kwargs):
@@ -79,7 +80,7 @@ async def test_start_authorization_flow_uses_cached_tokens(tmp_path: Path, monke
     assert token.access_token == "cached_a"
     assert token.refresh_token == "cached_r"
     # Ensure cache was not overwritten in this path
-    saved = json.loads(cache.read_text())
+    saved = manager._load_tokens()  # noqa: SLF001
     assert saved["access_token"] == "cached_a"
 
 
@@ -87,16 +88,16 @@ async def test_start_authorization_flow_uses_cached_tokens(tmp_path: Path, monke
 async def test_start_authorization_flow_refreshes_expired_tokens(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    cache = tmp_path / "tokens.json"
-    # Write an expired token into cache
+    db_path = tmp_path / "tokens.db"
+    manager = TokenManager(db_path)
+    # Write an expired token into storage
     tokens = {
         "access_token": "old_a",
         "refresh_token": "old_r",
         "expires_in": 3600,
         "obtained_at": time.time() - 7200,
     }
-    cache.write_text(json.dumps(tokens))
-    manager = TokenManager(cache)
+    manager._save_tokens(tokens)  # noqa: SLF001
 
     async def fake_refresh(refresh_token: str) -> dict[str, Any]:
         assert refresh_token == "old_r"
@@ -111,7 +112,7 @@ async def test_start_authorization_flow_refreshes_expired_tokens(
     token: TwitchBotToken = await manager.start_authorization_flow("owner", "bot")
     assert token.access_token == "new_a"
     assert token.refresh_token == "new_r"
-    saved = json.loads(cache.read_text())
+    saved = manager._load_tokens()  # noqa: SLF001
     assert saved["access_token"] == "new_a"
 
 

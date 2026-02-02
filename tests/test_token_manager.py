@@ -1,5 +1,6 @@
+from __future__ import annotations
+
 import builtins
-import json
 import time
 from pathlib import Path
 from typing import Any, Self
@@ -17,22 +18,20 @@ def set_env(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_load_tokens_file_not_found(tmp_path: Path) -> None:
-    cache: Path = tmp_path / "tokens.json"
-    manager = TokenManager(cache)
+    db_path: Path = tmp_path / "tokens.db"
+    manager = TokenManager(db_path)
     assert manager._load_tokens() == {}  # noqa: SLF001
 
 
-# def test_load_tokens_corrupted(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-def test_load_tokens_corrupted(tmp_path: Path) -> None:
-    cache: Path = tmp_path / "tokens.json"
-    cache.write_text("not-json")
-    manager = TokenManager(cache)
+def test_load_tokens_empty_when_missing(tmp_path: Path) -> None:
+    db_path: Path = tmp_path / "tokens.db"
+    manager = TokenManager(db_path)
     assert manager._load_tokens() == {}  # noqa: SLF001
 
 
 def test_save_and_load_tokens_atomic(tmp_path: Path) -> None:
-    cache: Path = tmp_path / "tokens.json"
-    manager = TokenManager(cache)
+    db_path: Path = tmp_path / "tokens.db"
+    manager = TokenManager(db_path)
     data = {"access_token": "a", "refresh_token": "r"}
     manager._save_tokens(data)  # noqa: SLF001
     loaded = manager._load_tokens()  # noqa: SLF001
@@ -41,7 +40,7 @@ def test_save_and_load_tokens_atomic(tmp_path: Path) -> None:
 
 
 def test_is_expired_true_false() -> None:
-    manager = TokenManager(Path("does-not-matter.json"))
+    manager = TokenManager(Path("does-not-matter.db"))
     now: builtins.float = time.time()
     tokens_not_expired = {"obtained_at": now, "expires_in": 3600}
     tokens_expired = {"obtained_at": now - 7200, "expires_in": 3600}
@@ -52,14 +51,14 @@ def test_is_expired_true_false() -> None:
 def test_get_authorization_code_via_browser_success(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr("webbrowser.open", lambda _url: None)
     monkeypatch.setattr(builtins, "input", lambda _prompt="": "http://localhost?code=abc123")
-    manager = TokenManager(Path("tokens.json"))
+    manager = TokenManager(Path("tokens.db"))
     assert manager._get_authorization_code_via_browser() == "abc123"  # noqa: SLF001
 
 
 def test_get_authorization_code_via_browser_missing(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr("webbrowser.open", lambda _url: None)
     monkeypatch.setattr(builtins, "input", lambda _prompt="": "http://localhost?error=denied")
-    manager = TokenManager(Path("tokens.json"))
+    manager = TokenManager(Path("tokens.db"))
     with pytest.raises(RuntimeError):
         manager._get_authorization_code_via_browser()  # noqa: SLF001
 
@@ -95,7 +94,7 @@ async def test_exchange_code_for_tokens_success_and_failure(monkeypatch: pytest.
 
     # failure case: no access_token
     monkeypatch.setattr(tm.aiohttp, "ClientSession", lambda **_kwargs: FakeSession({}))
-    manager = TokenManager(Path("tokens.json"))
+    manager = TokenManager(Path("tokens.db"))
     with pytest.raises(RuntimeError):
         await manager._exchange_code_for_tokens("code")  # noqa: SLF001
 
@@ -135,7 +134,7 @@ async def test_refresh_access_token_success_and_failure(monkeypatch: pytest.Monk
         def post(self, *_args, **_kwargs) -> FakeResp:
             return FakeResp(self._payload)
 
-    manager = TokenManager(Path("tokens.json"))
+    manager = TokenManager(Path("tokens.db"))
     # failure
     monkeypatch.setattr(tm.aiohttp, "ClientSession", lambda **_kwargs: FakeSession({}))
     with pytest.raises(RuntimeError):
@@ -173,7 +172,7 @@ async def test_get_id_by_name(monkeypatch: pytest.MonkeyPatch) -> None:
             return [FakeUser("OwnerUser", "owner-id"), FakeUser("BotUser", "bot-id")]
 
     monkeypatch.setattr(tm, "Client", lambda *_args, **_kwargs: FakeClient())
-    manager = TokenManager(Path("tokens.json"))
+    manager = TokenManager(Path("tokens.db"))
     ids: UserIDs = await manager._get_id_by_name("OwnerUser", "BotUser")  # noqa: SLF001
     assert isinstance(ids, UserIDs)
     assert ids.owner_id == "owner-id"
@@ -191,8 +190,8 @@ async def test_get_id_by_name(monkeypatch: pytest.MonkeyPatch) -> None:
 
 @pytest.mark.asyncio
 async def test_start_authorization_flow_full(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    cache: Path = tmp_path / "tokens.json"
-    manager = TokenManager(cache)
+    db_path: Path = tmp_path / "tokens.db"
+    manager = TokenManager(db_path)
 
     # stub interactive and network parts
     monkeypatch.setattr(manager, "_get_authorization_code_via_browser", lambda: "code")
@@ -219,6 +218,5 @@ async def test_start_authorization_flow_full(monkeypatch: pytest.MonkeyPatch, tm
     assert isinstance(token, TwitchBotToken)
     assert token.access_token == "a"
     assert token.refresh_token == "r"
-    # saved to cache
-    saved = json.loads(cache.read_text())
+    saved = manager._load_tokens()  # noqa: SLF001
     assert saved["access_token"] == "a"
