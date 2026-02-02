@@ -24,7 +24,7 @@ Translation + TTS bot for Twitch chat. It subscribes to chat events, translates 
    - `--owner OWNER_NAME` (optional): Twitch channel owner name; overrides `twitchbot.ini`
    - `--bot BOT_NAME` (optional): Bot account name; overrides `twitchbot.ini`
    - `-d`, `--debug` (optional): Enable debug mode for detailed logging
-3) First launch opens a browser for OAuth; tokens cache to `tokens.json`.
+3) First launch opens a browser for OAuth; tokens cache to `tokens.db`.
 4) Stop the bot with `Ctrl+C`.
 
 ### Build Executable with PyInstaller

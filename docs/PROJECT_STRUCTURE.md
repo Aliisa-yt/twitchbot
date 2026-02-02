@@ -2,8 +2,8 @@
 
 This document provides an English overview of the current Twitchbot Python source layout (excluding `__init__.py`). It is intended for onboarding, navigation, and quick impact assessment when editing the codebase.
 
-**Date**: 2026-01-27  
-**Version**: 20260127-01
+**Date**: 2026-02-02  
+**Version**: 1.1.1
 
 ---
 
@@ -17,7 +17,8 @@ This document provides an English overview of the current Twitchbot Python sourc
 ├── core/
 │   ├── bot.py                        # TwitchIO bot implementation
 │   ├── shared_data.py                # Shared managers wiring
-│   ├── token_manager.py              # OAuth token flow/cache
+│   ├── token_manager.py              # OAuth token flow
+│   ├── token_storage.py              # SQLite3-based token storage
 │   ├── version.py                    # Version constant
 │   ├── components/
 │   │   ├── base.py                   # Component base class
@@ -57,11 +58,13 @@ This document provides an English overview of the current Twitchbot Python sourc
 │   ├── katakana.py                   # Romaji/English → Katakana
 │   └── message_formatter.py          # Chat/TTS formatting
 ├── models/
+│   ├── coeiroink_v2_models.py
 │   ├── config_models.py
 │   ├── message_models.py
 │   ├── re_models.py
 │   ├── translation_models.py
-│   └── voice_models.py
+│   ├── voice_models.py
+│   └── voicevox_models.py
 └── utils/
     ├── chat_utils.py
     ├── excludable_queue.py
@@ -84,7 +87,8 @@ This document provides an English overview of the current Twitchbot Python sourc
 ### core
 - `bot.py`: TwitchIO bot; EventSub subscriptions; component lifecycle; chat/console output limits; graceful shutdown; TwitchIO logger wiring.
 - `shared_data.py`: Wires `TransManager` and `TTSManager` for components.
-- `token_manager.py`: Browser-based OAuth, token refresh/cache, ID resolution, atomic writes.
+- `token_manager.py`: Browser-based OAuth flow, token refresh, ID resolution via TokenStorage backend.
+- `token_storage.py`: SQLite3-based persistent storage for tokens; handles save/load/delete/expiration checks with atomic transactions.
 - `version.py`: Version constant.
 
 #### core/components
@@ -115,11 +119,13 @@ This document provides an English overview of the current Twitchbot Python sourc
 - `message_formatter.py`: Template-based formatting for chat/TTS output.
 
 ### models
+- `coeiroink_v2_models.py`: Coeiroink v2 API models and response structures.
 - `config_models.py`: Config dataclasses (General, Twitch, Bot, Translation, TTS, etc.).
 - `message_models.py`: Chat message structures, TTS params, translation info.
 - `re_models.py`: Regex patterns for IRC/commands/URLs/language hints.
 - `translation_models.py`: Translation info and quota models.
 - `voice_models.py`: Voice/TTS parameter models and user-type mappings.
+- `voicevox_models.py`: VOICEVOX API models and response structures.
 
 ### utils
 - `chat_utils.py`: Chat helpers (ignore rules, truncation, footer generation).
