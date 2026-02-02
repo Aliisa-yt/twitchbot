@@ -34,8 +34,9 @@ def test_context_managers_are_noop(tmp_path: Path) -> None:
     asyncio.run(_check_async())  # small helper to run the coroutine synchronously in tests
 
 
-def test_is_expired_boundary() -> None:
-    manager = TokenManager(Path("does-not-matter.db"))
+def test_is_expired_boundary(tmp_path: Path) -> None:
+    db_path: Path = tmp_path / "tokens.db"
+    manager = TokenManager(db_path)
     now: float = time.time()
     # Set expires_in so that (obtained + expires - 60) is just in the future -> not expired
     tokens_not_expired = {"obtained_at": now, "expires_in": 120}

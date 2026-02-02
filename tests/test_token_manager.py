@@ -39,8 +39,9 @@ def test_save_and_load_tokens_atomic(tmp_path: Path) -> None:
     assert loaded["refresh_token"] == "r"
 
 
-def test_is_expired_true_false() -> None:
-    manager = TokenManager(Path("does-not-matter.db"))
+def test_is_expired_true_false(tmp_path: Path) -> None:
+    db_path: Path = tmp_path / "tokens.db"
+    manager = TokenManager(db_path)
     now: builtins.float = time.time()
     tokens_not_expired = {"obtained_at": now, "expires_in": 3600}
     tokens_expired = {"obtained_at": now - 7200, "expires_in": 3600}
