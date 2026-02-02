@@ -1,9 +1,6 @@
-"""Configuration data models for Twitch bot settings, including TTS, bot behavior, and voice engine parameters.
+"""Configuration data models for Twitch bot settings.
 
-This module defines data classes representing various configuration sections for the Twitch bot,
-such as TTS settings, bot options, translation preferences, and voice engine parameters.
-Each data class encapsulates related configuration options, providing a structured way to manage
-and access settings throughout the application.
+Defines dataclasses for TTS, bot behavior, translation preferences, and voice engine parameters.
 """
 
 from __future__ import annotations

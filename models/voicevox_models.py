@@ -1,12 +1,7 @@
 """VOICEVOX API data models.
 
-Defines dataclass models for deserializing VOICEVOX API responses including audio queries,
-speaker information, and related phonetic/prosodic data structures. Compatible with COEIROINK v1
-where API fields differ.
-
-Note: @dataclass_json(letter_case=LetterCase.CAMEL) is not used because some fields like
-'accent_phrases' are already in snake_case, causing incorrect conversions and deserialization errors.
-Therefore, all camelCase fields use # noqa: N815 annotations.
+Dataclass models for VOICEVOX API responses including audio queries and speaker information.
+Some camelCase fields use noqa: N815 annotations due to snake_case conversion conflicts.
 """
 
 from __future__ import annotations

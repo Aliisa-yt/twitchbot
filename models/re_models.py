@@ -1,7 +1,6 @@
-"""Regular expressions used in the Twitch bot.
+"""Regular expressions for Twitch bot message parsing.
 
-These patterns are designed to match various Twitch IRC message formats,
-commands, URLs, mentions, replies, language designations, and server configurations.
+Patterns for IRC message formats, commands, URLs, mentions, replies, and language designations.
 """
 
 from __future__ import annotations
