@@ -27,7 +27,7 @@ dist/
 
 # Cache & Temp
 .cache/
-# 自動生成される一時ファイルは名称がランダムのため、tmp_で始まるものを除外
+# Random names beginning with 'tmp_' are assigned to automatically generated temporary files.
 tmp_*/
 .env
 .ipynb_checkpoints/
@@ -47,3 +47,13 @@ __pypackages__/
 .coverage.*
 htmlcov/
 cover/
+
+# Database files
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+*.sqlite3
+*.sqlite
+*.bak
+tokens.db*
