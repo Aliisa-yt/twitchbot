@@ -30,7 +30,7 @@ if TYPE_CHECKING:
 
 CFG_FILE: Final[str] = "twitchbot.ini"
 LOG_FILE: Final[str] = "debug.log"
-TOKEN_CACHE_FILE: Final[str] = "tokens.json"
+TOKEN_DB_FILE: Final[str] = "tokens.db"
 
 logger: logging.Logger = LoggerUtils.get_logger(__name__)
 
@@ -119,7 +119,7 @@ async def main() -> None:
             logger.info("loaded dictionary files")
 
             # Start authorization flow and get tokens
-            _token_manager: TokenManager = TokenManager(FileUtils.resolve_path(TOKEN_CACHE_FILE))
+            _token_manager: TokenManager = TokenManager(FileUtils.resolve_path(TOKEN_DB_FILE))
             token_data: TwitchBotToken = await _token_manager.start_authorization_flow(
                 config.TWITCH.OWNER_NAME, config.BOT.BOT_NAME
             )
