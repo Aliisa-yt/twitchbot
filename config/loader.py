@@ -10,7 +10,7 @@ import ast
 import configparser
 import re
 from configparser import ConfigParser
-from dataclasses import Field, fields
+from dataclasses import fields
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -21,7 +21,9 @@ from utils.logger_utils import LoggerUtils
 if TYPE_CHECKING:
     import logging
     from collections.abc import Callable
-
+    from dataclasses import Field as DataclassField
+else:
+    from dataclasses import Field as DataclassField
 
 __all__: list[str] = [
     "ConfigFileNotFoundError",
@@ -33,7 +35,6 @@ __all__: list[str] = [
 ]
 
 logger: logging.Logger = LoggerUtils.get_logger(__name__)
-
 
 ALLOWED_TRANSLATION_ENGINES: list[str] = ["google", "deepl", "google_cloud"]
 
@@ -164,14 +165,16 @@ class ConfigLoader:
             ConfigFormatError: If a value cannot be parsed or coerced to the expected type.
         """
         formatter = _ConfigFormatter(self.config, parser)
-        for section in fields(type(self.config)):
+        for section in fields(self.config):
             # VOICE_PARAMETERS is a parameter that will be automatically generated later.
             # Skip it now as it has no content.
             if section.name == "VOICE_PARAMETERS":
                 continue
             self._convert_section_field(parser, formatter, section)
 
-    def _convert_section_field(self, parser: ConfigParser, formatter: _ConfigFormatter, section: Field[Any]) -> None:
+    def _convert_section_field(
+        self, parser: ConfigParser, formatter: _ConfigFormatter, section: DataclassField[Any]
+    ) -> None:
         """Convert all fields in a configuration section.
 
         Iterates through each field in the section, formats its value from the INI parser,
@@ -414,12 +417,12 @@ class _ConfigFormatter:
         self.config: Config = config
         self.parser: ConfigParser = parser
 
-    def apply_format(self, section: Field[Any], key: Field[Any]) -> Any:
+    def apply_format(self, section: DataclassField[Any], key: DataclassField[Any]) -> Any:
         """Convert INI value to the expected Python type based on the Config field type.
 
         Args:
-            section (Field[Any]): Configuration section field containing the key.
-            key (Field[Any]): Target field within the section.
+            section (DataclassField[Any]): Configuration section field containing the key.
+            key (DataclassField[Any]): Target field within the section.
 
         Returns:
             Any: Parsed value coerced to the type declared in the config dataclass.
@@ -429,13 +432,15 @@ class _ConfigFormatter:
             ConfigFormatError: If literal evaluation fails due to invalid syntax.
             ConfigTypeError: If an unexpected type is encountered during coercion.
         """
-        formatters: dict[type[bool | int | float], Callable[[Field[Any], Field[Any]], bool | int | float]] = {
+        formatters: dict[
+            type[bool | int | float], Callable[[DataclassField[Any], DataclassField[Any]], bool | int | float]
+        ] = {
             bool: self.parse_as_boolean,
             int: self.parse_as_integer,
             float: self.parse_as_float,
         }
 
-        formatter: Callable[[Field[Any], Field[Any]], bool | int | float] | None = formatters.get(
+        formatter: Callable[[DataclassField[Any], DataclassField[Any]], bool | int | float] | None = formatters.get(
             type(getattr(getattr(self.config, section.name), key.name))
         )
         if formatter:
@@ -458,21 +463,21 @@ class _ConfigFormatter:
             msg = f"Invalid literal for {section.name}.{key.name}: {value_str}"
             raise ConfigFormatError(msg) from err
 
-    def parse_as_float(self, section: Field[Any], key: Field[Any]) -> float:
+    def parse_as_float(self, section: DataclassField[Any], key: DataclassField[Any]) -> float:
         """Convert INI string to float."""
         value: str = self.parser.get(section.name, key.name)
         for char in ("'", '"', "%"):
             value = value.removeprefix(char).removesuffix(char)
         return float(value)
 
-    def parse_as_integer(self, section: Field[Any], key: Field[Any]) -> int:
+    def parse_as_integer(self, section: DataclassField[Any], key: DataclassField[Any]) -> int:
         """Convert INI string to integer."""
         value: str = self.parser.get(section.name, key.name)
         for char in ("'", '"', "%"):
             value = value.removeprefix(char).removesuffix(char)
         return int(float(value))
 
-    def parse_as_boolean(self, section: Field[Any], key: Field[Any]) -> bool:
+    def parse_as_boolean(self, section: DataclassField[Any], key: DataclassField[Any]) -> bool:
         """Convert INI string to boolean."""
         return self.parser.getboolean(section.name, key.name)
 
