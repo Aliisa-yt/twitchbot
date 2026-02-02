@@ -19,6 +19,10 @@ class _Styles(DataClassJsonMixin):
     base64_icon: str
     base64_portrait: str | None
 
+    def __repr__(self) -> str:
+        # base64 fields can be very large, so exclude them from the representation
+        return f"_Styles(style_name={self.style_name}, style_id={self.style_id})"
+
 
 @dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass
@@ -30,6 +34,13 @@ class SpeakerMeta(DataClassJsonMixin):
     styles: list[_Styles]
     version: str
     base64_portrait: str
+
+    def __repr__(self) -> str:
+        # base64 fields can be very large, so exclude them from the representation
+        return (
+            f"SpeakerMeta(speaker_name={self.speaker_name}, speaker_uuid={self.speaker_uuid}, "
+            f"styles={self.styles}, version={self.version})"
+        )
 
 
 @dataclass_json(letter_case=LetterCase.CAMEL)
@@ -102,6 +113,13 @@ class WavWithDuration(DataClassJsonMixin):
     start_trim_buffer: float
     end_trim_buffer: float
 
+    def __repr__(self) -> str:
+        # base64 fields can be very large, so exclude them from the representation
+        return (
+            f"WavWithDuration(wav_base64=<base64 string>, mora_durations={self.mora_durations}, "
+            f"start_trim_buffer={self.start_trim_buffer}, end_trim_buffer={self.end_trim_buffer})"
+        )
+
 
 @dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass
@@ -124,3 +142,19 @@ class WavProcessingParam(DataClassJsonMixin):
     pause_end_trim_buffer: float
     wav_base64: str
     mora_durations: list[_MoraDurations]
+
+    def __repr__(self) -> str:
+        # base64 fields can be very large, so exclude them from the representation
+        return (
+            f"WavProcessingParam(volume_scale={self.volume_scale}, pitch_scale={self.pitch_scale}, "
+            f"intonation_scale={self.intonation_scale}, pre_phoneme_length={self.pre_phoneme_length}, "
+            f"post_phoneme_length={self.post_phoneme_length}, "
+            f"output_sampling_rate={self.output_sampling_rate}, "
+            f"sampled_interval_value={self.sampled_interval_value}, adjusted_f0={self.adjusted_f0}, "
+            f"processing_algorithm={self.processing_algorithm}, "
+            f"start_trim_buffer={self.start_trim_buffer}, "
+            f"end_trim_buffer={self.end_trim_buffer}, pause_length={self.pause_length}, "
+            f"pause_start_trim_buffer={self.pause_start_trim_buffer}, "
+            f"pause_end_trim_buffer={self.pause_end_trim_buffer}, "
+            f"wav_base64=<base64 string>, mora_durations={self.mora_durations})"
+        )
