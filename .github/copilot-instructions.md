@@ -27,8 +27,15 @@
 - **Exceptions**: Assign error message to `msg` variable before raising (e.g., `msg = "error"; raise ValueError(msg)`).
 - **Unused parameters**: Use `_ = arg1, arg2` immediately after docstring to suppress linting.
 - **Docstrings**: Google style; place module docstring first, then `from __future__ import annotations`, then imports.
-- **Comments**: English only; keep Japanese only for user-facing text or language-specific content (e.g., dictionaries, katakana conversion).
+  - Module docstrings: Brief description of the module's purpose.
+  - Class docstrings: Brief description of behavior and key attributes.
+  - Method docstrings: Brief description of behavior, arguments, return values, and raised exceptions.
+  - **Exception**: Trivial methods whose behavior is self-evident from the code may omit docstrings.
+  - **CRITICAL**: Compatibility information and bug-workaround details must never be deleted; they may be made concise but must be preserved. This rule takes precedence over all other documentation guidelines.
+- **Comments**: All comments (including docstrings and inline comments) must be written in English only. Japanese is strictly prohibited in comments, except when it is necessary to describe argument values, data content, or user-facing text that must be in Japanese for functional reasons (e.g., dictionary entries, kana conversion tables, or when the comment itself is a sample of user input/output in Japanese). Any other use of Japanese in comments is not allowed.
+  - **CRITICAL**: Compatibility information and bug-workaround details must never be deleted; they may be made concise but must be preserved. This rule takes precedence over all other comment guidelines.
 - **Inline comments**: Only for non-obvious or bug-prone logic; omit obvious code comments.
+  - **CRITICAL**: Compatibility information and bug-workaround details must never be deleted; they may be made concise but must be preserved.
 
 ## Integration points
 - **EventSub webhooks** ([core/bot.py](../core/bot.py)): `Bot._subscribe_to_chat_events()` registers chat message, delete, and clear subscriptions.
