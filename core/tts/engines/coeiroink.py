@@ -78,7 +78,7 @@ class CoeiroInk(VoiceVox):
 
         logger.debug(
             "speaker: %d, speedScale: %.2f, pitchScale: %.2f, intonationScale: %.2f, volumeScale: %.2f",
-            self._get_speaker_id(ttsparam),
+            self._get_style_id(ttsparam),
             audio_query.speedScale,
             audio_query.pitchScale,
             audio_query.intonationScale,
