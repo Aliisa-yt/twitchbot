@@ -13,17 +13,24 @@ Twitch チャット用の翻訳 + TTS ボット。チャットイベントを購
   1. `twitchbot.ini.example` を `twitchbot.ini` にコピー
   2. `twitchbot.ini` を編集して、Twitch チャンネルオーナー名とボットアカウント名を設定
   3. 必要に応じて他の設定をカスタマイズ（翻訳エンジン、TTS パラメータなど）
+- OAuth トークンを取得：
+  - `python setup_tokens.py [--owner OWNER_NAME] [--bot BOT_NAME]` を実行
+  - ブラウザで OAuth 認証が開き、トークンが `tokens.db` にキャッシュされます
+  - ボットの初回実行前に必要です
 
 ## 実行
 
 ### ローカル実行
 1) 上記の環境変数を設定します。
-2) リポジトリのルートから実行: `python twitchbot.py [--owner OWNER_NAME] [--bot BOT_NAME] [--debug]`
+2) まだ実行していない場合は `setup_tokens.py` を実行します（セットアップセクションを参照）。
+3) リポジトリのルートから実行: `python twitchbot.py [--owner OWNER_NAME] [--bot BOT_NAME] [--debug] [--gui|--no-gui]`
    - `--owner OWNER_NAME`（オプション）: Twitch チャンネルオーナー名。`twitchbot.ini` の設定を上書きします
    - `--bot BOT_NAME`（オプション）: ボットアカウント名。`twitchbot.ini` の設定を上書きします
    - `-d`, `--debug`（オプション）: 詳細なログ出力を行うデバッグモードを有効にします
-3) 初回起動時はブラウザで OAuth 認証が開きます。トークンは `tokens.db` にキャッシュされます。
-4) ボットを停止するには `Ctrl+C` を押してください。
+   - `-g`, `--gui`（オプション）: GUI インターフェースで起動します（デフォルト）
+   - `--no-gui`（オプション）: コンソールのみのモードで起動します
+4) ボットはデフォルトで GUI モードで実行され、ステータスウィンドウが表示されます。コンソールのみのモードを使用するには `--no-gui` を指定してください。
+5) ボットを停止するには、`Ctrl+C`（コンソールモード）を押すか、GUI ウィンドウを閉じてください。
 
 ### PyInstaller で実行ファイルをビルド
 `.spec` ファイルが提供されています。リポジトリのルートから EXE をビルドします：

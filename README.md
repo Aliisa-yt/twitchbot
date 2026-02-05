@@ -15,17 +15,24 @@ Translation + TTS bot for Twitch chat. It subscribes to chat events, translates 
   1. Copy `twitchbot.ini.example` to `twitchbot.ini`
   2. Edit `twitchbot.ini` and set your Twitch channel owner name and bot account name
   3. Customize other settings as needed (translation engines, TTS parameters, etc.)
+- Obtain OAuth tokens:
+  - Run `python setup_tokens.py [--owner OWNER_NAME] [--bot BOT_NAME]`
+  - This opens a browser for OAuth authorization and caches tokens to `tokens.db`
+  - Required before first run of the bot
 
 ## Run
 
 ### Local Execution
 1) Set the environment variables above.
-2) From the repo root: `python twitchbot.py [--owner OWNER_NAME] [--bot BOT_NAME] [--debug]`
+2) Run `setup_tokens.py` if you haven't already (see Setup section).
+3) From the repo root: `python twitchbot.py [--owner OWNER_NAME] [--bot BOT_NAME] [--debug] [--gui|--no-gui]`
    - `--owner OWNER_NAME` (optional): Twitch channel owner name; overrides `twitchbot.ini`
    - `--bot BOT_NAME` (optional): Bot account name; overrides `twitchbot.ini`
    - `-d`, `--debug` (optional): Enable debug mode for detailed logging
-3) First launch opens a browser for OAuth; tokens cache to `tokens.db`.
-4) Stop the bot with `Ctrl+C`.
+   - `-g`, `--gui` (optional): Launch with GUI interface (default)
+   - `--no-gui` (optional): Launch in console-only mode
+4) The bot runs in GUI mode by default, showing a status window. Use `--no-gui` for console-only mode.
+5) Stop the bot with `Ctrl+C` (console mode) or close the GUI window.
 
 ### Build Executable with PyInstaller
 The `.spec` file is provided; build the EXE from the repo root:
