@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 from twitchio.ext.commands import Component
 
 from core.components.base import Base
-from core.trans import TransManager
+from core.trans.manager import TransManager
 from handlers.chat_message import ChatMessageHandler
 from models.translation_models import TranslationInfo
 from utils.chat_utils import ChatUtils
