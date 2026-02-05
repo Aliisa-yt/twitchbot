@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from contextlib import suppress
 from typing import TYPE_CHECKING
 
 import twitchio
@@ -21,7 +22,9 @@ from twitchio.eventsub import (
 )
 from twitchio.ext import commands
 
-from core.components import Base, ChatEventsCog, Command, TimeSignalManager
+from core.components.chat_events import ChatEventsCog
+from core.components.command import Command
+from core.components.time_signal import TimeSignalManager
 from core.shared_data import SharedData
 from utils.chat_utils import ChatUtils
 from utils.logger_utils import LoggerUtils
@@ -35,6 +38,7 @@ if TYPE_CHECKING:
     from twitchio.models.chat import SentMessage
 
     from config.loader import Config
+    from core.components.base import Base
     from core.token_manager import TwitchBotToken
 
 
@@ -217,14 +221,11 @@ class Bot(commands.Bot):
     async def event_command_error(self, payload: CommandErrorPayload) -> None:
         """Called when an error occurs in a command.
 
-        This method is called when an error occurs in a command.
-        It logs the error and the command that caused it.
-
         Args:
             payload (CommandErrorPayload): The payload containing error information.
         """
         error: Exception = payload.exception
-        logger.error("Command error: %s", error, exc_info=True)
+        logger.error("Command error: %s", error)
 
     # event_message is overridden in the components, so do nothing here
     # async def event_message(self, payload: TwitchMessage) -> None:
@@ -265,21 +266,14 @@ class Bot(commands.Bot):
     async def close(self, **kwargs) -> None:
         """Close the bot and perform any necessary cleanup.
 
-        This method overrides the close() method in TwitchIO and automatically
-        begins the BOT termination process when a KeyboardInterrupt is triggered.
-
         Args:
-            **kwargs: Additional keyword arguments (Additional keyword arguments (used only in the parent class).
+            **kwargs: Additional keyword arguments passed to parent class.
+
+        Note:
+            TwitchIO's shutdown sequence may invoke close() multiple times. We guard cleanup
+            logic with self._closed to ensure it executes only once, while still delegating
+            to the base implementation each time.
         """
-        # NOTE:
-        # TwitchIO's shutdown sequence may cause Bot.close() to be invoked more than once.
-        # In this project, close() can be called explicitly from our KeyboardInterrupt /
-        # shutdown handling, and TwitchIO's Bot.run() (or internal loop shutdown) also calls
-        # close() in its own cleanup path when the event loop stops. As a result, during a
-        # normal termination close() may run twice.
-        # To avoid running our custom termination logic and cleanup coroutines multiple times,
-        # we guard them with self._closed so that they execute only once even if close() is
-        # invoked repeatedly, while still delegating to the base implementation each time.
         if not self._closed:
             self.print_console_message("Bot is shutting down... please wait.")
             logger.info("start termination process")
@@ -310,20 +304,16 @@ class Bot(commands.Bot):
         footer: str | None = None,
         chatter: User | PartialUser | Chatter | None = None,
     ) -> None:
-        """Output a message to the chat
+        """Send a message to Twitch chat.
 
-        The output message is limited to 450 characters, and if it exceeds that,
-        only the content will be cut to fit within 450 characters.
-        The header and footer will not be cut.
-        The behavior is not guaranteed if the header and footer are unreasonably long.
+        The output message is limited to 450 characters. If exceeded, only the content
+        is truncated to fit. The header and footer are not truncated.
 
         Args:
-            content (str | None): The message to output
-            header (str | None): The header to output before the content
-            footer (str | None): The footer to output after the content
-            channel (Channel | None): Specify the channel to output to
-                If not specified, it will output to the first channel listed in initial_channels
-                (Preparation for when multiple initial_channels are listed)
+            content (str | None): The message to send.
+            header (str | None): Optional header prefix (e.g., '/me ').
+            footer (str | None): Optional footer suffix.
+            chatter (User | PartialUser | Chatter | None): Target channel. If None, uses owner's channel.
         """
         if not content:
             return
@@ -356,15 +346,15 @@ class Bot(commands.Bot):
     def print_console_message(
         self, content: str | None, *, header: str | None = None, footer: str | None = None
     ) -> None:
-        """Output a message to the console
+        """Print a message to the console.
 
-        The output message is limited to 80 characters. If it exceeds that, the content
-        is truncated to fit within 80 characters. The header and footer are not truncated.
+        The output message is limited to 80 characters. If exceeded, only the content
+        is truncated to fit. The header and footer are not truncated.
 
         Args:
-            content (str): The message to output
-            header (str | None): The header to output before the content
-            footer (str | None): The footer to output after the content
+            content (str | None): The message to print.
+            header (str | None): Optional header prefix.
+            footer (str | None): Optional footer suffix.
         """
         if not content:
             return
@@ -388,9 +378,9 @@ class Bot(commands.Bot):
     def pause_exit(self) -> None:
         """Pause the program and wait for user input before exiting.
 
-        This method is used to prevent the program from exiting immediately,
-        allowing the user to read any error messages or logs before closing the console.
+        Allows the user to read error messages before the console closes.
+        In GUI mode with --noconsole build, stdin is unavailable and EOFError is suppressed.
         """
-        # Use input method to be platform independent
-        input("Press Enter to exit...")
-        raise SystemExit(1)
+        with suppress(KeyboardInterrupt, EOFError):
+            input("Press Enter to exit...")
+        raise KeyboardInterrupt

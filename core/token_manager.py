@@ -183,6 +183,7 @@ class TokenManager:
     # -----------------------------------
     def _get_authorization_code_via_browser(self) -> str:
         """Open a web browser to get the authorization code."""
+        # Build OAuth authorization parameters
         params: dict[str, str] = {
             "client_id": self.client_id,
             "redirect_uri": REDIRECT_URI,
@@ -190,11 +191,22 @@ class TokenManager:
             "scope": " ".join(ACCESS_SCOPES.selected),
         }
         url: str = f"https://id.twitch.tv/oauth2/authorize?{urllib.parse.urlencode(params)}"
+
+        # Attempt to open the authorization URL in default browser
         print("Opening browser to get authorization code...")
         if not webbrowser.open(url):
             logger.warning("Failed to open web browser automatically.")
             print(f"Please open the following URL in your browser:\n{url}")
-        redirected: str = input("Paste the full redirect URL here: ")
+
+        # Prompt user to paste the redirect URL containing authorization code
+        try:
+            redirected: str = input("Paste the full redirect URL here: ")
+        except EOFError as err:
+            # Raised when input is unavailable (e.g., non-interactive terminal, forced termination)
+            msg: str = "forced termination or input unavailable; cannot obtain authorization code."
+            raise RuntimeError(msg) from err
+
+        # Extract authorization code from redirect URL query parameters
         query: str = urllib.parse.urlparse(redirected).query
         code: str | None = dict(urllib.parse.parse_qsl(query)).get("code")
         if not code:
