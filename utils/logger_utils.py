@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 import sys
 import warnings
-from logging import Formatter, StreamHandler
+from logging import Formatter, NullHandler, StreamHandler
 from logging.handlers import RotatingFileHandler
 from typing import TYPE_CHECKING, ClassVar, Final, Literal, NamedTuple, Self, TextIO
 
@@ -70,7 +70,7 @@ class LoggerUtils:
             cls._instance = super().__new__(cls)
         return cls._instance
 
-    def __init__(self, filename: str | Path) -> None:
+    def __init__(self, filename: str | Path, *, use_null_console: bool = False) -> None:
         """Initialize the logger with the specified filename.
 
         If the logger is already configured, this method does nothing.
@@ -78,6 +78,7 @@ class LoggerUtils:
         Args:
             filename (str | Path): The log file name is specified by absolute path.
                                    If empty, logging to a file is not performed.
+            use_null_console (bool): If True, uses NullHandler instead of StreamHandler for console output.
 
         Note:
             The file name must be specified as an absolute path.
@@ -89,6 +90,7 @@ class LoggerUtils:
             return
 
         self.root_logger: logging.Logger = logging.getLogger(self._LOGGER_NAMESPACE)
+        self._use_null_console: bool = bool(use_null_console) or sys.stderr is None
         filename = str(filename)  # Unify with str type.
         # must be set to a lower level than the level set in the handler
         # otherwise, logs will not be output
@@ -153,6 +155,13 @@ class LoggerUtils:
         Console output is set to WARNING level or above for ease of viewing.
         Messages are kept minimal for better readability.
         """
+        if self._use_null_console:
+            if self._has_handler(NullHandler):
+                self.root_logger.warning("Console logging is already configured.")
+                return
+            self.root_logger.addHandler(NullHandler())
+            return
+
         if self._has_handler(StreamHandler):
             self.root_logger.warning("Console logging is already configured.")
             return
@@ -247,5 +256,5 @@ class LoggerUtils:
         if LoggerUtils._LOGGER_NAMESPACE:
             full_name = f"{LoggerUtils._LOGGER_NAMESPACE}.{name}" if name else LoggerUtils._LOGGER_NAMESPACE
         else:
-            full_name = name if name else None
+            full_name = name or None
         return logging.getLogger(full_name)
