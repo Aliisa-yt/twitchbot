@@ -167,7 +167,7 @@ class UserTypeInfo:
             list[str]: List of unique engine names across all user types and languages.
         """
         tts_engine_names: set[str] = set()
-        for _field in fields(type(self)):
+        for _field in fields(self):
             lang_map: TTSInfoPerLanguage = getattr(self, _field.name)
             for tts_info in lang_map.values():
                 if tts_info.engine:
@@ -185,7 +185,7 @@ class UserTypeInfo:
             list[str]: List of cast names used by the specified engine.
         """
         cast_list: set[str] = set()
-        for _field in fields(type(self)):
+        for _field in fields(self):
             lang_map: TTSInfoPerLanguage = getattr(self, _field.name)
             for tts_info in lang_map.values():
                 if tts_info.engine == engine_name:
