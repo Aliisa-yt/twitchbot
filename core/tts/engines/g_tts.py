@@ -107,12 +107,13 @@ class GoogleText2Speech(Interface):
 
             # Disable type checking because the type checker detects that the data type is float64,
             # even though the data type is float32 and the actual data is also float32.
-            raw_pcm, samplerate = soundfile.read(mp3_data, dtype="float32")
+            result = await asyncio.to_thread(soundfile.read, mp3_data, dtype="float32")
+            raw_pcm, samplerate = result
+            logger.debug("mp3 decoded: samplerate=%d, type=%s, frames=%d", samplerate, raw_pcm.dtype, raw_pcm.shape[0])
 
             # Validate and cast to float32 ndarray with proper type hints
             raw_pcm = _ensure_float32_array(raw_pcm, "mp3 audio data")
             audiodata = _AudioData(raw_pcm=raw_pcm, samplerate=samplerate)
-            logger.debug("sampling rate=%d", audiodata.samplerate)
 
             _volume: int | None = ttsparam.tts_info.voice.volume
             # Skip volume conversion process when volume is None or 100
