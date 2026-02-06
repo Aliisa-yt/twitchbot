@@ -9,6 +9,7 @@ and truncate messages to fit within specified length limits.
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Final
 
 from utils.logger_utils import LoggerUtils
@@ -132,3 +133,15 @@ class ChatUtils:
             _content = f"{_header}{_content}{_footer}"
 
         return _content
+
+    @staticmethod
+    def get_current_time() -> str:
+        """Get the current time formatted as HH:MM.
+
+        Returns:
+            str: The current time in HH:MM format.
+        """
+
+        current_time: str = datetime.now(tz=UTC).astimezone().strftime("%H:%M")
+        logger.debug("Current time: %s", current_time)
+        return current_time

@@ -188,7 +188,7 @@ class ChatEventsCog(Base):
         """
         self.print_console_message(
             message.formatting_messages(content=trans_info.content, language=trans_info.src_lang),
-            header="<- ",
+            header="<- " + ChatUtils.get_current_time() + " ",
         )
 
         if self.config.TTS.ORIGINAL_TEXT:
@@ -223,5 +223,7 @@ class ChatEventsCog(Base):
         trans_info.translated_text = message.formatting_messages(
             content=trans_info.translated_text, language=trans_info.tgt_lang, is_translated=True
         )
-        self.print_console_message(trans_info.translated_text, header="-> ", footer=footer)
+        self.print_console_message(
+            trans_info.translated_text, header="-> " + ChatUtils.get_current_time() + " ", footer=footer
+        )
         await self.send_chat_message(trans_info.translated_text, header="/me ", footer=footer)
