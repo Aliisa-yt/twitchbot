@@ -261,7 +261,7 @@ class AudioPlaybackManager:
         """
         for attempt in range(max_retries):
             try:
-                file_path.unlink(missing_ok=True)
+                file_path.unlink(missing_ok=True)  # noqa: ASYNC240
             except PermissionError as err:
                 if attempt < max_retries - 1:
                     logger.debug(
