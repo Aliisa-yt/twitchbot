@@ -2,9 +2,6 @@
 
 This module provides the main entry point for the Twitchbot application. It handles
 GUI initialization, configuration loading, token verification, and bot startup.
-
-TODO: GUI起動時に謎のスタックトレースが出る問題の調査
-TODO: 例外発生時に大量のスタックトレースが出る問題の調査
 """
 
 from __future__ import annotations
