@@ -2,8 +2,8 @@
 
 This document provides an English overview of the current Twitchbot Python source layout (excluding `__init__.py`). It is intended for onboarding, navigation, and quick impact assessment when editing the codebase.
 
-**Date**: 2026-02-02  
-**Version**: 1.1.1
+**Date**: 2026-02-06  
+**Version**: 1.2.0
 
 ---
 
@@ -11,6 +11,7 @@ This document provides an English overview of the current Twitchbot Python sourc
 
 ```
 
+├── setup_tokens.py                   # Token setup utility
 ├── twitchbot.py                      # Entry point
 ├── config/
 │   └── loader.py                     # INI loader/validator
@@ -69,6 +70,8 @@ This document provides an English overview of the current Twitchbot Python sourc
     ├── chat_utils.py
     ├── excludable_queue.py
     ├── file_utils.py
+    ├── gui_app.py
+    ├── gui_logging_handler.py
     ├── logger_utils.py
     ├── string_utils.py
     └── tts_utils.py
@@ -79,6 +82,7 @@ This document provides an English overview of the current Twitchbot Python sourc
 ## Directory and File Highlights
 
 ### Root
+- `setup_tokens.py`: Console-only token setup utility; performs OAuth flow and stores tokens in `tokens.db`.
 - `twitchbot.py`: Main entrypoint — version check (3.13+), logging setup, config load, CLI args (`--owner`, `--bot`, `--debug`), temp dir creation, dictionary load, OAuth flow, and bot lifecycle.
 
 ### config
@@ -131,6 +135,8 @@ This document provides an English overview of the current Twitchbot Python sourc
 - `chat_utils.py`: Chat helpers (ignore rules, truncation, footer generation).
 - `excludable_queue.py`: Async queue with exclusion/shutdown controls.
 - `file_utils.py`: Safe file removal and path resolution.
+- `gui_app.py`: Tkinter GUI app integrating asyncio with a live log console.
+- `gui_logging_handler.py`: Logging handler that writes formatted records to a tkinter Text widget.
 - `logger_utils.py`: Central logging setup and logger retrieval.
 - `string_utils.py`: String sanitation, blank compression, IRC decoding.
 - `tts_utils.py`: TTS parameter prep and validation.
