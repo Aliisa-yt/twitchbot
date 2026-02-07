@@ -15,6 +15,7 @@ from utils.tts_utils import TTSUtils
 
 if TYPE_CHECKING:
     import logging
+    from pathlib import Path
 
     from twitchio import ChannelChatClear, ChannelChatClearUserMessages, ChatMessageDelete
     from twitchio import ChatMessage as TwitchMessage
@@ -50,9 +51,16 @@ class ChatEventsCog(Base):
         """
         _ = payload
         logger.debug("Chat has been cleared")
+
         # The queue must be cleared before stopping playback.
         # Otherwise, the next playback may start immediately after the playback is stopped.
-        await self.tts_manager.playback_queue.clear(callback=self.tts_manager.file_remove)
+        async def _enqueue_delete(tts_param: TTSParam) -> None:
+            _file_path: Path | None = tts_param.filepath
+            if _file_path is not None:
+                self.tts_manager.file_manager.enqueue_file_deletion(_file_path)
+
+        await self.tts_manager.playback_queue.clear(callback=_enqueue_delete)
+
         # Playback will stop unconditionally when the chat box is cleared.
         if self.tts_manager.playback_manager.is_playing:
             await self.tts_manager.playback_manager.cancel_playback()

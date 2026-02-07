@@ -4,11 +4,11 @@ import asyncio
 from typing import TYPE_CHECKING
 
 from core.tts.audio_playback_manager import AudioPlaybackManager
+from core.tts.file_manager import TTSFileManager
 from core.tts.interface import Interface
 from core.tts.parameter_manager import ParameterManager
 from core.tts.synthesis_manager import SynthesisManager
 from utils.excludable_queue import ExcludableQueue
-from utils.file_utils import FileUtils
 from utils.logger_utils import LoggerUtils
 
 if TYPE_CHECKING:
@@ -45,6 +45,7 @@ class TTSManager:
         # and to prevent deadlocks when multiple tasks are trying to access the queue.
         self.synthesis_queue: ExcludableQueue[TTSParam] = ExcludableQueue()
         self.playback_queue: ExcludableQueue[TTSParam] = ExcludableQueue()
+        self.deletion_queue: asyncio.Queue[Path] = asyncio.Queue()
 
         # Event to signal task termination
         # This event is used to gracefully shut down the TTS processing tasks.
@@ -56,11 +57,14 @@ class TTSManager:
         # `ParameterManager` manages voice parameters and user types.
         # `SynthesisManager` handles the TTS synthesis process.
         # `AudioPlaybackManager` manages the playback of synthesized audio.
+        self.file_manager = TTSFileManager(self.deletion_queue)
         self.parameter_manager = ParameterManager(config)
         self.synthesis_manager = SynthesisManager(
             config, self.synthesis_queue, self.playback_queue, self.task_terminate_event
         )
-        self.playback_manager = AudioPlaybackManager(config, self.playback_queue, self.task_terminate_event)
+        self.playback_manager = AudioPlaybackManager(
+            config, self.file_manager, self.playback_queue, self.task_terminate_event
+        )
 
         # Set to keep track of background tasks
         # This set is used to manage and monitor the background tasks that are running.
@@ -87,6 +91,7 @@ class TTSManager:
                 name="TTS_processing_task",
             ),
             asyncio.create_task(self.playback_manager.playback_queue_processor(), name="play_voicefile_task"),
+            asyncio.create_task(self.file_manager.audio_file_cleanup_task(), name="audio_file_cleanup_task"),
         ]
         for task in tasks:
             logger.debug("Creating task: '%s'", task.get_name())
@@ -101,8 +106,9 @@ class TTSManager:
         self.task_terminate_event.set()
 
         # The shutdown() method is executed to throw a QueueShutDown exception and terminate the endless loop task.
-        self.synthesis_queue.shutdown()
         self.playback_queue.shutdown()
+        self.synthesis_queue.shutdown()
+        self.deletion_queue.shutdown()
 
         logger.debug("Waiting for background tasks to finish")
         # Wait for all background tasks to finish or timeout after 2 seconds.
@@ -145,8 +151,3 @@ class TTSManager:
     @property
     def voice_parameters(self) -> UserTypeInfo:
         return self.parameter_manager.voice_parameters
-
-    def file_remove(self, tts_param: TTSParam) -> None:
-        file_path: Path | None = tts_param.filepath
-        if file_path is not None:
-            FileUtils.remove(file_path)

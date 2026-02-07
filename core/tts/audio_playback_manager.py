@@ -1,16 +1,22 @@
+"""Audio playback manager using PyAudio and soundfile.
+
+This module provides the AudioPlaybackManager class, which handles
+the playback of audio files in a non-blocking manner using asyncio.
+It uses PyAudio for audio output and soundfile for reading audio files.
+"""
+
 from __future__ import annotations
 
 import asyncio
 import contextlib
 from functools import partial
-from pathlib import Path
 from typing import TYPE_CHECKING, Final
 
 import pyaudio
 import soundfile
 
 from models.voice_models import TTSParam
-from utils.excludable_queue import ExcludableQueue
+from utils.file_utils import FileUtils
 from utils.logger_utils import LoggerUtils
 
 if TYPE_CHECKING:
@@ -18,6 +24,7 @@ if TYPE_CHECKING:
     from pathlib import Path
 
     from config.loader import Config
+    from core.tts.file_manager import TTSFileManager
     from utils.excludable_queue import ExcludableQueue
 
 # soundfile -> pyaudio conversion tables
@@ -107,6 +114,7 @@ class AudioPlaybackManager:
     def __init__(
         self,
         config: Config,
+        file_manager: TTSFileManager,
         playback_queue: ExcludableQueue[TTSParam],
         task_terminate_event: asyncio.Event,
     ) -> None:
@@ -114,10 +122,12 @@ class AudioPlaybackManager:
 
         Args:
             config (Config): Configuration object.
+            file_manager (TTSFileManager): File manager for handling audio files.
             playback_queue (ExcludableQueue[TTSParam]): Queue for TTS parameters.
             task_terminate_event (asyncio.Event): Event to terminate the playback task.
         """
         self.config: Config = config
+        self.file_manager: TTSFileManager = file_manager
         self.playback_queue: ExcludableQueue[TTSParam] = playback_queue
         # An event that terminates a task. Must never be cleared.
         self.task_terminate_event: asyncio.Event = task_terminate_event
@@ -126,9 +136,6 @@ class AudioPlaybackManager:
         self.play_task: asyncio.Task[None] | None = None
         self._pyaudio: pyaudio.PyAudio | None = pyaudio.PyAudio()
         self.stream: pyaudio.Stream | None = None
-        # Queue and task for asynchronous file deletion
-        self._deletion_queue: asyncio.Queue[Path] = asyncio.Queue()
-        self._deletion_task: asyncio.Task[None] | None = None
 
     async def playback_queue_processor(self) -> None:
         """Asynchronous task to process and play queued audio files.
@@ -136,25 +143,23 @@ class AudioPlaybackManager:
         Continuously fetches audio files from the queue and plays them unless a termination
         event is set. Supports optional timeout based on configuration.
         """
-        # Start the file deletion worker task
-        self._deletion_task = asyncio.create_task(self._file_deletion_worker())
         try:
             while True:
                 tts_param: TTSParam = await self.playback_queue.get()
-                self.playback_queue.task_done()
-                if not isinstance(tts_param, TTSParam):
-                    continue
-
-                file_path: Path | None = self._get_valid_file_path(tts_param)
-                if file_path is None:
-                    logger.error("Invalid file path: '%s'", tts_param.filepath)
-                    continue
-
-                logger.debug("Audio file: '%s'", file_path)
-                self.play_task = asyncio.create_task(self._play_pyaudio(file_path, self.task_terminate_event))
-
-                _timelimit: float | None = self._get_timelimit()
                 try:
+                    if not isinstance(tts_param, TTSParam):
+                        logger.warning("Invalid TTSParam in playback queue: %s", tts_param)
+                        continue
+
+                    file_path: Path | None = tts_param.filepath
+                    if file_path is None or not FileUtils.is_valid_file_path(file_path, suffix=".wav"):
+                        continue
+
+                    logger.debug("Audio file: '%s'", file_path)
+                    self.play_task = asyncio.create_task(self._play_pyaudio(file_path, self.task_terminate_event))
+
+                    _timelimit: float | None = self._get_timelimit()
+
                     async with asyncio.timeout(_timelimit):
                         logger.debug("Playback start")
                         await self.play_task
@@ -167,6 +172,7 @@ class AudioPlaybackManager:
                     logger.info("Playback completed")
                 finally:
                     self.play_task = None
+                    self.playback_queue.task_done()
                     logger.debug("Waiting for playback task to finish")
                     # Pause playback as sound can be connected if the next playback starts
                     # immediately after the end of playback.
@@ -174,36 +180,8 @@ class AudioPlaybackManager:
         except asyncio.QueueShutDown:
             logger.debug("Playback queue closed")
             self.release_pyaudio()
-        finally:
-            # Cancel the deletion worker and wait for remaining files to be deleted
-            if self._deletion_task and not self._deletion_task.done():
-                self._deletion_task.cancel()
-                try:
-                    await self._deletion_task
-                except asyncio.CancelledError:
-                    logger.debug("File deletion worker cancelled")
 
         logger.info("Audio playback task finished")
-
-    def _get_valid_file_path(self, tts_param: TTSParam) -> Path | None:
-        """Validates the audio file path from TTS parameters.
-
-        Args:
-            tts_param (TTSParam): TTS parameters containing the file path.
-
-        Returns:
-            Path | None: Valid file path if it exists and has .wav extension, None otherwise.
-        """
-        file_path: Path | None = tts_param.filepath
-        if file_path is None:
-            return None
-        if not file_path.exists():
-            logger.error("Audio file does not exist: '%s'", file_path)
-            return None
-        if file_path.suffix.lower() != ".wav":
-            logger.error("Unsupported audio format: '%s'", file_path.suffix)
-            return None
-        return file_path
 
     def _get_timelimit(self) -> float | None:
         """Gets the playback time limit from configuration.
@@ -221,69 +199,6 @@ class AudioPlaybackManager:
             )
             logger.debug(err)
         return None
-
-    async def _file_deletion_worker(self) -> None:
-        """Background worker task to delete audio files asynchronously.
-
-        This task runs independently from playback and processes files from the deletion queue.
-        It retries deletion on PermissionError to handle Windows file locking issues.
-        """
-        try:
-            while True:
-                file_path: Path = await self._deletion_queue.get()
-                await self._delete_file_with_retry(file_path)
-                self._deletion_queue.task_done()
-        except asyncio.CancelledError:
-            # Process remaining files in the queue before exiting
-            logger.debug("Processing remaining files before deletion worker exits")
-            while not self._deletion_queue.empty():
-                try:
-                    file_path = self._deletion_queue.get_nowait()
-                    await self._delete_file_with_retry(file_path)
-                    self._deletion_queue.task_done()
-                except asyncio.QueueEmpty:
-                    break
-            logger.info("File deletion worker finished")
-            raise
-
-    async def _delete_file_with_retry(
-        self,
-        file_path: Path,
-        max_retries: int = 3,
-        delay: float = 0.5,
-    ) -> None:
-        """Delete a file with retry logic for handling PermissionError.
-
-        Args:
-            file_path (Path): Path to the file to delete.
-            max_retries (int): Maximum number of retry attempts.
-            delay (float): Delay in seconds between retries.
-        """
-        for attempt in range(max_retries):
-            try:
-                file_path.unlink(missing_ok=True)  # noqa: ASYNC240
-            except PermissionError as err:
-                if attempt < max_retries - 1:
-                    logger.debug(
-                        "PermissionError deleting '%s', retrying... (%d/%d)",
-                        file_path,
-                        attempt + 1,
-                        max_retries,
-                    )
-                    await asyncio.sleep(delay)
-                else:
-                    logger.warning(
-                        "Failed to delete '%s' after %d attempts: %s",
-                        file_path,
-                        max_retries,
-                        err,
-                    )
-            except Exception as err:  # noqa: BLE001
-                logger.error("Unexpected error deleting '%s': %s", file_path, err)
-                return
-            else:
-                logger.debug("Deleted audio file: '%s'", file_path)
-                return
 
     async def cancel_playback(self) -> None:
         """Cancels the currently playing WAV file.
@@ -342,14 +257,23 @@ class AudioPlaybackManager:
                     sf.samplerate,
                     frame_buffer_size,
                 )
-                self.stream = self.pyaudio.open(
-                    format=_format,
-                    channels=sf.channels,
-                    rate=sf.samplerate,
-                    output=True,
-                    frames_per_buffer=frame_buffer_size,
-                    stream_callback=callback_fn,
-                )
+                try:
+                    self.stream = self.pyaudio.open(
+                        format=_format,
+                        channels=sf.channels,
+                        rate=sf.samplerate,
+                        output=True,
+                        frames_per_buffer=frame_buffer_size,
+                        stream_callback=callback_fn,
+                    )
+                except Exception as err:  # noqa: BLE001
+                    logger.error("Error opening PyAudio stream: %s", err)
+                    return
+                # It is unclear whether the stream can become 'None' without an exception occurring.
+                if self.stream is None:
+                    logger.error("Failed to create PyAudio stream")
+                    return
+
                 self.stream.start_stream()
                 await self.cancel_playback_event.wait()
                 self.stream.stop_stream()
@@ -362,8 +286,8 @@ class AudioPlaybackManager:
         except asyncio.CancelledError as err:
             logger.info("Playback task was cancelled: %s", err)
         finally:
-            # Queue the file for asynchronous deletion (non-blocking)
-            self._deletion_queue.put_nowait(file_path)
+            # file for asynchronous deletion (non-blocking)
+            self.file_manager.enqueue_file_deletion(file_path)
             # Ensure stream is closed if an error occured earlier
             if self.stream is not None:
                 with contextlib.suppress(Exception):
