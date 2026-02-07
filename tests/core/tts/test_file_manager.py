@@ -92,7 +92,7 @@ async def test_delete_file_with_retry_succeeds_after_permission_error(
     file_path: Path = tmp_path / "audio.wav"
     file_path.write_bytes(b"data")  # noqa: ASYNC240
 
-    monkeypatch.setattr(FileUtils, "check_file_availability", MagicMock(return_value=True))
+    monkeypatch.setattr(FileUtils, "check_file_status", MagicMock(return_value=True))
 
     call_state = SimpleNamespace(count=0)
     original_unlink = Path.unlink
@@ -117,10 +117,10 @@ async def test_delete_file_with_retry_skips_when_unavailable(monkeypatch: pytest
     manager: TTSFileManager = TTSFileManager(deletion_queue)
     file_path: Path = Path("missing.wav")
 
-    monkeypatch.setattr(FileUtils, "check_file_availability", MagicMock(return_value=False))
+    monkeypatch.setattr(FileUtils, "check_file_status", MagicMock(return_value=False))
     unlink_mock: MagicMock = MagicMock()
     monkeypatch.setattr(Path, "unlink", unlink_mock)
 
-    await manager._delete_file_with_retry(file_path, max_retries=1, delay=0)
+    await manager._delete_file_with_retry(file_path, max_retries=0, delay=0)
 
     unlink_mock.assert_not_called()

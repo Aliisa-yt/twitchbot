@@ -63,7 +63,7 @@ async def test_dispatch_tts_tasks_handles_various_outcomes() -> None:
 
     synth_q: ExcludableQueue[TTSParam] = ExcludableQueue()
     play_q: ExcludableQueue[TTSParam] = ExcludableQueue()
-    manager = SynthesisManager(config, synth_q, play_q, asyncio.Event())
+    manager = SynthesisManager(config, synth_q, play_q)
 
     ok_handler = SimpleNamespace(do=lambda *_a, **_k: asyncio.sleep(0, result=None))
 
@@ -95,7 +95,7 @@ async def test_handle_tts_param_dispatches_to_correct_engine_and_handles_invalid
 
     synth_q: ExcludableQueue[TTSParam] = ExcludableQueue()
     play_q: ExcludableQueue[TTSParam] = ExcludableQueue()
-    manager = SynthesisManager(config, synth_q, play_q, asyncio.Event())
+    manager = SynthesisManager(config, synth_q, play_q)
 
     ok_handler: Any = DummyHandler()
     handler_map: TTSEngineHandlerMap = {"ok": ok_handler}
@@ -126,7 +126,7 @@ async def test_tts_processing_task_consumes_queue_and_handles_shutdown() -> None
 
     synth_q: ExcludableQueue[TTSParam] = ExcludableQueue()
     play_q: ExcludableQueue[TTSParam] = ExcludableQueue()
-    manager = SynthesisManager(config, synth_q, play_q, asyncio.Event())
+    manager = SynthesisManager(config, synth_q, play_q)
 
     # prepare handler that sets events when methods called
     class EHandler:

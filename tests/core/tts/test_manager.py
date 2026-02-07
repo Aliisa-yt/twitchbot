@@ -57,7 +57,6 @@ def test_init_sets_managers_and_interface_hooks() -> None:
             config,
             manager.synthesis_queue,
             manager.playback_queue,
-            manager.task_terminate_event,
         )
         playback_cls.assert_called_once_with(
             config, manager.file_manager, manager.playback_queue, manager.task_terminate_event
