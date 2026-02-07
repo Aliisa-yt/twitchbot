@@ -2,45 +2,52 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-from typing import TYPE_CHECKING
 
-from utils.logger_utils import LoggerUtils
-
-if TYPE_CHECKING:
-    import logging
-
-__all__: list[str] = ["FileUtils"]
-
-logger: logging.Logger = LoggerUtils.get_logger(__name__)
+__all__: list[str] = [
+    "FileInUseError",
+    "FileMissingError",
+    "FilePermissionError",
+    "FileUtils",
+    "FileUtilsError",
+    "InvalidFileTypeError",
+    "UnsupportedFileFormatError",
+]
 
 
 class FileUtils:
-    """File system utility functions for safe file operations.
+    """Utility class for file operations with safety checks.
 
-    Provides methods for file deletion with safety checks and path resolution.
+    Provides methods to safely remove files, resolve paths, and validate file types.
     """
 
     @staticmethod
-    def check_file_availability(file_path: Path) -> bool:
-        """Check if a file exists and is safe to delete.
+    def check_file_status(file_path: Path) -> None:
+        """Challenges the status of a file before performing operations.
+
+        Checks for various conditions:
+        - Existence of the file
+        - Whether it's a directory
+        - Whether it's a symbolic link
+        - Whether it's in use (hard link count > 1)
+
         Args:
             file_path (Path): The path to the file to check.
-        Returns:
-            bool: True if the file exists and is safe to delete, False otherwise.
+
+        Raises:
+            FileMissingError: If the file does not exist.
+            InvalidFileTypeError: If the file is a directory or a symbolic link.
+            FileInUseError: If the file is in use (hard link count > 1).
         """
+
         if not file_path.exists():
-            logger.debug("File does not exist: %s", file_path)
-            return False
-        if file_path.is_dir():
-            logger.warning("File is a directory: %s", file_path)
-            return False
-        if file_path.is_symlink():
-            logger.warning("File is a symlink: %s", file_path)
-            return False
+            msg = f"File does not exist: {file_path}"
+            raise FileMissingError(msg)
+        if file_path.is_dir() or file_path.is_symlink():
+            msg = f"Invalid file type (directory or symbolic link): {file_path}"
+            raise InvalidFileTypeError(msg)
         if file_path.stat().st_nlink > 1:
-            logger.warning("File is in use: %s", file_path)
-            return False
-        return True
+            msg = f"File is in use (hard link count > 1): {file_path}"
+            raise FileInUseError(msg)
 
     @staticmethod
     def remove(file_path: Path) -> None:
@@ -52,19 +59,22 @@ class FileUtils:
         - Whether it's a symbolic link
         - Whether it's in use (hard link count > 1)
 
-        Logs appropriate messages for each condition.
-
         Args:
             file_path (Path): The path to the file to remove.
+
+        Raises:
+            FileMissingError: If the file does not exist.
+            InvalidFileTypeError: If the file is a directory or a symbolic link.
+            FileInUseError: If the file is in use (hard link count > 1).
+            FilePermissionError: If there are insufficient permissions to delete the file.
         """
-        if not FileUtils.check_file_availability(file_path):
-            return
-        # Attempt to remove the file
+
+        FileUtils.check_file_status(file_path)
         try:
             file_path.unlink(missing_ok=True)
-            logger.debug("File deleted: %s", file_path)
         except PermissionError as err:
-            logger.warning("Error deleting file '%s': %s", file_path, err)
+            msg = f"Insufficient permissions to delete the file: {file_path}"
+            raise FilePermissionError(msg) from err
 
     @staticmethod
     def resolve_path(path: str | Path, *, strict: bool = False) -> Path:
@@ -90,27 +100,51 @@ class FileUtils:
             resolved_path = user_expanded.resolve(strict=strict)
         else:
             resolved_path = (Path.cwd() / user_expanded).resolve(strict=strict)
-        logger.debug("Original path: %s, Resolved absolute path: %s", path_str, resolved_path)
         return resolved_path
 
     @staticmethod
-    def is_valid_file_path(file_path: Path, suffix: list[str] | str) -> bool:
-        """Check if the given file path is valid and has the correct suffix.
+    def validate_file_path(file_path: Path, suffix: list[str] | str) -> None:
+        """Validate that a file exists and has an allowed suffix.
 
         Args:
-            file_path (Path): The file path to check.
-            suffix (list[str] | str): The expected file suffix or list of suffixes.
+            file_path (Path): The path to the file to validate.
+            suffix (list[str] | str): Allowed file suffix(es) (e.g., [".txt", ".md"] or ".txt").
 
-        Returns:
-            bool: True if the file path is valid and has the correct suffix, False otherwise.
+        Raises:
+            FileMissingError: If the file does not exist.
+            UnsupportedFileFormatError: If the file's suffix is not in the allowed list.
         """
+
         if isinstance(suffix, str):
             suffix = [suffix]
 
         if not file_path.exists():
-            logger.error("File does not exist: '%s'", file_path)
-            return False
+            msg = f"File does not exist: {file_path}"
+            raise FileMissingError(msg)
         if file_path.suffix.lower() not in [s.lower() for s in suffix]:
-            logger.error("Unsupported file format: '%s'", file_path.suffix)
-            return False
-        return True
+            msg = f"Unsupported file format: '{file_path.suffix}'. Supported formats are: {', '.join(suffix)}"
+            raise UnsupportedFileFormatError(msg)
+
+
+class FileUtilsError(Exception):
+    """Custom exception for FileUtils-related errors."""
+
+
+class FileMissingError(FileUtilsError):
+    """Custom exception for file missing errors."""
+
+
+class InvalidFileTypeError(FileUtilsError):
+    """Custom exception for invalid file type errors."""
+
+
+class FileInUseError(FileUtilsError):
+    """Custom exception for file-in-use errors."""
+
+
+class FilePermissionError(FileUtilsError):
+    """Custom exception for file permission errors."""
+
+
+class UnsupportedFileFormatError(FileUtilsError):
+    """Custom exception for unsupported file format errors."""

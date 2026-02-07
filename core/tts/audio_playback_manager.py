@@ -16,7 +16,7 @@ import pyaudio
 import soundfile
 
 from models.voice_models import TTSParam
-from utils.file_utils import FileUtils
+from utils.file_utils import FileUtils, FileUtilsError
 from utils.logger_utils import LoggerUtils
 
 if TYPE_CHECKING:
@@ -152,7 +152,12 @@ class AudioPlaybackManager:
                         continue
 
                     file_path: Path | None = tts_param.filepath
-                    if file_path is None or not FileUtils.is_valid_file_path(file_path, suffix=".wav"):
+                    if file_path is None:
+                        continue
+                    try:
+                        FileUtils.validate_file_path(file_path, suffix=".wav")
+                    except FileUtilsError as err:
+                        logger.warning("Invalid file path: %s", err)
                         continue
 
                     logger.debug("Audio file: '%s'", file_path)

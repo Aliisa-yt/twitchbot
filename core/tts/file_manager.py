@@ -8,7 +8,7 @@ from __future__ import annotations
 import asyncio
 from typing import TYPE_CHECKING
 
-from utils.file_utils import FileUtils
+from utils.file_utils import FileUtils, FileUtilsError
 from utils.logger_utils import LoggerUtils
 
 if TYPE_CHECKING:
@@ -89,7 +89,10 @@ class TTSFileManager:
         """
         for attempt in range(max_retries):
             try:
-                if not FileUtils.check_file_availability(file_path):
+                try:
+                    FileUtils.check_file_status(file_path)
+                except FileUtilsError:
+                    logger.warning("File not found or invalid, skipping deletion: '%s'", file_path)
                     break
                 file_path.unlink(missing_ok=True)  # noqa: ASYNC240
 
