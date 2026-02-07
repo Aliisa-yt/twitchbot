@@ -21,6 +21,28 @@ class FileUtils:
     """
 
     @staticmethod
+    def check_file_availability(file_path: Path) -> bool:
+        """Check if a file exists and is safe to delete.
+        Args:
+            file_path (Path): The path to the file to check.
+        Returns:
+            bool: True if the file exists and is safe to delete, False otherwise.
+        """
+        if not file_path.exists():
+            logger.debug("File does not exist: %s", file_path)
+            return False
+        if file_path.is_dir():
+            logger.warning("File is a directory: %s", file_path)
+            return False
+        if file_path.is_symlink():
+            logger.warning("File is a symlink: %s", file_path)
+            return False
+        if file_path.stat().st_nlink > 1:
+            logger.warning("File is in use: %s", file_path)
+            return False
+        return True
+
+    @staticmethod
     def remove(file_path: Path) -> None:
         """Remove a file from the filesystem with safety checks.
 
@@ -35,17 +57,7 @@ class FileUtils:
         Args:
             file_path (Path): The path to the file to remove.
         """
-        if not file_path.exists():
-            logger.debug("File does not exist: %s", file_path)
-            return
-        if file_path.is_dir():
-            logger.warning("File is a directory: %s", file_path)
-            return
-        if file_path.is_symlink():
-            logger.warning("File is a symlink: %s", file_path)
-            return
-        if file_path.stat().st_nlink > 1:
-            logger.warning("File is in use: %s", file_path)
+        if not FileUtils.check_file_availability(file_path):
             return
         # Attempt to remove the file
         try:
@@ -80,3 +92,25 @@ class FileUtils:
             resolved_path = (Path.cwd() / user_expanded).resolve(strict=strict)
         logger.debug("Original path: %s, Resolved absolute path: %s", path_str, resolved_path)
         return resolved_path
+
+    @staticmethod
+    def is_valid_file_path(file_path: Path, suffix: list[str] | str) -> bool:
+        """Check if the given file path is valid and has the correct suffix.
+
+        Args:
+            file_path (Path): The file path to check.
+            suffix (list[str] | str): The expected file suffix or list of suffixes.
+
+        Returns:
+            bool: True if the file path is valid and has the correct suffix, False otherwise.
+        """
+        if isinstance(suffix, str):
+            suffix = [suffix]
+
+        if not file_path.exists():
+            logger.error("File does not exist: '%s'", file_path)
+            return False
+        if file_path.suffix.lower() not in [s.lower() for s in suffix]:
+            logger.error("Unsupported file format: '%s'", file_path.suffix)
+            return False
+        return True
