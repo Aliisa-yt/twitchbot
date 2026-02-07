@@ -59,9 +59,7 @@ class TTSManager:
         # `AudioPlaybackManager` manages the playback of synthesized audio.
         self.file_manager = TTSFileManager(self.deletion_queue)
         self.parameter_manager = ParameterManager(config)
-        self.synthesis_manager = SynthesisManager(
-            config, self.synthesis_queue, self.playback_queue, self.task_terminate_event
-        )
+        self.synthesis_manager = SynthesisManager(config, self.synthesis_queue, self.playback_queue)
         self.playback_manager = AudioPlaybackManager(
             config, self.file_manager, self.playback_queue, self.task_terminate_event
         )
