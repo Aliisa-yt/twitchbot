@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import asyncio
-from pathlib import Path
 from types import SimpleNamespace
 from typing import TYPE_CHECKING, cast
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -15,6 +14,7 @@ from utils.excludable_queue import ExcludableQueue
 
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable
+    from pathlib import Path
 
     from config.loader import Config
     from models.voice_models import TTSParam
@@ -59,7 +59,9 @@ def test_init_sets_managers_and_interface_hooks() -> None:
             manager.playback_queue,
             manager.task_terminate_event,
         )
-        playback_cls.assert_called_once_with(config, manager.playback_queue, manager.task_terminate_event)
+        playback_cls.assert_called_once_with(
+            config, manager.file_manager, manager.playback_queue, manager.task_terminate_event
+        )
 
         assert Interface.play_callback is synth_inst.add_to_playback_queue
         assert Interface.audio_save_directory == config.GENERAL.TMP_DIR
@@ -89,12 +91,12 @@ async def test_initialize_creates_tasks_once() -> None:
 
         manager = TTSManager(config)
         await manager.initialize()
-        task_names = {task.get_name() for task in manager.background_tasks}
+        task_names: set[str] = {task.get_name() for task in manager.background_tasks}
 
-        assert task_names == {"TTS_processing_task", "play_voicefile_task"}
+        assert task_names == {"audio_file_cleanup_task", "TTS_processing_task", "play_voicefile_task"}
 
         await manager.initialize()
-        assert len(manager.background_tasks) == 2
+        assert len(manager.background_tasks) == 3
 
         for task in manager.background_tasks:
             task.cancel()
@@ -200,28 +202,3 @@ def test_voice_parameters_property_returns_parameter_manager() -> None:
         manager = TTSManager(config)
 
     assert manager.voice_parameters is param_inst.voice_parameters
-
-
-def test_file_remove_delegates_to_file_utils(monkeypatch: pytest.MonkeyPatch) -> None:
-    config: Config = _make_config()
-
-    with (
-        patch("core.tts.manager.ParameterManager"),
-        patch("core.tts.manager.SynthesisManager"),
-        patch("core.tts.manager.AudioPlaybackManager"),
-    ):
-        manager = TTSManager(config)
-
-    removed = []
-
-    def fake_remove(path: Path) -> None:
-        removed.append(path)
-
-    monkeypatch.setattr("core.tts.manager.FileUtils.remove", fake_remove)
-
-    manager.file_remove(cast("TTSParam", SimpleNamespace(filepath=None)))
-    assert removed == []
-
-    path = Path("dummy.wav")
-    manager.file_remove(cast("TTSParam", SimpleNamespace(filepath=path)))
-    assert removed == [path]
