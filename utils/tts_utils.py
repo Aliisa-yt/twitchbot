@@ -3,19 +3,13 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, TypeVar
 
 from models.voice_models import TTSParam, VoiceParamType
-from utils.logger_utils import LoggerUtils
 from utils.string_utils import StringUtils
 
 if TYPE_CHECKING:
-    import logging
-
     from handlers.chat_message import ChatMessageHandler
     from models.config_models import Config
 
 __all__: list[str] = ["TTSUtils"]
-
-logger: logging.Logger = LoggerUtils.get_logger(__name__)
-# logger.addHandler(logging.NullHandler())
 
 T = TypeVar("T", int, float)
 
