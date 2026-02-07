@@ -7,6 +7,7 @@ processing synthesis requests, and queuing audio files for playback.
 from __future__ import annotations
 
 import asyncio
+import inspect
 from typing import TYPE_CHECKING
 
 # The TTS engine is invoked in such a way that it is recognised as an unused import.
@@ -59,7 +60,6 @@ class SynthesisManager:
         config: Config,
         synthesis_queue: ExcludableQueue[TTSParam],
         playback_queue: ExcludableQueue[TTSParam],
-        task_terminate_event: asyncio.Event,
     ) -> None:
         """Initialize the SynthesisManager with configuration and queues.
 
@@ -70,15 +70,11 @@ class SynthesisManager:
                 Queue for TTS synthesis requests.
             playback_queue (ExcludableQueue[TTSParam]):
                 Queue for audio playback requests.
-            task_terminate_event (asyncio.Event):
-                Event to signal task termination.
         """
         self.config: Config = config
         self.voice_parameters: UserTypeInfo = config.VOICE_PARAMETERS
         self.synthesis_queue: ExcludableQueue[TTSParam] = synthesis_queue
         self.playback_queue: ExcludableQueue[TTSParam] = playback_queue
-        # An event that terminates a task. Must never be cleared.
-        self.task_terminate_event: asyncio.Event = task_terminate_event
         self.emoji: EmojiHandler = EmojiHandler(
             self.config.TRANSLATION.NATIVE_LANGUAGE, self.config.TRANSLATION.SECOND_LANGUAGE
         )
@@ -147,6 +143,12 @@ class SynthesisManager:
                 coro: Awaitable[None] = method(*args, **kwargs)
             except Exception as err:  # noqa: BLE001
                 logger.error("Failed to schedule method '%s' on engine '%s': %s", method_name, engine_name, err)
+                continue
+
+            if not inspect.isawaitable(coro):
+                logger.error(
+                    "Method '%s' of TTS engine '%s' did not return an awaitable, skipping", method_name, engine_name
+                )
                 continue
 
             tasks.append(coro)
@@ -267,18 +269,14 @@ class SynthesisManager:
     async def enqueue_tts_synthesis(self, tts_param: TTSParam) -> None:
         """Enqueue the TTS parameters for synthesis.
 
-        This method prepares the TTS parameters and adds them to the synthesis queue.
-
         Args:
             tts_param (TTSParam): The TTS parameters to be processed and queued for synthesis.
         """
-        logger.debug("Preparing TTS parameters for synthesis: '%s'", tts_param)
+        logger.debug("Enqueuing TTS parameters for synthesis: '%s'", tts_param)
         await self.synthesis_queue.put(tts_param)
 
     async def add_to_playback_queue(self, tts_param: TTSParam) -> None:
         """Add the TTS parameters to the playback queue.
-
-        This method is used to queue the TTS parameters for playback after synthesis.
 
         Args:
             tts_param (TTSParam): The TTS parameters to be queued for playback.
