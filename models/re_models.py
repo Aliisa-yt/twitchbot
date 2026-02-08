@@ -40,8 +40,10 @@ CLEARMSG_PATTERN: Final[Pattern[str]] = re.compile(
 )
 
 # Command pattern matching Twitch bot command templates
-# Example: "{a-1, i2, s-3, t0, v1}"
-COMMAND_PATTERN: Final[Pattern[str]] = re.compile(r"\{\s*((?:[aistv]-?\d+(?:,\s*|\s+))*[aistv]-?\d+)\s*\}")
+# Example: "{v100, s-50, t0, a75, i25}" or "{a-10 i5 s-20 t0 v100}"
+COMMAND_PATTERN: Final[Pattern[str]] = re.compile(
+    r"\{\s*((?:[aistv]-?\d+(?:,\s*|\s+))*[aistv]-?\d+)\s*\}", flags=re.IGNORECASE
+)
 
 # Regular expressions that match URLs and URL-like appearances
 # Examples: "http://example.com", "https://www.example.com/path", "www.example.com", "example.com/path"
