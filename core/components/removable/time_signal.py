@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import random
 from datetime import datetime, timedelta
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, ClassVar
 
 from twitchio.ext import routines
 
@@ -34,6 +34,8 @@ class TimeSignalManager(ComponentBase):
     Attributes:
         event_time_signal (routines.Routine): Scheduled event for time announcements.
     """
+
+    depends: ClassVar[list[str]] = ["TTSServiceComponent"]
 
     async def component_load(self) -> None:
         """Load the component and initialize resources."""

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, ClassVar
 
 from core.components.base import ComponentBase
 from utils.logger_utils import LoggerUtils
@@ -13,14 +13,14 @@ __all__: list[str] = ["TranslationServiceComponent"]
 
 logger: logging.Logger = LoggerUtils.get_logger(__name__)
 
-COMPONENT_KWARGS: dict[str, int] = {"priority": 1}
 
-
-class TranslationServiceComponent(ComponentBase, **COMPONENT_KWARGS):
+class TranslationServiceComponent(ComponentBase):
     """Translation service component for Twitch bot.
 
     Manages translation functionalities including initialization and teardown of translation services.
     """
+
+    depends: ClassVar[list[str]] = ["ChatEventsManager"]
 
     async def component_load(self) -> None:
         """Load the component and initialize translation services."""

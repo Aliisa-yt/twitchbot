@@ -8,6 +8,7 @@ integration, and component lifecycle management.
 from __future__ import annotations
 
 import logging
+from collections import defaultdict, deque
 from contextlib import suppress
 from typing import TYPE_CHECKING
 
@@ -83,6 +84,7 @@ class Bot(commands.Bot):
         self.shared_data: SharedData = SharedData(config)
         self._closed: bool = False
 
+        self.attach_order: list[str] = []
         self.attached_components: list[ComponentBase] = []
 
         logger.debug("Initialising TwitchIO")
@@ -154,9 +156,66 @@ class Bot(commands.Bot):
 
         await self.shared_data.async_init()
 
-        for _priority, _component_class, _is_removable in ComponentBase.component_priority_list:
-            _component: ComponentBase = _component_class(self)
-            await self.attach_component(_component)
+        self.validate_dependencies(ComponentBase.dependencies)
+        self.attach_order = self.resolve_dependencies(ComponentBase.dependencies)
+        logger.debug("Component attach order: %s", self.attach_order)
+
+        for _component_name in self.attach_order:
+            await self.attach_component(ComponentBase.class_map[_component_name].component(self))
+
+    def validate_dependencies(self, deps: dict[str, list[str]]) -> None:
+        """Validate component dependencies.
+
+        Args:
+            deps (dict[str, list[str]]): A dictionary mapping component names to their dependencies.
+        """
+        components: set[str] = set(deps.keys())
+
+        for comp, comp_deps in deps.items():
+            for dep in comp_deps:
+                if dep not in components:
+                    msg: str = f"{comp} depends on unknown component '{dep}'"
+                    raise RuntimeError(msg)
+
+    def resolve_dependencies(self, deps: dict[str, list[str]]) -> list[str]:
+        """Resolve component dependencies using topological sorting.
+
+        Args:
+            deps (dict[str, list[str]]): A dictionary mapping component names to their dependencies.
+
+        Returns:
+            list[str]: A list of component names in the order they should be attached.
+        """
+        graph: defaultdict[str, list[str]] = defaultdict(list)
+        indegree: defaultdict[str, int] = defaultdict(int)
+
+        # Build the dependency graph.
+        for comp, comp_deps in deps.items():
+            indegree.setdefault(comp, 0)
+
+            for dep in comp_deps:
+                graph[dep].append(comp)
+                indegree[comp] += 1
+
+        # Start with nodes that have no dependencies.
+        queue: deque[str] = deque([n for n in indegree if indegree[n] == 0])
+        order: list[str] = []
+
+        while queue:
+            node: str = queue.popleft()
+            order.append(node)
+
+            for nxt in graph[node]:
+                indegree[nxt] -= 1
+                if indegree[nxt] == 0:
+                    queue.append(nxt)
+
+        # Detect cycles.
+        if len(order) != len(indegree):
+            msg: str = "Circular dependency detected"
+            raise RuntimeError(msg)
+
+        return order
 
     async def attach_component(self, component: ComponentBase) -> None:
         """Attach a component to the bot.

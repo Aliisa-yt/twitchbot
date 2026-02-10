@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import time
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, ClassVar
 
 from twitchio.ext.commands import Component
 
@@ -35,15 +35,15 @@ logger: logging.Logger = LoggerUtils.get_logger(__name__)
 MESSAGE_QUEUE_MAX_SIZE: int = 50
 MESSAGE_QUEUE_USAGE_DEBUG_THRESHOLD: float = 0.9
 
-COMPONENT_KWARGS: dict[str, int] = {"priority": 0}
 
-
-class ChatEventsManager(ComponentBase, **COMPONENT_KWARGS):
+class ChatEventsManager(ComponentBase):
     """Handler for Twitch chat events (message, clear, delete).
 
     This cog listens for incoming Twitch chat messages and processes them for translation and TTS.
     It filters messages, detects language, translates content, and queues audio for playback.
     """
+
+    depends: ClassVar[list[str]] = []
 
     def __init__(self, bot: Bot) -> None:
         super().__init__(bot)

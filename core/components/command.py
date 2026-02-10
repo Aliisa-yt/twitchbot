@@ -6,7 +6,7 @@ version display, translation engine switching, and usage statistics.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, ClassVar, cast
 
 from twitchio.ext import commands
 
@@ -26,15 +26,15 @@ __all__: list[str] = ["BotCommandManager"]
 
 logger: logging.Logger = LoggerUtils.get_logger(__name__)
 
-COMPONENT_KWARGS: dict[str, int] = {"priority": 2}
 
-
-class BotCommandManager(ComponentBase, **COMPONENT_KWARGS):
+class BotCommandManager(ComponentBase):
     """Command class to manage bot commands.
 
     Provides chat commands for bot control including playback management,
     version display, translation engine switching, and usage statistics.
     """
+
+    depends: ClassVar[list[str]] = ["ChatEventsManager", "TranslationServiceComponent", "TTSServiceComponent"]
 
     async def component_load(self) -> None:
         """Load the component. No setup required for this component."""
@@ -46,7 +46,9 @@ class BotCommandManager(ComponentBase, **COMPONENT_KWARGS):
 
     @staticmethod
     def _get_removable_component_classes() -> list[type[ComponentBase]]:
-        return [comp_cls for _priority, comp_cls, is_removable in ComponentBase.component_priority_list if is_removable]
+        return [
+            comp_cfg.component for comp_cfg in ComponentBase.class_map.values() if comp_cfg.is_removable
+        ]
 
     @classmethod
     def _find_removable_component_class(cls, name: str) -> type[ComponentBase] | None:

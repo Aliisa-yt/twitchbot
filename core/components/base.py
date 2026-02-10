@@ -6,7 +6,7 @@ offering common functionality for message processing, translation, and TTS opera
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, ClassVar
+from typing import TYPE_CHECKING, ClassVar, NamedTuple
 
 from twitchio.ext.commands import Component
 
@@ -31,14 +31,21 @@ __all__: list[str] = ["ComponentBase"]
 logger: logging.Logger = LoggerUtils.get_logger(__name__)
 
 
+class ComponentConfig(NamedTuple):
+    """Component configuration for registration."""
+
+    component: type[ComponentBase]
+    is_removable: bool
+
+
 class ComponentBase(Component):
     """Base class for Twitch chat event handlers.
 
     This class provides common functionality for message processing, translation, and TTS operations.
     """
 
-    # Component priority list to determine the order of component loading.
-    component_priority_list: ClassVar[list[tuple[int, type[ComponentBase], bool]]] = []
+    dependencies: ClassVar[dict[str, list[str]]] = {}
+    class_map: ClassVar[dict[str, ComponentConfig]] = {}
 
     def __init_subclass__(cls, **kwargs) -> None:
         """Register subclass with priority and removability.
@@ -47,13 +54,12 @@ class ComponentBase(Component):
             **kwargs: Additional keyword arguments, including 'priority' and 'is_removable'.
         """
         super().__init_subclass__(**kwargs)
-        priority: int = kwargs.get("priority", 9)
+        cls.dependencies[cls.__name__] = getattr(cls, "depends", [])
         is_removable: bool = False
         if "core.components.removable" in cls.__module__:
-            priority = 10
             is_removable = True
-        cls.component_priority_list.append((priority, cls, is_removable))
-        cls.component_priority_list.sort(key=lambda x: x[0])
+
+        cls.class_map[cls.__name__] = ComponentConfig(component=cls, is_removable=is_removable)
 
     def __init__(self, bot: Bot) -> None:
         """Initialize the Base component.
