@@ -25,9 +25,107 @@ if TYPE_CHECKING:
     from models.config_models import Config, TTSFormat
 
 
-__all__: list[str] = ["ChatMessage"]
+__all__: list[str] = [
+    "ChatMessage",
+    "ChatMessageAuthorDTO",
+    "ChatMessageDTO",
+    "ChatMessageFragmentDTO",
+    "ChatMessageReplyDTO",
+]
 
 logger: logging.Logger = LoggerUtils.get_logger(__name__)
+
+
+@dataclass
+class ChatMessageFragmentDTO:
+    """Lightweight fragment data for DTO transport."""
+
+    type: str = ""
+    text: str = ""
+
+
+@dataclass
+class ChatMessageAuthorDTO:
+    """Lightweight author data for DTO transport."""
+
+    id: str = ""
+    name: str = ""
+    display_name: str = ""
+    broadcaster: bool = False
+    moderator: bool = False
+    vip: bool = False
+    subscriber: bool = False
+
+
+@dataclass
+class ChatMessageReplyDTO:
+    """Lightweight reply data for DTO transport."""
+
+    parent_message_body: str = ""
+    parent_user_display_name: str = ""
+    parent_user_name: str = ""
+
+
+@dataclass
+class ChatMessageDTO:
+    """Lightweight chat message DTO for queue transport."""
+
+    message_id: str = ""
+    content: str = ""
+    text: str = ""
+    fragments: list[ChatMessageFragmentDTO] = field(default_factory=list)
+    author: ChatMessageAuthorDTO = field(default_factory=ChatMessageAuthorDTO)
+    timestamp: datetime | None = None
+    reply: ChatMessageReplyDTO | None = None
+
+    @classmethod
+    def from_twitch_message(cls, twitch_message: TwitchMessage) -> ChatMessageDTO:
+        """Create a DTO from a TwitchIO ChatMessage.
+
+        Args:
+            twitch_message (TwitchMessage): Incoming Twitch chat message.
+
+        Returns:
+            ChatMessageDTO: DTO snapshot of the message.
+        """
+        from utils.string_utils import StringUtils  # noqa: PLC0415
+
+        content: str = StringUtils.ensure_str(twitch_message.text)
+        text_parts: list[str] = []
+        fragments: list[ChatMessageFragmentDTO] = []
+        for fragment in twitch_message.fragments:
+            fragment_text: str = StringUtils.ensure_str(fragment.text)
+            fragments.append(ChatMessageFragmentDTO(type=fragment.type, text=fragment_text))
+            if fragment.type == "text":
+                text_parts.append(fragment_text)
+
+        author: ChatMessageAuthorDTO = ChatMessageAuthorDTO(
+            id=StringUtils.ensure_str(twitch_message.chatter.id),
+            name=StringUtils.ensure_str(twitch_message.chatter.name),
+            display_name=StringUtils.ensure_str(twitch_message.chatter.display_name),
+            broadcaster=bool(twitch_message.chatter.broadcaster),
+            moderator=bool(twitch_message.chatter.moderator),
+            vip=bool(twitch_message.chatter.vip),
+            subscriber=bool(twitch_message.chatter.subscriber),
+        )
+
+        reply: ChatMessageReplyDTO | None = None
+        if twitch_message.reply is not None:
+            reply = ChatMessageReplyDTO(
+                parent_message_body=StringUtils.ensure_str(twitch_message.reply.parent_message_body),
+                parent_user_display_name=StringUtils.ensure_str(twitch_message.reply.parent_user.display_name),
+                parent_user_name=StringUtils.ensure_str(twitch_message.reply.parent_user.name),
+            )
+
+        return cls(
+            message_id=StringUtils.ensure_str(twitch_message.id),
+            content=content,
+            text="".join(text_parts),
+            fragments=fragments,
+            author=author,
+            timestamp=twitch_message.timestamp,
+            reply=reply,
+        )
 
 
 @dataclass
@@ -40,11 +138,11 @@ class _ReplyMessage:
 
 @dataclass
 class ChatMessage:
-    twitch_message: InitVar[TwitchMessage]
+    twitch_message: InitVar[TwitchMessage | ChatMessageDTO]
     config: InitVar[Config]
     content: str = ""
     text: str = ""
-    author: Chatter = field(init=False)
+    author: Chatter | ChatMessageAuthorDTO = field(init=False)
     id: str = ""
     timestamps: datetime | None = None
     display_name: str = ""
@@ -54,31 +152,45 @@ class ChatMessage:
     emote: EmoteHandler = field(init=False)
     mention: MentionHandler = field(init=False)
     tts_format: TTSFormat = field(init=False)
-    fragments: list[ChatMessageFragment] = field(default_factory=list)
+    fragments: list[ChatMessageFragment | ChatMessageFragmentDTO] = field(default_factory=list)
 
-    def __post_init__(self, twitch_message: TwitchMessage, config: Config) -> None:
+    def __post_init__(self, twitch_message: TwitchMessage | ChatMessageDTO, config: Config) -> None:
         # Lazy import to avoid circular import when models/__init__.py exports ChatMessage
         from handlers.fragment_handler import EmoteHandler, MentionHandler  # noqa: PLC0415
         from utils.string_utils import StringUtils  # noqa: PLC0415
 
-        self.content = StringUtils.ensure_str(twitch_message.text)
+        if isinstance(twitch_message, ChatMessageDTO):
+            self.content = StringUtils.ensure_str(twitch_message.content)
+            self.text = StringUtils.ensure_str(twitch_message.text)
+            self.author = twitch_message.author
+            self.id = StringUtils.ensure_str(twitch_message.message_id)
+            self.timestamps = twitch_message.timestamp
+            self.fragments = list(twitch_message.fragments)
 
-        self.text: str = ""
-        for fragment in twitch_message.fragments:
-            if fragment.type == "text":
-                self.text += StringUtils.ensure_str(fragment.text)
+            self.display_name = StringUtils.ensure_str(twitch_message.author.display_name)
+            self.is_replying = twitch_message.reply is not None
 
-        self.author = twitch_message.chatter
-        self.id = str(twitch_message.id)
-        self.timestamps = twitch_message.timestamp
-        self.fragments = twitch_message.fragments
+            if twitch_message.reply is not None:
+                self._process_reply_info_dto(twitch_message.reply)
+        else:
+            self.content = StringUtils.ensure_str(twitch_message.text)
 
-        self.display_name = StringUtils.ensure_str(twitch_message.chatter.display_name)
-        self.is_replying = twitch_message.reply is not None
+            self.text = ""
+            for fragment in twitch_message.fragments:
+                if fragment.type == "text":
+                    self.text += StringUtils.ensure_str(fragment.text)
 
-        # Process reply information if the message is a reply
-        if twitch_message.reply is not None:
-            self._process_reply_info(twitch_message)
+            self.author = twitch_message.chatter
+            self.id = str(twitch_message.id)
+            self.timestamps = twitch_message.timestamp
+            self.fragments = list(twitch_message.fragments)
+
+            self.display_name = StringUtils.ensure_str(twitch_message.chatter.display_name)
+            self.is_replying = twitch_message.reply is not None
+
+            # Process reply information if the message is a reply
+            if twitch_message.reply is not None:
+                self._process_reply_info(twitch_message)
 
         self.tts_format: TTSFormat = config.TTS_FORMAT
         self.emote: EmoteHandler = EmoteHandler(self)
@@ -133,6 +245,40 @@ class ChatMessage:
             # Fallback to the username if display name is not available.
             if not self.reply_name:
                 self.reply_name = StringUtils.ensure_str(reply.parent_user.name)
+
+            self.reply_src_lang = ""
+            self.reply_tgt_lang = ""
+            logger.debug("Reply pattern not matched, using fallback display name: '%s'", self.reply_name)
+
+    def _process_reply_info_dto(self, reply: ChatMessageReplyDTO) -> None:
+        """Extract and process reply information from DTO data.
+
+        Args:
+            reply (ChatMessageReplyDTO): Reply payload stored in the DTO.
+        """
+        from utils.string_utils import StringUtils  # noqa: PLC0415
+
+        decoded_message: str = reply.parent_message_body
+        match: Match[str] | None = REPLY_PATTERN.search(decoded_message)
+
+        if match:
+            self.reply_name = StringUtils.ensure_str(match.group("display_name"))
+            if not self.reply_name:
+                msg = "Reply display name cannot be empty when matched by REPLY_PATTERN."
+                raise ValueError(msg)
+
+            self.reply_tgt_lang = StringUtils.ensure_str(match.group("src_lang"))
+            self.reply_src_lang = StringUtils.ensure_str(match.group("tgt_lang"))
+            logger.debug(
+                "Reply pattern matched: name='%s', src_lang='%s', tgt_lang='%s'",
+                self.reply_name,
+                self.reply_src_lang,
+                self.reply_tgt_lang,
+            )
+        else:
+            self.reply_name = StringUtils.ensure_str(reply.parent_user_display_name)
+            if not self.reply_name:
+                self.reply_name = StringUtils.ensure_str(reply.parent_user_name)
 
             self.reply_src_lang = ""
             self.reply_tgt_lang = ""

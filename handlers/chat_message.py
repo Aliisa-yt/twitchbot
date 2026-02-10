@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from handlers.message_formatter import MessageFormatter
-from models.message_models import ChatMessage
+from models.message_models import ChatMessage, ChatMessageAuthorDTO, ChatMessageDTO
 from utils.logger_utils import LoggerUtils
 
 if TYPE_CHECKING:
@@ -24,11 +24,11 @@ logger: logging.Logger = LoggerUtils.get_logger(__name__)
 
 
 class ChatMessageHandler:
-    def __init__(self, twitch_message: TwitchMessage, config: Config) -> None:
-        """Initialize ChatMessageHandler with a Twitch message and configuration.
+    def __init__(self, twitch_message: TwitchMessage | ChatMessageDTO, config: Config) -> None:
+        """Initialize ChatMessageHandler with a chat message and configuration.
 
         Args:
-            twitch_message (TwitchMessage): The Twitch chat message object.
+            twitch_message (TwitchMessage | ChatMessageDTO): The chat message data.
             config (Config): Configuration settings.
         """
         self._chat_message: ChatMessage = ChatMessage(twitch_message, config)
@@ -46,7 +46,7 @@ class ChatMessageHandler:
         self._chat_message.content = value
 
     @property
-    def author(self) -> Chatter:
+    def author(self) -> Chatter | ChatMessageAuthorDTO:
         return self._chat_message.author
 
     @property
