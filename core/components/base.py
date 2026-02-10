@@ -31,8 +31,8 @@ __all__: list[str] = ["ComponentBase"]
 logger: logging.Logger = LoggerUtils.get_logger(__name__)
 
 
-class ComponentConfig(NamedTuple):
-    """Component configuration for registration."""
+class ComponentDescriptor(NamedTuple):
+    """Descriptor for a component, including its class and removability."""
 
     component: type[ComponentBase]
     is_removable: bool
@@ -44,22 +44,22 @@ class ComponentBase(Component):
     This class provides common functionality for message processing, translation, and TTS operations.
     """
 
-    dependencies: ClassVar[dict[str, list[str]]] = {}
-    class_map: ClassVar[dict[str, ComponentConfig]] = {}
+    dependency_mapping: ClassVar[dict[str, list[str]]] = {}
+    component_registry: ClassVar[dict[str, ComponentDescriptor]] = {}
 
     def __init_subclass__(cls, **kwargs) -> None:
-        """Register subclass with priority and removability.
+        """Register subclass in the component registry and dependency mapping.
 
         Args:
-            **kwargs: Additional keyword arguments, including 'priority' and 'is_removable'.
+            **kwargs: Additional keyword arguments.
         """
         super().__init_subclass__(**kwargs)
-        cls.dependencies[cls.__name__] = getattr(cls, "depends", [])
+        cls.dependency_mapping[cls.__name__] = getattr(cls, "depends", [])
         is_removable: bool = False
         if "core.components.removable" in cls.__module__:
             is_removable = True
 
-        cls.class_map[cls.__name__] = ComponentConfig(component=cls, is_removable=is_removable)
+        cls.component_registry[cls.__name__] = ComponentDescriptor(component=cls, is_removable=is_removable)
 
     def __init__(self, bot: Bot) -> None:
         """Initialize the Base component.
@@ -105,7 +105,6 @@ class ComponentBase(Component):
         """
         tts_param.content = StringUtils.compress_blanks(StringUtils.remove_url(tts_param.content))
 
-        # When replying, remove the mention of the reply recipient from tts_param.content.
         if message.is_replying:
             tts_param.content = StringUtils.compress_blanks(message.mention.strip_mention_at(tts_param.content, 0))
 

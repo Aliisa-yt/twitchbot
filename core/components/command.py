@@ -46,9 +46,12 @@ class BotCommandManager(ComponentBase):
 
     @staticmethod
     def _get_removable_component_classes() -> list[type[ComponentBase]]:
-        return [
-            comp_cfg.component for comp_cfg in ComponentBase.class_map.values() if comp_cfg.is_removable
-        ]
+        """Return removable component classes registered in the component registry.
+
+        Returns:
+           list[type[ComponentBase]]: List of removable component classes.
+        """
+        return [comp_cfg.component for comp_cfg in ComponentBase.component_registry.values() if comp_cfg.is_removable]
 
     @classmethod
     def _find_removable_component_class(cls, name: str) -> type[ComponentBase] | None:
@@ -181,10 +184,6 @@ class BotCommandManager(ComponentBase):
         await self.bot.detach_component(component_instance)
         await context.send(f"Component '{component_class.__name__}' detached.")
 
-    # The command to switch translation engines will only take effect when processing of
-    # the next 'event_message' begins.
-    # Switching immediately could cause inconsistencies if multiple translation requests
-    # are made at the same time.
     @commands.command(name="te")
     async def change_translation_engine(self, context: commands.Context, *args) -> None:
         """Display or change the current translation engine.
@@ -270,35 +269,28 @@ class BotCommandManager(ComponentBase):
         """
         logger.debug("Command 'help' invoked by user: %s", context.author.name)
 
-        # Get all registered commands from the bot
         bot_commands: dict[str, commands.Command] = context.bot.commands
 
-        # Helper function to display all available commands
         def show_command_list() -> str:
             command_names: list[str] = sorted(bot_commands.keys())
             return f"Available commands: {', '.join([f'!{cmd}' for cmd in command_names])}"
 
-        # No arguments - show all commands
         if not args or len(args) == 0:  # Redundant due to linter countermeasures
             await context.send(show_command_list())
             return
 
-        # Multiple arguments - show all commands (invalid usage)
         if len(args) > 1:
             await context.send(show_command_list())
             return
 
-        # Single argument - show help for that specific command
         command_name: str = args[0].lower()
         if command_name in bot_commands:
             cmd_obj: commands.Command = bot_commands[command_name]
             help_text: str | None = cmd_obj.callback.__doc__
             if help_text:
-                # Extract first line of docstring as brief description
                 first_line: str = help_text.strip().split("\n")[0]
                 await context.send(f"!{command_name}: {first_line}")
             else:
                 await context.send(f"!{command_name}: No description available.")
         else:
-            # Command not found - show all commands
             await context.send(show_command_list())

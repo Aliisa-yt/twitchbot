@@ -105,13 +105,68 @@ class TestBotSetupHook:
         bot_instance.shared_data.async_init = shared_data_async_init
         attach_component = AsyncMock()
         bot_instance.attach_component = attach_component
-        with patch.object(ComponentBase, "component_priority_list", [(5, DummyComponent, False)]):
+        dependency_mapping = {"DummyComponent": []}
+        component_registry: dict[str, MagicMock] = {"DummyComponent": MagicMock(component=DummyComponent)}
+        with (
+            patch.object(ComponentBase, "dependency_mapping", dependency_mapping),
+            patch.object(ComponentBase, "component_registry", component_registry),
+        ):
             await bot_instance.setup_hook()
 
         shared_data_async_init.assert_called_once()
         assert attach_component.call_count == 1
         attached = [call_args.args[0].__class__ for call_args in attach_component.call_args_list]
         assert DummyComponent in attached
+
+    @pytest.mark.asyncio
+    async def test_setup_hook_validates_dependencies(self, bot_instance: Bot) -> None:
+        """Test that setup_hook validates dependencies before attaching components."""
+        shared_data_async_init = AsyncMock()
+        bot_instance.shared_data.async_init = shared_data_async_init
+        validate_dependencies = MagicMock()
+        bot_instance.validate_dependencies = validate_dependencies
+
+        dependency_mapping = {"DummyComponent": []}
+        component_registry: dict[str, MagicMock] = {"DummyComponent": MagicMock(component=DummyComponent)}
+        with (
+            patch.object(ComponentBase, "dependency_mapping", dependency_mapping),
+            patch.object(ComponentBase, "component_registry", component_registry),
+        ):
+            await bot_instance.setup_hook()
+
+        validate_dependencies.assert_called_once_with(dependency_mapping)
+
+
+class TestDependencyResolution:
+    """Test component dependency validation and ordering."""
+
+    def test_validate_dependencies_accepts_known(self, bot_instance: Bot) -> None:
+        """Test validate_dependencies with known components."""
+        deps = {"A": [], "B": ["A"]}
+
+        bot_instance.validate_dependencies(deps)
+
+    def test_validate_dependencies_rejects_unknown(self, bot_instance: Bot) -> None:
+        """Test validate_dependencies raises for missing components."""
+        deps: dict[str, list[str]] = {"A": ["Missing"]}
+
+        with pytest.raises(RuntimeError, match="depends on unknown component"):
+            bot_instance.validate_dependencies(deps)
+
+    def test_resolve_dependencies_orders_components(self, bot_instance: Bot) -> None:
+        """Test resolve_dependencies returns a valid topological order."""
+        deps = {"A": [], "B": ["A"], "C": ["B"]}
+
+        order: list[str] = bot_instance.resolve_dependencies(deps)
+
+        assert order == ["A", "B", "C"]
+
+    def test_resolve_dependencies_detects_cycle(self, bot_instance: Bot) -> None:
+        """Test resolve_dependencies raises for cycles."""
+        deps: dict[str, list[str]] = {"A": ["B"], "B": ["A"]}
+
+        with pytest.raises(RuntimeError, match="Circular dependency detected"):
+            bot_instance.resolve_dependencies(deps)
 
 
 class TestComponentAttachDetach:

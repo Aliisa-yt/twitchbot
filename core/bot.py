@@ -76,7 +76,6 @@ class Bot(commands.Bot):
         """
         logger.debug("Initialising %s", self.__class__.__name__)
         self._setup_twitchio_logger(logging.WARNING)
-        # self._setup_twitchio_logger(logging.DEBUG)
 
         self.config: Config = config
         self._token_data: TwitchBotToken = token_data
@@ -84,7 +83,6 @@ class Bot(commands.Bot):
         self.shared_data: SharedData = SharedData(config)
         self._closed: bool = False
 
-        self.attach_order: list[str] = []
         self.attached_components: list[ComponentBase] = []
 
         logger.debug("Initialising TwitchIO")
@@ -156,12 +154,12 @@ class Bot(commands.Bot):
 
         await self.shared_data.async_init()
 
-        self.validate_dependencies(ComponentBase.dependencies)
-        self.attach_order = self.resolve_dependencies(ComponentBase.dependencies)
-        logger.debug("Component attach order: %s", self.attach_order)
+        self.validate_dependencies(ComponentBase.dependency_mapping)
+        attach_order: list[str] = self.resolve_dependencies(ComponentBase.dependency_mapping)
+        logger.debug("Component attach order: %s", attach_order)
 
-        for _component_name in self.attach_order:
-            await self.attach_component(ComponentBase.class_map[_component_name].component(self))
+        for component_name in attach_order:
+            await self.attach_component(ComponentBase.component_registry[component_name].component(self))
 
     def validate_dependencies(self, deps: dict[str, list[str]]) -> None:
         """Validate component dependencies.
@@ -252,9 +250,6 @@ class Bot(commands.Bot):
             with suppress(ValueError):
                 self.attached_components.remove(component)
 
-    # --------------------------------------------------
-    # Triggering events in TwitchIO
-    # --------------------------------------------------
     async def event_error(self, payload: EventErrorPayload) -> None:
         """Called when an error occurs in the bot.
 
