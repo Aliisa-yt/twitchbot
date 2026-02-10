@@ -19,6 +19,7 @@ from core.trans.interface import (
     TransInterface,
     TranslateExceptionError,
     TranslationQuotaExceededError,
+    TranslationRateLimitError,
 )
 from models.translation_models import CharacterQuota
 from utils.logger_utils import LoggerUtils
@@ -240,7 +241,10 @@ class DeeplTranslation(TransInterface):
         except AuthorizationException:
             msg = "Authorisation failed. Please check your authentication key"
             raise TranslateExceptionError(msg) from None
-        except (TooManyRequestsException, ConnectionException):
+        except TooManyRequestsException as err:
+            msg = "DeepL rate limit reached"
+            raise TranslationRateLimitError(msg) from err
+        except ConnectionException:
             msg = "An error occurred when connecting to the DeepL server"
             raise TranslateExceptionError(msg) from None
         except DeepLException:
@@ -294,7 +298,10 @@ class DeeplTranslation(TransInterface):
         try:
             self._usage = self._inst.get_usage()
             self.__available = not self.limit_reached
-        except (TooManyRequestsException, ConnectionException):
+        except TooManyRequestsException as err:
+            msg = "DeepL rate limit reached"
+            raise TranslationRateLimitError(msg) from err
+        except ConnectionException:
             msg = "An error occurred when connecting to the DeepL server"
             raise TranslateExceptionError(msg) from None
         except AuthorizationException:

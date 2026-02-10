@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import time
 from typing import TYPE_CHECKING, ClassVar
 
 from core.trans.engines import (
@@ -31,6 +32,12 @@ __all__: list[str] = ["TransManager"]
 
 logger: logging.Logger = LoggerUtils.get_logger(__name__)
 
+ADAPTIVE_LIMITER_ENABLED: bool = True
+ADAPTIVE_LIMITER_BASE_COOLDOWN_SEC: float = 1.0
+ADAPTIVE_LIMITER_MAX_COOLDOWN_SEC: float = 30.0
+ADAPTIVE_LIMITER_RESET_SEC: float = 60.0
+ADAPTIVE_LIMITER_LOG_INTERVAL_SEC: float = 5.0
+
 
 class TransManager:
     """Manager for handling translation engines.
@@ -54,8 +61,15 @@ class TransManager:
         self.config: Config = config
         self._trans_instance: dict[str, TransInterface] = {}
         self._current_trans_engine: list[str] = []  # List of currently active translation engine names.
-
+        self._rate_limit_error_count: int = 0
+        self._rate_limit_last_error: float = 0.0
+        self._rate_limit_until: float = 0.0
+        self._rate_limit_last_log: float = 0.0
         logger.debug("Registered translation engines: %s", TransInterface.registered)
+
+    async def initialize(self) -> None:
+        """Initialize translation engines based on the configuration."""
+        logger.info("TransManager initialization started")
 
         TransManager._trans_engine.clear()
         for _name in self.config.TRANSLATION.ENGINE:
@@ -153,7 +167,63 @@ class TransManager:
         except IndexError:
             logger.error("No translation engines available after removal attempt.")
 
-    async def detect_language(self, trans_info: TranslationInfo) -> bool:
+    def _rate_limit_blocked(self) -> bool:
+        """Check if translation is currently blocked due to rate limiting.
+
+        Returns:
+            bool: True if translation is blocked, False otherwise.
+        """
+        if not ADAPTIVE_LIMITER_ENABLED:
+            return False
+
+        now: float = time.monotonic()
+        if now < self._rate_limit_until:
+            if now - self._rate_limit_last_log >= ADAPTIVE_LIMITER_LOG_INTERVAL_SEC:
+                remaining: float = self._rate_limit_until - now
+                logger.warning("Translation temporarily throttled (%.1f sec remaining).", remaining)
+                self._rate_limit_last_log = now
+            return True
+        return False
+
+    def _register_rate_limit(self) -> None:
+        """Register a rate-limit event and update the cooldown period accordingly."""
+        if not ADAPTIVE_LIMITER_ENABLED:
+            return
+
+        now: float = time.monotonic()
+        if now - self._rate_limit_last_error > ADAPTIVE_LIMITER_RESET_SEC:
+            self._rate_limit_error_count = 0
+
+        self._rate_limit_error_count += 1
+        self._rate_limit_last_error = now
+
+        backoff: float = ADAPTIVE_LIMITER_BASE_COOLDOWN_SEC * (2 ** (self._rate_limit_error_count - 1))
+        backoff = min(backoff, ADAPTIVE_LIMITER_MAX_COOLDOWN_SEC)
+
+        self._rate_limit_until = max(self._rate_limit_until, now + backoff)
+
+    def _handle_rate_limit_error(self, err: TranslateExceptionError) -> bool:
+        """Handle rate-limit errors based on the active engine classification.
+
+        Args:
+            err (TranslateExceptionError): Translation error raised by the engine.
+
+        Returns:
+            bool: True if the error is classified as rate limiting.
+        """
+        try:
+            is_rate_limited: bool = self.active_engine.is_rate_limit_error(err)
+        except TranslateExceptionError:
+            logger.error("No active engine available for rate-limit classification.")
+            return False
+
+        if is_rate_limited:
+            self._register_rate_limit()
+            logger.warning("Translation rate limit detected: %s", err)
+            return True
+        return False
+
+    async def detect_language(self, trans_info: TranslationInfo) -> bool:  # noqa: PLR0911
         """Detect the language of the content and set language information.
 
         This method uses the active translation engine to detect the language of the content.
@@ -162,6 +232,7 @@ class TransManager:
 
         Args:
             trans_info (TranslationInfo): Translation parameters containing the content to analyze.
+
         Returns:
             bool: True if language detection was successful, False otherwise.
         """
@@ -172,6 +243,9 @@ class TransManager:
         # In such cases, return False to indicate detection was not performed.
         if not trans_info.content:
             logger.debug("Content is empty after preprocessing.")
+            return False
+
+        if self._rate_limit_blocked():
             return False
 
         try:
@@ -203,18 +277,24 @@ class TransManager:
         except TranslationQuotaExceededError as err:
             logger.error("Translation quota exceeded: %s", err)
             return False
-        except (NotSupportedLanguagesError, TranslateExceptionError) as err:
+        except NotSupportedLanguagesError as err:
+            logger.error("Language detection failed: %s", err)
+            return False
+        except TranslateExceptionError as err:
+            if self._handle_rate_limit_error(err):
+                return False
             logger.error("Language detection failed: %s", err)
             return False
 
         logger.debug("Final detected language: '%s'", trans_info.src_lang)
         return trans_info.is_translate
 
-    async def perform_translation(self, trans_info: TranslationInfo) -> bool:
+    async def perform_translation(self, trans_info: TranslationInfo) -> bool:  # noqa: PLR0911
         """Perform translation for the given content.
 
         Args:
             trans_info (TranslationInfo): Translation parameters containing the content to translate.
+
         Returns:
             bool: True if translation was successful, False otherwise.
         """
@@ -229,6 +309,10 @@ class TransManager:
         if trans_info.translated_text and trans_info.tgt_lang == self.config.TRANSLATION.SECOND_LANGUAGE:
             logger.debug("Reusing previous translation, skipping process.")
             return True
+
+        if self._rate_limit_blocked():
+            trans_info.translated_text = ""
+            return False
 
         try:
             logger.debug(
@@ -249,6 +333,9 @@ class TransManager:
             trans_info.translated_text = ""
             return False
         except TranslateExceptionError as err:
+            if self._handle_rate_limit_error(err):
+                trans_info.translated_text = ""
+                return False
             logger.error("Translation failed: %s", err)
             trans_info.translated_text = ""
             return False

@@ -9,7 +9,7 @@ from __future__ import annotations
 import asyncio
 from typing import TYPE_CHECKING
 
-from google.api_core.exceptions import BadRequest, GoogleAPIError, Unauthorized
+from google.api_core.exceptions import BadRequest, GoogleAPIError, TooManyRequests, Unauthorized
 from google.auth.credentials import AnonymousCredentials
 from google.auth.transport.requests import AuthorizedSession
 from google.cloud import translate_v2 as translate
@@ -20,6 +20,7 @@ from core.trans.interface import (
     Result,
     TransInterface,
     TranslateExceptionError,
+    TranslationRateLimitError,
 )
 from models.translation_models import CharacterQuota
 from utils.logger_utils import LoggerUtils
@@ -233,6 +234,10 @@ class GoogleCloudTranslation(TransInterface):
                 metadata={"engine": "google_cloud", "confidence": str(detection.get("confidence"))},
             )
 
+        except TooManyRequests as err:
+            logger.error("Google API rate limit during language detection: %s", err)
+            msg: str = f"Language detection rate limited: {err}"
+            raise TranslationRateLimitError(msg) from err
         except GoogleAPIError as err:
             logger.error("Google API error during language detection: %s", err)
             msg: str = f"Language detection failed: {err}"
@@ -285,6 +290,10 @@ class GoogleCloudTranslation(TransInterface):
             logger.error("Invalid language code: %s", err)
             msg: str = f"Unsupported language pair (src: '{src_lang}', tgt: '{tgt_lang}'): {err}"
             raise NotSupportedLanguagesError(msg) from err
+        except TooManyRequests as err:
+            logger.error("Google API rate limit during translation: %s", err)
+            msg: str = f"Translation rate limited: {err}"
+            raise TranslationRateLimitError(msg) from err
         except GoogleAPIError as err:
             logger.error("Google API error during translation: %s", err)
             msg: str = f"Translation failed: {err}"

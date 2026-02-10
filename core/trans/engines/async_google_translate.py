@@ -5,7 +5,7 @@ Note:
     Response data integrity verification is missing
 
 Original repository:
-    https://github.com/517643856/async_google_trans_new
+    https://github.com/sevenc-nanashi/async-google-trans-new
 """
 
 from __future__ import annotations
@@ -20,7 +20,6 @@ from typing import Any, Final
 from urllib.parse import quote
 
 import aiohttp
-import aiohttp.web_exceptions
 
 from core.trans.engines.const_google import DEFAULT_SERVICE_URLS, LANGUAGES
 from utils.logger_utils import LoggerUtils
@@ -30,7 +29,9 @@ __all__: list[str] = [
     "GoogleError",
     "HTTPConnectionError",
     "HTTPError",
+    "HTTPRedirection",
     "HTTPTimeoutError",
+    "HTTPTooManyRequests",
     "InvalidLanguageCodeError",
     "ResponseFormatError",
     "TextResult",
@@ -73,7 +74,7 @@ class InvalidLanguageCodeError(GoogleException):
     """
 
 
-class HTTPException(GoogleException):  # noqa: N818
+class HTTPException(GoogleException):
     pass
 
 
@@ -81,12 +82,20 @@ class HTTPConnectionError(HTTPException):
     pass
 
 
-class HTTPError(HTTPException):
-    pass
-
-
 class HTTPTimeoutError(HTTPException):
     pass
+
+
+class HTTPRedirection(HTTPException):
+    """HTTP 3xx Redirection Exception"""
+
+
+class HTTPError(HTTPException):
+    """HTTP 4xx/5xx Error Exception"""
+
+
+class HTTPTooManyRequests(HTTPException):
+    """HTTP 429 Too Many Requests Exception"""
 
 
 class TextResult:
@@ -145,7 +154,7 @@ class AsyncTranslator:
         self.timeout: float = timeout
         self.code_sensitive: bool = code_sensitive
         self.return_list: bool = return_list
-        self.__session: aiohttp.ClientSession = aiohttp.ClientSession(raise_for_status=True)
+        self.__session: aiohttp.ClientSession = aiohttp.ClientSession()
 
     @property
     def _session(self) -> aiohttp.ClientSession:
@@ -155,9 +164,9 @@ class AsyncTranslator:
         """
         try:
             if self.__session.closed:
-                self.__session = aiohttp.ClientSession(raise_for_status=True)
+                self.__session = aiohttp.ClientSession()
         except (NameError, AttributeError):
-            self.__session = aiohttp.ClientSession(raise_for_status=True)
+            self.__session = aiohttp.ClientSession()
         return self.__session
 
     async def close(self) -> None:
@@ -187,6 +196,30 @@ class AsyncTranslator:
             raise InvalidLanguageCodeError(msg)
         return "auto"
 
+    @staticmethod
+    def _build_body_preview(body: str, limit: int = 500) -> str:
+        body_preview: str = body.strip().replace("\n", "\\n")
+        if len(body_preview) > limit:
+            return f"{body_preview[:limit]}..."
+        return body_preview
+
+    @staticmethod
+    def _format_http_error(
+        status: int,
+        reason: str | None,
+        url: str,
+        *,
+        body_preview: str | None = None,
+        location: str | None = None,
+    ) -> str:
+        status_reason: str = f"{status} {reason}".strip() if reason else str(status)
+        parts: list[str] = [f"HTTP {status_reason} from {url}"]
+        if location:
+            parts.append(f"Location: {location}")
+        if body_preview:
+            parts.append(f"Body: {body_preview}")
+        return ". ".join(parts)
+
     async def _post(
         self,
         *,
@@ -208,16 +241,41 @@ class AsyncTranslator:
                 timeout=_timeout,
                 proxy=proxies.get("https"),
             ) as response:
-                return await response.text()
+                body: str = await response.text()
+                if response.status >= 300:
+                    body_preview = self._build_body_preview(body)
+                    if response.status == 429:
+                        msg = self._format_http_error(
+                            response.status,
+                            response.reason,
+                            url,
+                            body_preview=body_preview,
+                        )
+                        raise HTTPTooManyRequests(msg)
+                    if response.status >= 400:
+                        msg = self._format_http_error(
+                            response.status,
+                            response.reason,
+                            url,
+                            body_preview=body_preview,
+                        )
+                        raise HTTPError(msg)
+
+                    msg = self._format_http_error(
+                        response.status,
+                        response.reason,
+                        url,
+                        location=response.headers.get("Location"),
+                    )
+                    raise HTTPRedirection(msg)
+
+                return body
         except TimeoutError:
             msg = "Timeout occurred for aiohttp.ClientSession"
             raise HTTPTimeoutError(msg) from None
         except ConnectionResetError:
             msg = "connection to host has been disconnected"
             raise HTTPConnectionError(msg) from None
-        except (aiohttp.web_exceptions.HTTPError, aiohttp.ClientResponseError) as err:
-            # Request successful, bad response
-            raise HTTPError(err) from None
         except aiohttp.ClientConnectorError as err:
             # Request failed
             raise HTTPConnectionError(err) from None

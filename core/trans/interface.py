@@ -24,6 +24,7 @@ __all__: list[str] = [
     "TransInterface",
     "TranslateExceptionError",
     "TranslationQuotaExceededError",
+    "TranslationRateLimitError",
 ]
 
 logger: logging.Logger = LoggerUtils.get_logger(__name__)
@@ -86,6 +87,10 @@ class NotSupportedLanguagesError(TranslateExceptionError):
 
 class TranslationQuotaExceededError(TranslateExceptionError):
     """The translatable character quota has been exceeded."""
+
+
+class TranslationRateLimitError(TranslateExceptionError):
+    """The translation request was rate-limited by the API."""
 
 
 class TransInterface(ABC):
@@ -163,6 +168,17 @@ class TransInterface(ABC):
             bool: True if the engine supports a quota API, False otherwise.
         """
         return self.engine_attributes.supports_quota_api
+
+    def is_rate_limit_error(self, err: Exception) -> bool:
+        """Check if the given exception indicates rate limiting.
+
+        Args:
+            err (Exception): Exception raised during translation or detection.
+
+        Returns:
+            bool: True if the exception represents rate limiting.
+        """
+        return isinstance(err, TranslationRateLimitError)
 
     @property
     @abstractmethod

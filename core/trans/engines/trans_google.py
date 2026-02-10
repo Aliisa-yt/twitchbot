@@ -13,12 +13,20 @@ from core.trans.engines.async_google_translate import (
     GoogleError,
     HTTPConnectionError,
     HTTPError,
+    HTTPRedirection,
     HTTPTimeoutError,
+    HTTPTooManyRequests,
     InvalidLanguageCodeError,
     ResponseFormatError,
     TextResult,
 )
-from core.trans.interface import EngineAttributes, Result, TransInterface, TranslateExceptionError
+from core.trans.interface import (
+    EngineAttributes,
+    Result,
+    TransInterface,
+    TranslateExceptionError,
+    TranslationRateLimitError,
+)
 from models.translation_models import CharacterQuota
 from utils.logger_utils import LoggerUtils
 
@@ -112,10 +120,15 @@ class GoogleTranslation(TransInterface):
             HTTPConnectionError,
             HTTPError,
             HTTPTimeoutError,
+            HTTPRedirection,
         ) as err:
             logger.error(err)
             msg = "an anomaly occurred during translation at Google"
-            raise TranslateExceptionError(msg) from None
+            raise TranslateExceptionError(msg) from err
+        except HTTPTooManyRequests as err:
+            logger.error(err)
+            msg = "an anomaly occurred during translation at Google"
+            raise TranslationRateLimitError(msg) from err
         return _result
 
     async def get_quota_status(self) -> CharacterQuota:
