@@ -75,28 +75,23 @@ class ParameterManager:
                 break
 
     def command_voiceparameters(self, message: ChatMessageHandler) -> None:
-        """Analyse parameter change commands in chat messages and set temporary voice parameters.
+        """Extract and apply voice parameter commands from the message content.
 
-        e.g. {v100, s100, t100, a100, i100}
-             {v: volume, s: speed, t: tone, a: alpha, i: intonation}
-
-        Multiple parameter change commands may be specified,
-        but the last command for the same parameter takes precedence.
+        Parses inline commands (e.g., {v1, s-2, t0} or {a-1 i2 s-3 t0 v1}) and sets temporary
+        voice parameters. Removes command blocks from the message content.
 
         Args:
-            message (ChatMessageHandler): Chat message to be analysed.
+            message (ChatMessageHandler): The chat message handler containing the message content.
         """
         # Extract all command blocks from the message.
-        matches: list[re.Match[str]] = list(re.finditer(COMMAND_PATTERN, message.content.lower()))
+        matches: list[re.Match[str]] = list(re.finditer(COMMAND_PATTERN, message.content))
         logger.debug("Command matches: %s", matches)
 
         if not matches:
             return
 
-        # Delete whole block.
-        # Currently, characters are replaced with spaces so that the index does not shift even
-        # if it is processed from the beginning, but it is processed in reverse order because
-        # the index may shift if the specification is changed.
+        # Delete command blocks in reverse order to preserve index positions during replacement.
+        # Characters are replaced with spaces to maintain original string length.
         for match_ in reversed(matches):
             message.content = StringUtils.replace_blanks(message.content, match_.start(), match_.end())
 
@@ -108,14 +103,14 @@ class ParameterManager:
             "i": "intonation",
         }
 
-        # The commands in each block are analysed and parameters are set.
+        # Parse and apply parameters from each command block.
         for match_ in matches:
-            for item in map(str.strip, match_.group(1).split(",")):
-                if len(item) < 2 or item[0] not in param_map:
+            for item in map(str.strip, re.split(r",\s*|\s+", match_.group(1))):
+                if len(item) < 2 or item[0].lower() not in param_map:
                     continue
                 try:
                     value = int(item[1:])
-                    setattr(self._onetime_voiceparameters, param_map[item[0]], value)
+                    setattr(self._onetime_voiceparameters, param_map[item[0].lower()], value)
                 except ValueError:
                     logger.warning("Invalid command format: '%s'", item)
         logger.debug("Temporary voice parameters: %s", self._onetime_voiceparameters)
