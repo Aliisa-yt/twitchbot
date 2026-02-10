@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from core.components.command import Command
+from core.components.command import BotCommandManager
 from models.translation_models import CharacterQuota
 
 
@@ -47,7 +47,7 @@ def command_bundle() -> SimpleNamespace:
     bot = MagicMock()
     bot.shared_data = shared
 
-    command = Command(bot)
+    command = BotCommandManager(bot)
 
     return SimpleNamespace(command=command, trans_manager=trans_manager, playback_manager=playback_manager)
 

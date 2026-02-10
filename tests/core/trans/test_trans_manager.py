@@ -15,6 +15,7 @@ from core.trans.interface import (
     TranslateExceptionError,
 )
 from core.trans.manager import TransManager
+from models.config_models import Config
 from models.translation_models import CharacterQuota, TranslationInfo
 
 if TYPE_CHECKING:
@@ -113,26 +114,32 @@ def config() -> Config:
     )
 
 
-def test_init_registers_engine(config: Config) -> None:
+@pytest.mark.asyncio
+async def test_init_registers_engine(config: Config) -> None:
     manager = TransManager(config)
+    await manager.initialize()
 
     assert TransManager.get_trans_engine_names() == ["dummy"]
     assert isinstance(manager.active_engine, DummyEngine)
     assert manager._current_trans_engine == ["dummy"]  # noqa: SLF001
 
 
-def test_active_engine_raises_when_empty() -> None:
-    config = cast(
+@pytest.mark.asyncio
+async def test_active_engine_raises_when_empty() -> None:
+    config: Config = cast(
         "Config", SimpleNamespace(TRANSLATION=SimpleNamespace(ENGINE=[], SECOND_LANGUAGE="ja", NATIVE_LANGUAGE="en"))
     )
     manager = TransManager(config)
+    await manager.initialize()
 
     with pytest.raises(TranslateExceptionError):
         _ = manager.active_engine
 
 
-def test_refresh_active_engine_list_removes_unavailable(config: Config) -> None:
+@pytest.mark.asyncio
+async def test_refresh_active_engine_list_removes_unavailable(config: Config) -> None:
     manager = TransManager(config)
+    await manager.initialize()
     DummyEngine.available = False
 
     manager.refresh_active_engine_list()
@@ -144,9 +151,10 @@ def test_refresh_active_engine_list_removes_unavailable(config: Config) -> None:
 @pytest.mark.asyncio
 async def test_detect_language_empty_returns_false(config: Config) -> None:
     manager = TransManager(config)
+    await manager.initialize()
     trans_info = TranslationInfo(content="")
 
-    result = await manager.detect_language(trans_info)
+    result: bool = await manager.detect_language(trans_info)
 
     assert result is False
     assert trans_info.src_lang is None
@@ -156,9 +164,10 @@ async def test_detect_language_empty_returns_false(config: Config) -> None:
 async def test_detect_language_und_sets_no_translation(config: Config) -> None:
     DummyEngine.detect_result = Result(detected_source_lang="und", text="ignored")
     manager = TransManager(config)
+    await manager.initialize()
     trans_info = TranslationInfo(content="test.py")
 
-    result = await manager.detect_language(trans_info)
+    result: bool = await manager.detect_language(trans_info)
 
     assert result is False
     assert trans_info.src_lang == "en"
@@ -172,9 +181,10 @@ async def test_detect_language_sets_translated_text_when_detection_returns_trans
     DummyEngine.supports_detection_api = False
     DummyEngine.detect_result = Result(detected_source_lang="fr", text="bonjour")
     manager = TransManager(config)
+    await manager.initialize()
     trans_info = TranslationInfo(content="hello")
 
-    result = await manager.detect_language(trans_info)
+    result: bool = await manager.detect_language(trans_info)
 
     assert result is True
     assert trans_info.src_lang == "fr"
@@ -184,9 +194,10 @@ async def test_detect_language_sets_translated_text_when_detection_returns_trans
 @pytest.mark.asyncio
 async def test_perform_translation_reuses_existing_translation(config: Config) -> None:
     manager = TransManager(config)
+    await manager.initialize()
     trans_info = TranslationInfo(content="hello", tgt_lang="ja", translated_text="pre")
 
-    result = await manager.perform_translation(trans_info)
+    result: bool = await manager.perform_translation(trans_info)
 
     assert result is True
     assert DummyEngine.translation_called is False
@@ -196,9 +207,10 @@ async def test_perform_translation_reuses_existing_translation(config: Config) -
 async def test_perform_translation_success_sets_text(config: Config) -> None:
     DummyEngine.translation_result = Result(text="konnichiwa")
     manager = TransManager(config)
+    await manager.initialize()
     trans_info = TranslationInfo(content="hello", src_lang="en", tgt_lang="ja")
 
-    result = await manager.perform_translation(trans_info)
+    result: bool = await manager.perform_translation(trans_info)
 
     assert result is True
     assert trans_info.translated_text == "konnichiwa"
@@ -209,9 +221,10 @@ async def test_perform_translation_success_sets_text(config: Config) -> None:
 async def test_perform_translation_handles_errors(config: Config) -> None:
     DummyEngine.translation_error = NotSupportedLanguagesError("bad")
     manager = TransManager(config)
+    await manager.initialize()
     trans_info = TranslationInfo(content="hello", src_lang="xx", tgt_lang="yy")
 
-    result = await manager.perform_translation(trans_info)
+    result: bool = await manager.perform_translation(trans_info)
 
     assert result is False
     assert trans_info.translated_text == ""
@@ -220,7 +233,7 @@ async def test_perform_translation_handles_errors(config: Config) -> None:
 def test_parse_language_prefix_two_codes() -> None:
     trans_info = TranslationInfo(content="en:ja:Hello")
 
-    result = TransManager.parse_language_prefix(trans_info)
+    result: bool = TransManager.parse_language_prefix(trans_info)
 
     assert result is True
     assert trans_info.src_lang == "en"
@@ -231,7 +244,7 @@ def test_parse_language_prefix_two_codes() -> None:
 def test_parse_language_prefix_one_code() -> None:
     trans_info = TranslationInfo(content="ja:Hello")
 
-    result = TransManager.parse_language_prefix(trans_info)
+    result: bool = TransManager.parse_language_prefix(trans_info)
 
     assert result is True
     assert trans_info.tgt_lang == "ja"
@@ -241,7 +254,7 @@ def test_parse_language_prefix_one_code() -> None:
 def test_parse_language_prefix_invalid_returns_false() -> None:
     trans_info = TranslationInfo(content="zz:Hello")
 
-    result = TransManager.parse_language_prefix(trans_info)
+    result: bool = TransManager.parse_language_prefix(trans_info)
 
     assert result is False
     assert trans_info.tgt_lang == ""
@@ -252,7 +265,7 @@ def test_determine_target_language_prefers_native_when_src_diff(config: Config) 
     manager = TransManager(config)
     trans_info = TranslationInfo(content="hello", src_lang="ja")
 
-    result = manager.determine_target_language(trans_info)
+    result: bool = manager.determine_target_language(trans_info)
 
     assert result is True
     assert trans_info.tgt_lang == "en"
@@ -262,7 +275,7 @@ def test_determine_target_language_prefers_second_when_src_native(config: Config
     manager = TransManager(config)
     trans_info = TranslationInfo(content="hello", src_lang="en")
 
-    result = manager.determine_target_language(trans_info)
+    result: bool = manager.determine_target_language(trans_info)
 
     assert result is True
     assert trans_info.tgt_lang == "ja"
@@ -272,7 +285,7 @@ def test_determine_target_language_respects_existing_target(config: Config) -> N
     manager = TransManager(config)
     trans_info = TranslationInfo(content="hello", src_lang="en", tgt_lang="fr")
 
-    result = manager.determine_target_language(trans_info)
+    result: bool = manager.determine_target_language(trans_info)
 
     assert result is True
     assert trans_info.tgt_lang == "fr"
@@ -282,8 +295,9 @@ def test_determine_target_language_respects_existing_target(config: Config) -> N
 async def test_get_usage_returns_default_on_error(config: Config) -> None:
     DummyEngine.quota_error = TranslateExceptionError("quota failed")
     manager = TransManager(config)
+    await manager.initialize()
 
-    quota = await manager.get_usage()
+    quota: CharacterQuota = await manager.get_usage()
 
     assert quota == CharacterQuota(count=0, limit=0, is_quota_valid=False)
 
@@ -291,6 +305,7 @@ async def test_get_usage_returns_default_on_error(config: Config) -> None:
 @pytest.mark.asyncio
 async def test_shutdown_engines_calls_close(config: Config) -> None:
     manager = TransManager(config)
+    await manager.initialize()
 
     await manager.shutdown_engines()
 

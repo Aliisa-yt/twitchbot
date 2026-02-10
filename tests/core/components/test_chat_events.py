@@ -8,7 +8,8 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from core.components.chat_events import ChatEventsCog
+from core.components.chat_events import ChatEventsManager
+from models.message_models import ChatMessageDTO
 from models.voice_models import TTSParam
 from utils.excludable_queue import ExcludableQueue
 
@@ -32,7 +33,7 @@ def _make_cog_bundle() -> SimpleNamespace:
     bot = MagicMock()
     bot.shared_data = shared
 
-    cog = ChatEventsCog(bot)
+    cog = ChatEventsManager(bot)
 
     return SimpleNamespace(
         cog=cog,
@@ -74,3 +75,22 @@ async def test_event_chat_clear_skips_cancel_when_not_playing() -> None:
 
     assert bundle.playback_queue.empty()
     bundle.playback_manager.cancel_playback.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_enqueue_message_drops_newest_on_overflow() -> None:
+    bundle: SimpleNamespace = _make_cog_bundle()
+    bundle.cog._message_queue = ExcludableQueue(maxsize=2)
+
+    await bundle.cog._enqueue_message(ChatMessageDTO(message_id="1"))
+    await bundle.cog._enqueue_message(ChatMessageDTO(message_id="2"))
+    await bundle.cog._enqueue_message(ChatMessageDTO(message_id="3"))
+
+    assert bundle.cog._message_queue.qsize() == 2
+
+    first: ChatMessageDTO = bundle.cog._message_queue.get_nowait()
+    second: ChatMessageDTO = bundle.cog._message_queue.get_nowait()
+    bundle.cog._message_queue.task_done()
+    bundle.cog._message_queue.task_done()
+
+    assert [first.message_id, second.message_id] == ["1", "2"]
