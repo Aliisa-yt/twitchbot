@@ -6,7 +6,7 @@ offering common functionality for message processing, translation, and TTS opera
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, ClassVar
 
 from twitchio.ext.commands import Component
 
@@ -26,17 +26,34 @@ if TYPE_CHECKING:
     from handlers.chat_message import ChatMessageHandler
 
 
-__all__: list[str] = ["Base"]
+__all__: list[str] = ["ComponentBase"]
 
 logger: logging.Logger = LoggerUtils.get_logger(__name__)
 
 
-class Base(Component):
+class ComponentBase(Component):
     """Base class for Twitch chat event handlers.
 
-    Provides common functionality for message processing, translation, and TTS operations.
-    Manages access to shared resources (config, translation manager, TTS manager).
+    This class provides common functionality for message processing, translation, and TTS operations.
     """
+
+    # Component priority list to determine the order of component loading.
+    component_priority_list: ClassVar[list[tuple[int, type[ComponentBase], bool]]] = []
+
+    def __init_subclass__(cls, **kwargs) -> None:
+        """Register subclass with priority and removability.
+
+        Args:
+            **kwargs: Additional keyword arguments, including 'priority' and 'is_removable'.
+        """
+        super().__init_subclass__(**kwargs)
+        priority: int = kwargs.get("priority", 9)
+        is_removable: bool = False
+        if "core.components.removable" in cls.__module__:
+            priority = 10
+            is_removable = True
+        cls.component_priority_list.append((priority, cls, is_removable))
+        cls.component_priority_list.sort(key=lambda x: x[0])
 
     def __init__(self, bot: Bot) -> None:
         """Initialize the Base component.
@@ -53,19 +70,6 @@ class Base(Component):
             raise RuntimeError(msg)
         self.shared: SharedData = bot.shared_data
 
-    async def async_init(self) -> None:
-        """Initialize TTS manager asynchronously.
-
-        Must be called after component initialization.
-        """
-        await self.tts_manager.initialize()
-
-    async def close(self) -> None:
-        """Shutdown translation and TTS managers gracefully."""
-        await self.trans_manager.shutdown_engines()
-        await self.tts_manager.close()
-        logger.debug("'%s' process termination", self.__class__.__name__)
-
     @property
     def config(self) -> Config:
         """Get the application configuration."""
@@ -80,8 +84,6 @@ class Base(Component):
     def tts_manager(self) -> TTSManager:
         """Get the TTS manager."""
         return self.shared.tts_manager
-
-    # ----------
 
     def prepare_original_text(self, message: ChatMessageHandler, tts_param: TTSParam) -> TTSParam:
         """Prepare TTS parameters for original (non-translated) text.
@@ -138,8 +140,6 @@ class Base(Component):
         if queue_data is not None:
             await self.tts_manager.enqueue_tts_synthesis(queue_data)
 
-    # ----------
-
     def prepare_translate_parameters(self, message: ChatMessageHandler) -> TranslationInfo:
         """Prepare translation parameters from a chat message.
 
@@ -160,8 +160,6 @@ class Base(Component):
             message.mention.strip_mentions(message.emote.remove_all(trans_info.content))
         )
         return trans_info
-
-    # ----------
 
     def prepare_tts_voice_parameters(self, message: ChatMessageHandler) -> None:
         """Configure TTS voice parameters based on message metadata.

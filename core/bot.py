@@ -7,7 +7,6 @@ integration, and component lifecycle management.
 
 from __future__ import annotations
 
-import asyncio
 import logging
 from contextlib import suppress
 from typing import TYPE_CHECKING
@@ -21,24 +20,27 @@ from twitchio.eventsub import (
     SubscriptionPayload,
 )
 from twitchio.ext import commands
+from twitchio.ext.commands import ComponentLoadError
 
-from core.components.chat_events import ChatEventsCog
-from core.components.command import Command
-from core.components.time_signal import TimeSignalManager
+from core.components import (
+    BotCommandManager,  # noqa: F401
+    ChatEventsManager,  # noqa: F401
+    ComponentBase,
+    TranslationServiceComponent,  # noqa: F401
+    TTSServiceComponent,  # noqa: F401
+)
+from core.components.removable import TimeSignalManager  # noqa: F401
 from core.shared_data import SharedData
 from utils.chat_utils import ChatUtils
 from utils.logger_utils import LoggerUtils
 
 if TYPE_CHECKING:
-    from collections.abc import Awaitable, Callable
-
     from twitchio import EventErrorPayload
     from twitchio.ext.commands import CommandErrorPayload
     from twitchio.models import Stream
     from twitchio.models.chat import SentMessage
 
     from config.loader import Config
-    from core.components.base import Base
     from core.token_manager import TwitchBotToken
 
 
@@ -57,7 +59,7 @@ class Bot(commands.Bot):
     Attributes:
         config (Config): Bot configuration settings.
         shared_data (SharedData): Shared translation and TTS managers.
-        close_method (list): Cleanup methods to call during shutdown.
+        attached_components (list[ComponentBase]): List of attached bot components.
     """
 
     def __init__(
@@ -78,9 +80,10 @@ class Bot(commands.Bot):
         self.config: Config = config
         self._token_data: TwitchBotToken = token_data
 
-        self.close_method: list[Callable[[], Awaitable[None]]] = []
         self.shared_data: SharedData = SharedData(config)
         self._closed: bool = False
+
+        self.attached_components: list[ComponentBase] = []
 
         logger.debug("Initialising TwitchIO")
         super().__init__(
@@ -143,23 +146,52 @@ class Bot(commands.Bot):
         logger.debug("TwitchIO logger set up with LoggerUtils configuration")
 
     async def setup_hook(self) -> None:
-        """Setup hook for the bot.
+        """Asynchronous setup hook called during bot initialization.
 
-        This method is invoked when the bot is ready to configure components and shared data.
-        It initialises the shared data and adds the necessary components to the bot.
+        This method initializes shared data and attaches registered components.
         """
         logger.debug("Setting up %s", self.__class__.__name__)
 
         await self.shared_data.async_init()
-        _components: list[Base] = [
-            ChatEventsCog(self),
-            Command(self),
-            TimeSignalManager(self),
-        ]
-        for _component in _components:
-            await _component.async_init()
-            self.close_method.append(_component.close)
-            await self.add_component(_component)
+
+        for _priority, _component_class, _is_removable in ComponentBase.component_priority_list:
+            _component: ComponentBase = _component_class(self)
+            await self.attach_component(_component)
+
+    async def attach_component(self, component: ComponentBase) -> None:
+        """Attach a component to the bot.
+
+        Args:
+            component (Base): The component to attach.
+        """
+        logger.debug("Attaching component: %s", component.__class__.__name__)
+        try:
+            await self.add_component(component)
+        except ComponentLoadError as err:
+            logger.error("Failed to load component %s: %s", component.__class__.__name__, err)
+            return
+
+        self.attached_components.append(component)
+        logger.debug("Successfully attached component: %s", component.__class__.__name__)
+
+    async def detach_component(self, component: ComponentBase) -> None:
+        """Detach a component from the bot.
+
+        Args:
+            component (Base): The component to detach.
+        """
+        logger.debug("Detaching component: %s", component.__class__.__name__)
+        try:
+            await self.remove_component(component.__class__.__name__)
+        except ValueError as err:
+            logger.error("Failed to detach component %s: %s", component.__class__.__name__, err)
+        except Exception as err:  # noqa: BLE001
+            logger.error("Unexpected error while detaching component %s: %s", component.__class__.__name__, err)
+        else:
+            logger.debug("Successfully detached component: %s", component.__class__.__name__)
+        finally:
+            with suppress(ValueError):
+                self.attached_components.remove(component)
 
     # --------------------------------------------------
     # Triggering events in TwitchIO
@@ -170,7 +202,7 @@ class Bot(commands.Bot):
         Args:
             payload (EventErrorPayload): The payload containing error information.
         """
-        logger.exception("Event error: %s", payload.error)
+        logger.error("Event error: %s", payload.error)
 
     async def event_ready(self) -> None:
         """Called when the bot is ready and connected to Twitch.
@@ -189,7 +221,7 @@ class Bot(commands.Bot):
 
             if not self.config.BOT.DONT_LOGIN_MESSAGE:
                 await self.send_chat_message(self.config.BOT.LOGIN_MESSAGE, header="/me ")
-        except Exception:
+        except Exception:  # noqa: BLE001
             logger.exception("Error during event_ready")
 
     async def _subscribe_to_chat_events(self) -> None:
@@ -276,15 +308,12 @@ class Bot(commands.Bot):
         """
         if not self._closed:
             self.print_console_message("Bot is shutting down... please wait.")
-            logger.info("start termination process")
-            shutdown_err: list[BaseException | None] = await asyncio.gather(
-                *[_coro() for _coro in self.close_method], return_exceptions=True
-            )
-            for err in shutdown_err:
-                if isinstance(err, BaseException):
-                    logger.error("Error during bot shutdown: %s", err)
+            logger.info("Start shutdown sequence")
+            for _component in reversed(self.attached_components):
+                await self.detach_component(_component)
+
             self._closed = True
-            logger.info("complete termination process")
+            logger.info("Shutdown sequence complete")
         await super().close(**kwargs)
 
     async def fetch_stream_game(self, user_login: str) -> None:
@@ -318,7 +347,6 @@ class Bot(commands.Bot):
         if not content:
             return
 
-        # If no chatter (channel) is specified, use the owner's channel
         if chatter is None:
             chatter = self.create_partialuser(user_id=self.owner_id)
             if not chatter:
@@ -326,12 +354,11 @@ class Bot(commands.Bot):
                 self.pause_exit()
                 return
 
-        # The maximum length of a Twitch message is 500 bytes (not 500 characters).
         max_len: int = 450
         content = ChatUtils.truncate_message(content, max_len, header=header, footer=footer)
 
-        logger.debug("send message: %s", content)
-        logger.debug("send channel: %s", chatter.name)
+        logger.debug("Send message: %s", content)
+        logger.debug("Send channel: %s", chatter.name)
         try:
             sent_message: SentMessage = await chatter.send_message(
                 message=content, sender=self.bot_id, token_for=self.access_token

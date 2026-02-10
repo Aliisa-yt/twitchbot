@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING, cast
 
 from twitchio.ext import commands
 
-from core.components.base import Base
+from core.components.base import ComponentBase
 from core.trans.manager import TransManager
 from utils.logger_utils import LoggerUtils
 
@@ -22,23 +22,38 @@ if TYPE_CHECKING:
     from models.translation_models import CharacterQuota
 
 
-__all__: list[str] = ["Command"]
+__all__: list[str] = ["BotCommandManager"]
 
 logger: logging.Logger = LoggerUtils.get_logger(__name__)
 
+COMPONENT_KWARGS: dict[str, int] = {"priority": 2}
 
-class Command(Base):
+
+class BotCommandManager(ComponentBase, **COMPONENT_KWARGS):
     """Command class to manage bot commands.
 
     Provides chat commands for bot control including playback management,
     version display, translation engine switching, and usage statistics.
     """
 
-    async def async_init(self) -> None:
-        """Initialize the component. No setup required for this component."""
+    async def component_load(self) -> None:
+        """Load the component. No setup required for this component."""
+        logger.debug("'%s' component loaded", self.__class__.__name__)
 
-    async def close(self) -> None:
-        logger.debug("'%s' process termination", self.__class__.__name__)
+    async def component_teardown(self) -> None:
+        """Teardown the component. No teardown required for this component."""
+        logger.debug("'%s' component unloaded", self.__class__.__name__)
+
+    @staticmethod
+    def _get_removable_component_classes() -> list[type[ComponentBase]]:
+        return [comp_cls for _priority, comp_cls, is_removable in ComponentBase.component_priority_list if is_removable]
+
+    @classmethod
+    def _find_removable_component_class(cls, name: str) -> type[ComponentBase] | None:
+        for comp_cls in cls._get_removable_component_classes():
+            if comp_cls.__name__.lower() == name.lower():
+                return comp_cls
+        return None
 
     @commands.command()
     async def skip(self, context: commands.Context) -> None:
@@ -71,6 +86,99 @@ class Command(Base):
         logger.debug("Command 'ver' invoked by user: %s", context.author.name)
         await context.send(f"Current version is '{self.config.GENERAL.SCRIPT_NAME} ver.{self.config.GENERAL.VERSION}'")
 
+    @commands.command()
+    async def attach(self, context: commands.Context, *args) -> None:
+        """Attach a removable component to the bot.
+
+        Args:
+            context (commands.Context): The context object passed during command execution.
+            *args: Component name to attach.
+        """
+        logger.debug("Command 'attach' invoked by user: %s", context.author.name)
+
+        if not cast("Chatter", context.author).broadcaster:
+            await context.send("This command is available to the broadcaster only.")
+            return
+
+        removable_classes: list[type[ComponentBase]] = self._get_removable_component_classes()
+        available_components: list[str] = [comp_cls.__name__ for comp_cls in removable_classes]
+
+        def usage_message() -> str:
+            return f"Usage: !attach <component name>. Available: {', '.join(available_components)}"
+
+        if not args or len(args) == 0:  # Redundant due to linter countermeasures
+            await context.send(usage_message())
+            return
+
+        if len(args) > 1:
+            await context.send(usage_message())
+            return
+
+        component_name: str = str(args[0])
+        component_class: type[ComponentBase] | None = self._find_removable_component_class(component_name)
+
+        if component_class is None:
+            logger.warning("Attach failed: unknown component '%s'", component_name)
+            await context.send(usage_message())
+            return
+
+        if any(comp.__class__ is component_class for comp in self.bot.attached_components):
+            await context.send(f"Component '{component_class.__name__}' is already attached.")
+            return
+
+        component: ComponentBase = component_class(self.bot)
+        await self.bot.attach_component(component)
+        await context.send(f"Component '{component_class.__name__}' attached.")
+
+    @commands.command()
+    async def detach(self, context: commands.Context, *args) -> None:
+        """Detach a removable component from the bot.
+
+        Args:
+            context (commands.Context): The context object passed during command execution.
+            *args: Component name to detach.
+        """
+        logger.debug("Command 'detach' invoked by user: %s", context.author.name)
+
+        if not cast("Chatter", context.author).broadcaster:
+            await context.send("This command is available to the broadcaster only.")
+            return
+
+        removable_classes: list[type[ComponentBase]] = self._get_removable_component_classes()
+        available_components: list[str] = [comp_cls.__name__ for comp_cls in removable_classes]
+
+        def usage_message() -> str:
+            return f"Usage: !detach <component name>. Available: {', '.join(available_components)}"
+
+        if not args or len(args) == 0:  # Redundant due to linter countermeasures
+            await context.send(usage_message())
+            return
+
+        if len(args) > 1:
+            await context.send(usage_message())
+            return
+
+        component_name: str = str(args[0])
+        component_class: type[ComponentBase] | None = self._find_removable_component_class(component_name)
+
+        if component_class is None:
+            logger.warning("Detach failed: unknown component '%s'", component_name)
+            await context.send(usage_message())
+            return
+
+        component_instance: ComponentBase | None = None
+        for comp in self.bot.attached_components:
+            if comp.__class__ is component_class:
+                component_instance = comp
+                break
+
+        if component_instance is None:
+            await context.send(f"Component '{component_class.__name__}' is not attached.")
+            return
+
+        await self.bot.detach_component(component_instance)
+        await context.send(f"Component '{component_class.__name__}' detached.")
+
     # The command to switch translation engines will only take effect when processing of
     # the next 'event_message' begins.
     # Switching immediately could cause inconsistencies if multiple translation requests
@@ -84,6 +192,7 @@ class Command(Base):
 
         Args:
             context (commands.Context): The context object passed during command execution.
+            *args: Optional translation engine name to switch to.
         """
         logger.debug("Command 'te' invoked by user: %s", context.author.name)
 

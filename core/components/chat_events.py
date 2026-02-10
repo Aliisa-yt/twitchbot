@@ -1,15 +1,19 @@
 from __future__ import annotations
 
+import asyncio
+import contextlib
 import time
 from typing import TYPE_CHECKING
 
 from twitchio.ext.commands import Component
 
-from core.components.base import Base
+from core.components.base import ComponentBase
 from core.trans.manager import TransManager
 from handlers.chat_message import ChatMessageHandler
+from models.message_models import ChatMessageDTO
 from models.translation_models import TranslationInfo
 from utils.chat_utils import ChatUtils
+from utils.excludable_queue import ExcludableQueue
 from utils.logger_utils import LoggerUtils
 from utils.tts_utils import TTSUtils
 
@@ -20,37 +24,74 @@ if TYPE_CHECKING:
     from twitchio import ChannelChatClear, ChannelChatClearUserMessages, ChatMessageDelete
     from twitchio import ChatMessage as TwitchMessage
 
+    from core.bot import Bot
     from models.voice_models import TTSParam
 
 
-__all__: list[str] = ["ChatEventsCog"]
+__all__: list[str] = ["ChatEventsManager"]
 
 logger: logging.Logger = LoggerUtils.get_logger(__name__)
 
+MESSAGE_QUEUE_MAX_SIZE: int = 50
+MESSAGE_QUEUE_USAGE_DEBUG_THRESHOLD: float = 0.9
 
-class ChatEventsCog(Base):
+COMPONENT_KWARGS: dict[str, int] = {"priority": 0}
+
+
+class ChatEventsManager(ComponentBase, **COMPONENT_KWARGS):
     """Handler for Twitch chat events (message, clear, delete).
 
     This cog listens for incoming Twitch chat messages and processes them for translation and TTS.
     It filters messages, detects language, translates content, and queues audio for playback.
     """
 
+    def __init__(self, bot: Bot) -> None:
+        super().__init__(bot)
+        self._message_queue: ExcludableQueue[ChatMessageDTO] = ExcludableQueue(maxsize=MESSAGE_QUEUE_MAX_SIZE)
+        self._message_worker_task: asyncio.Task[None] | None = None
+
+    async def component_load(self) -> None:
+        """Load the component. No setup required for this component."""
+        if self._message_worker_task is None:
+            self._message_worker_task = asyncio.create_task(self._message_worker_loop())
+        logger.debug("'%s' component loaded", self.__class__.__name__)
+
+    async def component_teardown(self) -> None:
+        """Teardown the component. No teardown required for this component."""
+        await self._message_queue.clear()
+        if self._message_worker_task is not None:
+            self._message_worker_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await self._message_worker_task
+            self._message_worker_task = None
+        logger.debug("'%s' component unloaded", self.__class__.__name__)
+
     @Component.listener()
     async def event_message_delete(self, payload: ChatMessageDelete) -> None:
         """
-        Receive a message delete event from the IRC server.
-        This event is sent when a message is deleted.
+        Receive the 'event_message_delete' event from TwitchIO.
+        This event is triggered when a message is deleted.
+
+        Args:
+            payload (ChatMessageDelete): The chat message delete event payload.
+
+        Note: This event handler is not implemented.
         """
         logger.debug("event_message_delete payload '%s'", payload)
 
     @Component.listener()
     async def event_chat_clear(self, payload: ChannelChatClear) -> None:
         """
-        Receive a chat clear event from the IRC server.
-        This event is sent when the chat box is cleared.
+        Receive the 'event_chat_clear' event from TwitchIO.
+        This event is triggered when the chat box is cleared.
+
+        Args:
+            payload (ChannelChatClear): The chat clear event payload.
         """
         _ = payload
         logger.debug("Chat has been cleared")
+
+        await self._message_queue.clear()
 
         # The queue must be cleared before stopping playback.
         # Otherwise, the next playback may start immediately after the playback is stopped.
@@ -69,16 +110,17 @@ class ChatEventsCog(Base):
     @Component.listener()
     async def event_chat_clear_user(self, payload: ChannelChatClearUserMessages) -> None:
         """
-        Receive a chat clear user messages event from the IRC server.
-        This event is sent when all messages from a specific user are deleted.
+        Receive the 'event_chat_clear_user' event from TwitchIO.
+        This event is triggered when all messages from a specific user are deleted.
+
+        Args:
+            payload (ChannelChatClearUserMessages): The chat clear user messages event payload.
+
+        Note: This event handler is not implemented.
         """
         logger.debug("event_chat_clear_user payload '%s'", payload)
 
-    # When a new message arrives, the processing of the new message is initiated.
-    # However, this does not trigger immediate execution.
-    # If control is transferred to the TwitchIO event handler via await during processing,
-    # a new event message is generated.
-    # Consequently, multiple messages are processed while switching via await.
+    # Message handling is queued to avoid re-entrancy when awaits yield back to TwitchIO.
     @Component.listener()
     async def event_message(self, payload: TwitchMessage) -> None:
         """Process incoming Twitch chat messages for translation and TTS.
@@ -95,23 +137,59 @@ class ChatEventsCog(Base):
         if self._should_ignore_message(payload):
             return
 
-        # Note: The method for retrieving CLEARMSG has changed in Twitchio v3, necessitating a complete rebuild.
-        # if self.config.BOT.AWAITING_CLEARMSG:
-        #     wait_time: float = self.config.BOT.AWAITING_CLEARMSG
-        #     logger.debug("CLEARMSG notification waiting time: %.1fsec", wait_time)
-        #     await asyncio.sleep(wait_time)
+        dto: ChatMessageDTO = ChatMessageDTO.from_twitch_message(payload)
+        await self._enqueue_message(dto)
 
+    async def _enqueue_message(self, dto: ChatMessageDTO) -> None:
+        """Enqueue a chat message DTO for processing.
+
+        Args:
+            dto (ChatMessageDTO): The chat message data transfer object.
+        """
+        if self._message_queue.full():
+            logger.warning("Message queue full. Dropping message id '%s'.", dto.message_id)
+            return
+        maxsize: int = self._message_queue.maxsize
+        if maxsize > 0:
+            projected_size: int = self._message_queue.qsize() + 1
+            usage: float = projected_size / maxsize
+            if usage >= MESSAGE_QUEUE_USAGE_DEBUG_THRESHOLD:
+                logger.debug("Message queue usage %.0f%% (%d/%d)", usage * 100, projected_size, maxsize)
+        await self._message_queue.put(dto)
+
+    async def _message_worker_loop(self) -> None:
+        """Worker loop to process messages from the queue.
+
+        This loop continuously retrieves messages from the queue and processes them.
+        """
+        while True:
+            dto: ChatMessageDTO = await self._message_queue.get()
+            try:
+                await self._handle_message(dto)
+            except asyncio.CancelledError:
+                raise
+            except Exception as err:  # noqa: BLE001 - isolate worker failures
+                logger.error("Message worker error: %s", err)
+            finally:
+                self._message_queue.task_done()
+
+    async def _handle_message(self, dto: ChatMessageDTO) -> None:
+        """Handle a chat message DTO for translation and TTS processing.
+
+        Args:
+            dto (ChatMessageDTO): The chat message data transfer object.
+        """
         start_time: float = time.perf_counter()
 
-        message: ChatMessageHandler = self._preprocess_message(payload)
+        message: ChatMessageHandler = self._preprocess_message(dto)
 
         temp_trans_info: TranslationInfo = TranslationInfo(content=message.content)
         TransManager.parse_language_prefix(temp_trans_info)
         message.content = temp_trans_info.content
 
-        # Remove emotes and mentions from content
+        # Strip emotes/mentions before translation.
         trans_info: TranslationInfo = self.prepare_translate_parameters(message)
-        # Apply forced language code settings to trans_info
+        # Apply forced language settings from prefixes.
         if temp_trans_info.src_lang is not None:
             trans_info.src_lang = temp_trans_info.src_lang
         if temp_trans_info.tgt_lang is not None:
@@ -119,7 +197,7 @@ class ChatEventsCog(Base):
 
         self.trans_manager.refresh_active_engine_list()
 
-        # Language detection (if the source language is not set)
+        # Detect language when not explicitly provided.
         if trans_info.src_lang is None and not await self.trans_manager.detect_language(trans_info):
             # detect_language returns False when content is empty.
             # If the content is empty but contains emotes, set default languages and continue.
@@ -137,11 +215,9 @@ class ChatEventsCog(Base):
         await self._process_original_tts(message, trans_info)
 
         if not self.trans_manager.determine_target_language(trans_info):
-            # The target language could not be identified.
             return
 
         if not await self.trans_manager.perform_translation(trans_info):
-            # The translation process has failed.
             return
 
         await self._process_translated_tts(message, trans_info)
@@ -155,6 +231,7 @@ class ChatEventsCog(Base):
 
         Args:
             payload (TwitchMessage): The Twitch message payload.
+
         Returns:
             bool: True if the message should be ignored, False otherwise.
         """
@@ -167,11 +244,12 @@ class ChatEventsCog(Base):
             or ChatUtils.is_ignore_users(self.config, payload.chatter.name)
         )
 
-    def _preprocess_message(self, payload: TwitchMessage) -> ChatMessageHandler:
+    def _preprocess_message(self, payload: TwitchMessage | ChatMessageDTO) -> ChatMessageHandler:
         """Preprocess the message (emote/emoji handling, TTS parameters).
 
         Args:
-            payload (TwitchMessage): The Twitch message payload.
+            payload (TwitchMessage | ChatMessageDTO): The chat message payload.
+
         Returns:
             ChatMessageHandler: The preprocessed chat message handler instance.
         """
