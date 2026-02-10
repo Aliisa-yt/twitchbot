@@ -78,6 +78,16 @@ class VVCore(Interface):
         self.async_http.add_handler("audio/wav", lambda raw: raw)
         self._id_cache: dict[str, SpeakerID] = {}
         self._check_status_command: str = "/version"
+        self._is_engine_running: bool = False
+
+    @property
+    def is_engine_running(self) -> bool:
+        """Check if engine is running.
+
+        Returns:
+            bool: True if engine is running, False otherwise.
+        """
+        return self._is_engine_running
 
     @property
     def id_cache(self) -> dict[str, SpeakerID]:
@@ -157,6 +167,7 @@ class VVCore(Interface):
                             log_action="Startup status check",
                         )
                         logger.info("The TTS engine version %s is running and can be accessed.", version)
+                        self._is_engine_running = True
                     except AsyncCommTimeoutError:
                         logger.debug(
                             "The TTS engine is not running. It will try again in %.1f seconds.", RETRY_INTERVAL
@@ -167,6 +178,7 @@ class VVCore(Interface):
         except TimeoutError:
             msg: str = "The TTS engine is not running or is not accessible. Please check the server status."
             logger.error(msg)
+            self._is_engine_running = False
 
     async def close(self) -> None:
         """Close the TTS engine and clean up resources."""
