@@ -2,6 +2,14 @@
 
 This package contains concrete implementations of the TransInterface for different
 translation services (Google Translate, DeepL) and utilities for interfacing with them.
+These classes handle the communication with external translation APIs, manage request/response formats,
+and provide error handling specific to each service.
+
+Modules:
+- AsyncTranslator: Asynchronous translator interface for making translation requests.
+- DeeplTranslation: Implementation for DeepL translation service.
+- GoogleCloudTranslation: Implementation for Google Cloud Translation service.
+- GoogleTranslation: Implementation for Google Translate service.
 """
 
 from core.trans.engines.async_google_translate import (
