@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING
 
 from twitchio.ext import routines
 
-from core.components.base import Base
+from core.components.base import ComponentBase
 from models.voice_models import TTSParam
 from utils.logger_utils import LoggerUtils
 
@@ -25,7 +25,7 @@ __all__: list[str] = ["TimeSignalManager"]
 logger: logging.Logger = LoggerUtils.get_logger(__name__)
 
 
-class TimeSignalManager(Base):
+class TimeSignalManager(ComponentBase):
     """Time Announcement Processing Class
 
     This class handles time announcement events, such as announcing the current time.
@@ -35,16 +35,15 @@ class TimeSignalManager(Base):
         event_time_signal (routines.Routine): Scheduled event for time announcements.
     """
 
-    async def async_init(self) -> None:
-        """Asynchronous initialization method.
-        Starts the event routine.
-        """
+    async def component_load(self) -> None:
+        """Load the component and initialize resources."""
         self.event_time_signal.start()
+        logger.debug("'%s' component loaded", self.__class__.__name__)
 
-    async def close(self) -> None:
-        """Perform cleanup and stop the event."""
+    async def component_teardown(self) -> None:
+        """Teardown the component and release resources."""
         self.event_time_signal.cancel()
-        logger.debug("'%s' process termination", self.__class__.__name__)
+        logger.debug("'%s' component unloaded", self.__class__.__name__)
 
     @routines.routine(delta=timedelta(seconds=10), iterations=1, wait_first=True)
     async def event_time_signal(self) -> None:
