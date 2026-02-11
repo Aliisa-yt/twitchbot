@@ -32,9 +32,10 @@ logger: logging.Logger = LoggerUtils.get_logger(__name__)
 
 
 class ComponentDescriptor(NamedTuple):
-    """Descriptor for a component, including its class and removability."""
+    """Descriptor for bot components, including the component class, its dependencies, and removability."""
 
     component: type[ComponentBase]
+    depends: list[str]
     is_removable: bool
 
 
@@ -42,9 +43,18 @@ class ComponentBase(Component):
     """Base class for Twitch chat event handlers.
 
     This class provides common functionality for message processing, translation, and TTS operations.
+    All bot components should inherit from this base class to ensure consistent access to shared data, configuration,
+    and utility methods.
+
+    Attributes:
+        bot (Bot): The bot instance with shared data and configuration.
+        shared (SharedData): Shared data accessible to all components.
+        config (Config): The application configuration.
+        trans_manager (TransManager): The translation manager.
+        tts_manager (TTSManager): The TTS manager.
+        component_registry (ClassVar[dict[str, ComponentDescriptor]]): Registry of all components and their descriptors.
     """
 
-    dependency_mapping: ClassVar[dict[str, list[str]]] = {}
     component_registry: ClassVar[dict[str, ComponentDescriptor]] = {}
 
     def __init_subclass__(cls, **kwargs) -> None:
@@ -54,12 +64,16 @@ class ComponentBase(Component):
             **kwargs: Additional keyword arguments.
         """
         super().__init_subclass__(**kwargs)
-        cls.dependency_mapping[cls.__name__] = getattr(cls, "depends", [])
+        depends: list[str] = list(getattr(cls, "depends", []))
         is_removable: bool = False
         if "core.components.removable" in cls.__module__:
             is_removable = True
 
-        cls.component_registry[cls.__name__] = ComponentDescriptor(component=cls, is_removable=is_removable)
+        cls.component_registry[cls.__name__] = ComponentDescriptor(
+            component=cls,
+            depends=depends,
+            is_removable=is_removable,
+        )
 
     def __init__(self, bot: Bot) -> None:
         """Initialize the Base component.
@@ -69,6 +83,11 @@ class ComponentBase(Component):
 
         Raises:
             RuntimeError: If shared data is not initialized.
+
+        Note:
+            Due to the implementation of Components, you shouldn't make a call to `super().__init__()`
+            if you implement an `__init__` on this component.
+            https://twitchio.dev/en/latest/exts/commands/components.html
         """
         self.bot: Bot = bot
         if bot.shared_data is None:

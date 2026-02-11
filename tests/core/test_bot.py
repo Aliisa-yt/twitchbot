@@ -10,7 +10,7 @@ from twitchio.ext.commands import ComponentLoadError
 
 from config.loader import Config
 from core.bot import Bot
-from core.components import ComponentBase
+from core.components import ComponentBase, ComponentDescriptor
 from core.token_manager import TwitchBotToken
 
 if TYPE_CHECKING:
@@ -105,10 +105,14 @@ class TestBotSetupHook:
         bot_instance.shared_data.async_init = shared_data_async_init
         attach_component = AsyncMock()
         bot_instance.attach_component = attach_component
-        dependency_mapping = {"DummyComponent": []}
-        component_registry: dict[str, MagicMock] = {"DummyComponent": MagicMock(component=DummyComponent)}
+        component_registry: dict[str, ComponentDescriptor] = {
+            "DummyComponent": ComponentDescriptor(
+                component=DummyComponent,
+                depends=[],
+                is_removable=False,
+            )
+        }
         with (
-            patch.object(ComponentBase, "dependency_mapping", dependency_mapping),
             patch.object(ComponentBase, "component_registry", component_registry),
         ):
             await bot_instance.setup_hook()
@@ -126,15 +130,19 @@ class TestBotSetupHook:
         validate_dependencies = MagicMock()
         bot_instance.validate_dependencies = validate_dependencies
 
-        dependency_mapping = {"DummyComponent": []}
-        component_registry: dict[str, MagicMock] = {"DummyComponent": MagicMock(component=DummyComponent)}
+        component_registry: dict[str, ComponentDescriptor] = {
+            "DummyComponent": ComponentDescriptor(
+                component=DummyComponent,
+                depends=[],
+                is_removable=False,
+            )
+        }
         with (
-            patch.object(ComponentBase, "dependency_mapping", dependency_mapping),
             patch.object(ComponentBase, "component_registry", component_registry),
         ):
             await bot_instance.setup_hook()
 
-        validate_dependencies.assert_called_once_with(dependency_mapping)
+        validate_dependencies.assert_called_once_with(component_registry)
 
 
 class TestDependencyResolution:
@@ -142,20 +150,29 @@ class TestDependencyResolution:
 
     def test_validate_dependencies_accepts_known(self, bot_instance: Bot) -> None:
         """Test validate_dependencies with known components."""
-        deps = {"A": [], "B": ["A"]}
+        deps: dict[str, ComponentDescriptor] = {
+            "A": ComponentDescriptor(component=DummyComponent, depends=[], is_removable=False),
+            "B": ComponentDescriptor(component=DummyComponent, depends=["A"], is_removable=False),
+        }
 
         bot_instance.validate_dependencies(deps)
 
     def test_validate_dependencies_rejects_unknown(self, bot_instance: Bot) -> None:
         """Test validate_dependencies raises for missing components."""
-        deps: dict[str, list[str]] = {"A": ["Missing"]}
+        deps: dict[str, ComponentDescriptor] = {
+            "A": ComponentDescriptor(component=DummyComponent, depends=["Missing"], is_removable=False)
+        }
 
         with pytest.raises(RuntimeError, match="depends on unknown component"):
             bot_instance.validate_dependencies(deps)
 
     def test_resolve_dependencies_orders_components(self, bot_instance: Bot) -> None:
         """Test resolve_dependencies returns a valid topological order."""
-        deps = {"A": [], "B": ["A"], "C": ["B"]}
+        deps: dict[str, ComponentDescriptor] = {
+            "A": ComponentDescriptor(component=DummyComponent, depends=[], is_removable=False),
+            "B": ComponentDescriptor(component=DummyComponent, depends=["A"], is_removable=False),
+            "C": ComponentDescriptor(component=DummyComponent, depends=["B"], is_removable=False),
+        }
 
         order: list[str] = bot_instance.resolve_dependencies(deps)
 
@@ -163,7 +180,10 @@ class TestDependencyResolution:
 
     def test_resolve_dependencies_detects_cycle(self, bot_instance: Bot) -> None:
         """Test resolve_dependencies raises for cycles."""
-        deps: dict[str, list[str]] = {"A": ["B"], "B": ["A"]}
+        deps: dict[str, ComponentDescriptor] = {
+            "A": ComponentDescriptor(component=DummyComponent, depends=["B"], is_removable=False),
+            "B": ComponentDescriptor(component=DummyComponent, depends=["A"], is_removable=False),
+        }
 
         with pytest.raises(RuntimeError, match="Circular dependency detected"):
             bot_instance.resolve_dependencies(deps)

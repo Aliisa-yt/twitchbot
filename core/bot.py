@@ -27,6 +27,7 @@ from core.components import (
     BotCommandManager,  # noqa: F401
     ChatEventsManager,  # noqa: F401
     ComponentBase,
+    ComponentDescriptor,
     TranslationServiceComponent,  # noqa: F401
     TTSServiceComponent,  # noqa: F401
 )
@@ -154,32 +155,32 @@ class Bot(commands.Bot):
 
         await self.shared_data.async_init()
 
-        self.validate_dependencies(ComponentBase.dependency_mapping)
-        attach_order: list[str] = self.resolve_dependencies(ComponentBase.dependency_mapping)
+        self.validate_dependencies(ComponentBase.component_registry)
+        attach_order: list[str] = self.resolve_dependencies(ComponentBase.component_registry)
         logger.debug("Component attach order: %s", attach_order)
 
         for component_name in attach_order:
             await self.attach_component(ComponentBase.component_registry[component_name].component(self))
 
-    def validate_dependencies(self, deps: dict[str, list[str]]) -> None:
+    def validate_dependencies(self, deps: dict[str, ComponentDescriptor]) -> None:
         """Validate component dependencies.
 
         Args:
-            deps (dict[str, list[str]]): A dictionary mapping component names to their dependencies.
+            deps (dict[str, ComponentDescriptor]): A dictionary mapping component names to their metadata.
         """
         components: set[str] = set(deps.keys())
 
-        for comp, comp_deps in deps.items():
-            for dep in comp_deps:
+        for comp, descriptor in deps.items():
+            for dep in descriptor.depends:
                 if dep not in components:
                     msg: str = f"{comp} depends on unknown component '{dep}'"
                     raise RuntimeError(msg)
 
-    def resolve_dependencies(self, deps: dict[str, list[str]]) -> list[str]:
+    def resolve_dependencies(self, deps: dict[str, ComponentDescriptor]) -> list[str]:
         """Resolve component dependencies using topological sorting.
 
         Args:
-            deps (dict[str, list[str]]): A dictionary mapping component names to their dependencies.
+            deps (dict[str, ComponentDescriptor]): A dictionary mapping component names to their metadata.
 
         Returns:
             list[str]: A list of component names in the order they should be attached.
@@ -188,10 +189,10 @@ class Bot(commands.Bot):
         indegree: defaultdict[str, int] = defaultdict(int)
 
         # Build the dependency graph.
-        for comp, comp_deps in deps.items():
+        for comp, descriptor in deps.items():
             indegree.setdefault(comp, 0)
 
-            for dep in comp_deps:
+            for dep in descriptor.depends:
                 graph[dep].append(comp)
                 indegree[comp] += 1
 

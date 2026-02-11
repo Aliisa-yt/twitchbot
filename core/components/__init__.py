@@ -11,7 +11,7 @@ Modules:
 - tts_component: Text-to-speech service integration
 """
 
-from core.components.base import ComponentBase
+from core.components.base import ComponentBase, ComponentDescriptor
 from core.components.chat_events import ChatEventsManager
 from core.components.command import BotCommandManager
 from core.components.trans_component import TranslationServiceComponent
@@ -21,6 +21,7 @@ __all__: list[str] = [
     "BotCommandManager",
     "ChatEventsManager",
     "ComponentBase",
+    "ComponentDescriptor",
     "TTSServiceComponent",
     "TranslationServiceComponent",
 ]
