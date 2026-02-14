@@ -10,6 +10,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
+from core.cache.manager import TranslationCacheManager
 from core.trans.manager import TransManager
 from core.tts.manager import TTSManager
 
@@ -23,16 +24,22 @@ __all__: list[str] = ["SharedData"]
 @dataclass
 class SharedData:
     _config: Config = field()
+    _cache_manager: TranslationCacheManager = field(init=False)
     _trans_manager: TransManager = field(init=False)
     _tts_manager: TTSManager = field(init=False)
 
     async def async_init(self) -> None:
-        self._trans_manager = TransManager(self.config)
+        self._cache_manager = TranslationCacheManager(self.config)
+        self._trans_manager = TransManager(self.config, self._cache_manager)
         self._tts_manager = TTSManager(self.config)
 
     @property
     def config(self) -> Config:
         return self._config
+
+    @property
+    def cache_manager(self) -> TranslationCacheManager:
+        return self._cache_manager
 
     @property
     def trans_manager(self) -> TransManager:

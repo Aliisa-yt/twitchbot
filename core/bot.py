@@ -25,6 +25,7 @@ from twitchio.ext.commands import ComponentLoadError
 
 from core.components import (
     BotCommandManager,  # noqa: F401
+    CacheServiceComponent,  # noqa: F401
     ChatEventsManager,  # noqa: F401
     ComponentBase,
     ComponentDescriptor,

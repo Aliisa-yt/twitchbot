@@ -25,6 +25,7 @@ if TYPE_CHECKING:
     import logging
 
     from config.loader import Config
+    from core.cache.manager import TranslationCacheManager
     from models.translation_models import TranslationInfo
 
 
@@ -52,13 +53,15 @@ class TransManager:
     # Class-level list of available engines; accessed via class methods for command handlers.
     _trans_engine: ClassVar[list[str]] = []
 
-    def __init__(self, config: Config) -> None:
+    def __init__(self, config: Config, cache_manager: TranslationCacheManager | None = None) -> None:
         """Initialize the TransManager with the given configuration.
 
         Args:
             config (Config): The configuration object containing translation engine settings.
+            cache_manager (TranslationCacheManager | None): Cache manager for translation caching.
         """
         self.config: Config = config
+        self.cache_manager: TranslationCacheManager | None = cache_manager
         self._trans_instance: dict[str, TransInterface] = {}
         self._current_trans_engine: list[str] = []  # List of currently active translation engine names.
         self._rate_limit_error_count: int = 0
@@ -245,6 +248,13 @@ class TransManager:
             logger.debug("Content is empty after preprocessing.")
             return False
 
+        if self.cache_manager is not None:
+            cached_detection = await self.cache_manager.search_language_detection_cache(trans_info.content)
+            if cached_detection is not None:
+                trans_info.src_lang = cached_detection.detected_lang
+                logger.debug("Language detection cache hit: '%s'", cached_detection.detected_lang)
+                return trans_info.is_translate
+
         if self._rate_limit_blocked():
             return False
 
@@ -273,6 +283,9 @@ class TransManager:
                 # Engines without dedicated detection API return translated text during detection.
                 if not self.active_engine.has_dedicated_detection_api:
                     trans_info.translated_text = StringUtils.ensure_str(result.text)
+
+                if self.cache_manager is not None and trans_info.src_lang:
+                    await self.cache_manager.register_language_detection_cache(trans_info.content, trans_info.src_lang)
 
         except TranslationQuotaExceededError as err:
             logger.error("Translation quota exceeded: %s", err)
@@ -310,6 +323,23 @@ class TransManager:
             logger.debug("Reusing previous translation, skipping process.")
             return True
 
+        if self.cache_manager is not None and trans_info.src_lang and trans_info.tgt_lang:
+            try:
+                engine_name = self.active_engine.engine_name
+            except TranslateExceptionError:
+                engine_name = "unknown"
+
+            cached_translation = await self.cache_manager.search_translation_cache(
+                source_text=trans_info.content,
+                source_lang=trans_info.src_lang,
+                target_lang=trans_info.tgt_lang,
+                engine=engine_name,
+            )
+            if cached_translation is not None:
+                trans_info.translated_text = cached_translation.translation_text
+                logger.debug("Translation cache hit: '%s'", trans_info.translated_text)
+                return True
+
         if self._rate_limit_blocked():
             trans_info.translated_text = ""
             return False
@@ -322,6 +352,22 @@ class TransManager:
                 content=trans_info.content, tgt_lang=trans_info.tgt_lang, src_lang=trans_info.src_lang
             )
             trans_info.translated_text = StringUtils.ensure_str(result.text)
+
+            if self.cache_manager is not None and trans_info.src_lang and trans_info.tgt_lang:
+                await self.cache_manager.register_translation_cache(
+                    source_text=trans_info.content,
+                    source_lang=trans_info.src_lang,
+                    target_lang=trans_info.tgt_lang,
+                    translation_text=trans_info.translated_text,
+                    engine=self.active_engine.engine_name,
+                )
+                await self.cache_manager.register_translation_cache(
+                    source_text=trans_info.content,
+                    source_lang=trans_info.src_lang,
+                    target_lang=trans_info.tgt_lang,
+                    translation_text=trans_info.translated_text,
+                    engine="",
+                )
         except TranslationQuotaExceededError as err:
             logger.error("Translation quota exceeded: %s", err)
             trans_info.translated_text = ""

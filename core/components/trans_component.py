@@ -20,7 +20,7 @@ class TranslationServiceComponent(ComponentBase):
     Manages translation functionalities including initialization and teardown of translation services.
     """
 
-    depends: ClassVar[list[str]] = ["ChatEventsManager"]
+    depends: ClassVar[list[str]] = ["ChatEventsManager", "CacheServiceComponent"]
 
     async def component_load(self) -> None:
         """Load the component and initialize translation services."""
