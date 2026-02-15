@@ -313,7 +313,8 @@ class Bot(commands.Bot):
             payload (CommandErrorPayload): The payload containing error information.
         """
         error: Exception = payload.exception
-        logger.error("Command error: %s", error)
+        user_name: str | None = payload.context.author.name
+        logger.error("Command error: %s, by user: %s", error, user_name)
 
     # event_message is overridden in the components, so do nothing here
     # async def event_message(self, payload: TwitchMessage) -> None:
