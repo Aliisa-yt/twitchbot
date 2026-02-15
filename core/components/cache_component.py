@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+import asyncio
+from datetime import timedelta
 from pathlib import Path
-from typing import TYPE_CHECKING, ClassVar, Final, cast
+from typing import TYPE_CHECKING, ClassVar, Final
 
 from twitchio.ext import commands, routines
 
@@ -13,8 +14,6 @@ from utils.logger_utils import LoggerUtils
 
 if TYPE_CHECKING:
     import logging
-
-    from twitchio import Chatter
 
     from core.cache.manager import TranslationCacheManager
     from models.cache_models import CacheStatistics
@@ -26,8 +25,8 @@ logger: logging.Logger = LoggerUtils.get_logger(__name__)
 # Setting the file extension to .log excludes it from Git management.
 CACHE_EXPORT_PATH: Final[Path] = Path("cache_export.log")
 
-CACHE_MAINTENANCE_INTERVAL: Final[int] = 2  # hours
-DELAYED_START_TIME: Final[int] = 20  # seconds
+CACHE_MAINTENANCE_INTERVAL: Final[float] = 2.0  # hours
+DELAYED_START_TIME: Final[float] = 20.0  # seconds
 
 
 class CacheServiceComponent(ComponentBase):
@@ -47,40 +46,27 @@ class CacheServiceComponent(ComponentBase):
         await self.shared.cache_manager.component_teardown()
         logger.debug("'%s' component unloaded", self.__class__.__name__)
 
-    @routines.routine(delta=timedelta(seconds=DELAYED_START_TIME), iterations=1, wait_first=True)
+    @routines.routine(delta=timedelta(hours=CACHE_MAINTENANCE_INTERVAL), stop_on_error=False)
     async def cache_maintenance(self) -> None:
-        """Run periodic cache maintenance.
+        """Perform routine maintenance on the translation cache."""
+        try:
+            cache_manager: TranslationCacheManager = self.shared.cache_manager
+            if cache_manager.is_initialized:
+                await cache_manager.cleanup_expired_entries()
+                logger.debug("Cache maintenance performed")
+            else:
+                logger.debug("Cache maintenance skipped: Cache manager not initialized")
+        except Exception as err:  # noqa: BLE001
+            logger.error("Error during cache maintenance: %s", err)
 
-        Note: Delayed activation avoids congestion immediately after startup.
-        """
-        cache_manager: TranslationCacheManager = self.shared.cache_manager
-        if cache_manager.is_initialized:
-            await cache_manager.cleanup_expired_entries()
-            logger.debug("Cache maintenance performed")
-        else:
-            logger.debug("Cache maintenance skipped: Cache manager not initialized")
-
-    @cache_maintenance.after_routine
-    async def cache_maintenance_after_time_signal(self) -> None:
-        """Reschedule cache maintenance after the time signal routine."""
-        _tim: datetime = self._next_time()
-        self.cache_maintenance.change_interval(time=_tim)
-        logger.debug(
-            "Next maintenance schedule: %04d-%02d-%02d %02d:%02d:%02d",
-            _tim.year,
-            _tim.month,
-            _tim.day,
-            _tim.hour,
-            _tim.minute,
-            _tim.second,
-        )
-
-    def _next_time(self) -> datetime:
-        """Return the next cache maintenance time (current time + 2 hours)."""
-        now: datetime = datetime.now().astimezone()
-        return now + timedelta(hours=CACHE_MAINTENANCE_INTERVAL)
+    @cache_maintenance.before_routine
+    async def run_delayed_cache_maintenance(self) -> None:
+        """Delay the start of the cache maintenance routine."""
+        logger.debug("Delaying cache maintenance start by %d seconds", DELAYED_START_TIME)
+        await asyncio.sleep(DELAYED_START_TIME)
 
     @commands.command()
+    @commands.is_broadcaster()
     async def cache_stats(self, context: commands.Context) -> None:
         """Display translation cache statistics.
 
@@ -92,10 +78,6 @@ class CacheServiceComponent(ComponentBase):
             Output is directed solely to stdout to avoid chat interruptions.
         """
         logger.debug("Command 'cache_stats' invoked by user: %s", context.author.name)
-
-        if not cast("Chatter", context.author).broadcaster:
-            await context.send("This command is available to the broadcaster only.")
-            return
 
         cache_manager: TranslationCacheManager = self.shared.cache_manager
         if not cache_manager.is_initialized:
@@ -132,6 +114,7 @@ class CacheServiceComponent(ComponentBase):
         logger.info("Cache statistics displayed")
 
     @commands.command()
+    @commands.is_broadcaster()
     async def cache_export(self, context: commands.Context) -> None:
         """Export detailed translation cache data to a file.
 
@@ -143,10 +126,6 @@ class CacheServiceComponent(ComponentBase):
             Output is directed solely to stdout to avoid chat interruptions.
         """
         logger.debug("Command 'cache_export' invoked by user: %s", context.author.name)
-
-        if not cast("Chatter", context.author).broadcaster:
-            await context.send("This command is available to the broadcaster only.")
-            return
 
         cache_manager: TranslationCacheManager = self.shared.cache_manager
         if not cache_manager.is_initialized:
