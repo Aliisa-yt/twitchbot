@@ -5,7 +5,9 @@ Defines TranslationInfo and CharacterQuota dataclasses for translation tasks.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+
+from core.trans.interface import Result, TransInterface
 
 __all__: list[str] = ["CharacterQuota", "TranslationInfo"]
 
@@ -19,27 +21,56 @@ class TranslationInfo:
         src_lang (str | None): Source language code (None for auto-detection).
         tgt_lang (str): Target language code for translation.
         translated_text (str): Translation result.
-        _is_translate (bool): Whether translation is needed (False skips translation).
+        is_translate (bool): Whether translation is needed (False skips translation).
+        engine (TransInterface): Instance of the translation engine used.
     """
+
+    class NullTranslation(TransInterface):
+        """Null translation engine that performs no translation and returns empty results."""
+
+        @property
+        def count(self) -> int:
+            return 0
+
+        @property
+        def limit(self) -> int:
+            return 0
+
+        @property
+        def limit_reached(self) -> bool:
+            return False
+
+        @property
+        def is_available(self) -> bool:
+            return False
+
+        @staticmethod
+        def fetch_engine_name() -> str:
+            return ""
+
+        def initialize(self, config) -> None:
+            _ = config
+
+        async def detect_language(self, content: str, tgt_lang: str) -> Result:
+            _ = content, tgt_lang
+            return Result()
+
+        async def translation(self, content: str, tgt_lang: str, src_lang: str | None = None) -> Result:
+            _ = content, tgt_lang, src_lang
+            return Result()
+
+        async def get_quota_status(self) -> CharacterQuota:
+            return CharacterQuota()
+
+        async def close(self) -> None:
+            pass
 
     content: str = ""
     src_lang: str | None = None
     tgt_lang: str = ""
     translated_text: str = ""
-    _is_translate: bool = True
-
-    @property
-    def is_translate(self) -> bool:
-        """Indicates whether translation is needed.
-
-        Returns:
-            bool: True if translation is needed, False otherwise.
-        """
-        return self._is_translate
-
-    @is_translate.setter
-    def is_translate(self, value: bool) -> None:
-        self._is_translate = value
+    is_translate: bool = True  # Must be True.
+    engine: TransInterface = field(default_factory=NullTranslation)
 
 
 @dataclass
