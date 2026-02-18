@@ -137,7 +137,7 @@ class DeeplTranslation(TransInterface):
         return self._usage.character.limit_reached
 
     @property
-    def isavailable(self) -> bool:
+    def is_available(self) -> bool:
         return self.__available
 
     @staticmethod

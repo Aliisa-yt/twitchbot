@@ -118,7 +118,7 @@ class GoogleCloudTranslation(TransInterface):
         return False
 
     @property
-    def isavailable(self) -> bool:
+    def is_available(self) -> bool:
         return True
 
     @staticmethod

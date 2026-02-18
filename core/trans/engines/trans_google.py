@@ -73,7 +73,7 @@ class GoogleTranslation(TransInterface):
         return False  # The free version of Google has no character limit, so it always returns the same value.
 
     @property
-    def isavailable(self) -> bool:
+    def is_available(self) -> bool:
         return True  # The free version of Google has no character limit, meaning it always returns the same value.
 
     @staticmethod
