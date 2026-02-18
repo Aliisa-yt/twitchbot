@@ -176,7 +176,10 @@ class ComponentBase(Component):
         Returns:
             TranslationInfo: Translation information with cleaned content and language settings.
         """
-        trans_info = TranslationInfo(content=message.content)
+        trans_info = TranslationInfo(
+            content=message.content,
+            engine=self.trans_manager.current_engine_instance,
+        )
         if message.is_replying:
             trans_info.tgt_lang = message.reply_tgt_lang
 
