@@ -117,6 +117,17 @@ class TransInterface(ABC):
             **kwargs: Additional keyword arguments passed to parent class.
         """
         super().__init_subclass__(**kwargs)
+        if not hasattr(cls, "fetch_engine_name") or not callable(cls.fetch_engine_name):
+            msg = "Subclasses of TransInterface must implement the static method fetch_engine_name()."
+            raise TypeError(msg)
+
+        if not isinstance(cls.fetch_engine_name(), str) or cls.fetch_engine_name() == "":
+            return  # Allow registration of engines with empty names, but they won't be added to the registry.
+
+        if cls.fetch_engine_name() in cls.registered:
+            msg: str = f"A translation engine with the name '{cls.fetch_engine_name()}' is already registered."
+            raise ValueError(msg)
+
         cls.registered[cls.fetch_engine_name()] = cls
 
     def __init__(self) -> None:
@@ -218,7 +229,7 @@ class TransInterface(ABC):
 
     @property
     @abstractmethod
-    def isavailable(self) -> bool:
+    def is_available(self) -> bool:
         """Check if the translation engine is available.
 
         Returns:
@@ -285,6 +296,7 @@ class TransInterface(ABC):
             NotSupportedLanguagesError: If the specified language is not supported.
             TranslationQuotaExceededError: If the character quota has been exceeded.
             TranslateExceptionError: If translation fails.
+            TranslationRateLimitError: If the request is rate-limited by the API.
         """
         raise NotImplementedError
 
