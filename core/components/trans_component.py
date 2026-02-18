@@ -28,7 +28,7 @@ class TranslationServiceComponent(ComponentBase):
     as well as providing commands for translation engine management and usage statistics.
     """
 
-    depends: ClassVar[list[str]] = ["ChatEventsManager", "CacheServiceComponent"]
+    depends: ClassVar[list[str]] = ["ChatEventsManager"]
 
     async def component_load(self) -> None:
         """Load the component and initialize translation services."""
@@ -54,7 +54,7 @@ class TranslationServiceComponent(ComponentBase):
         """
         logger.debug("Command 'te' invoked by user: %s", context.author.name)
 
-        available_translation_engines: list[str] = TransManager.get_trans_engine_names().copy()
+        available_translation_engines: list[str] = TransManager.fetch_engine_names().copy()
 
         def usage_message() -> str:
             return f"Usage: !te [{'|'.join(available_translation_engines)}]"
@@ -78,7 +78,7 @@ class TranslationServiceComponent(ComponentBase):
             except IndexError as err:
                 logger.error("Error changing translation engine: %s", err)
             else:
-                TransManager.set_trans_engine_names(available_translation_engines)
+                TransManager.update_engine_names(available_translation_engines)
                 await context.send(f"Translation engine switched to '{selected_engine}'.")
         else:
             await context.send(usage_message())
