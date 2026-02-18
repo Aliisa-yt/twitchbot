@@ -32,7 +32,7 @@ DELAYED_START_TIME: Final[float] = 20.0  # seconds
 class CacheServiceComponent(ComponentBase):
     """Manage translation cache initialization, maintenance, and export."""
 
-    depends: ClassVar[list[str]] = ["ChatEventsManager"]
+    depends: ClassVar[list[str]] = ["TranslationServiceComponent"]
 
     async def component_load(self) -> None:
         """Load the component and initialize cache services."""
