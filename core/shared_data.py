@@ -1,8 +1,8 @@
 """Shared data management for bot components.
 
-This module provides centralized access to translation and text-to-speech managers
-that are shared across all bot components. SharedData coordinates the initialization
-and lifecycle of these managers.
+This module defines the SharedData class, which serves as a centralized container for shared resources and services
+used across different bot components. It provides properties for accessing configuration, translation cache management,
+translation services, text-to-speech services, and in-flight translation request management.
 """
 
 from __future__ import annotations
@@ -10,6 +10,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
+from core.cache.inflight_manager import InFlightManager
 from core.cache.manager import TranslationCacheManager
 from core.trans.manager import TransManager
 from core.tts.manager import TTSManager
@@ -27,10 +28,12 @@ class SharedData:
     _cache_manager: TranslationCacheManager = field(init=False)
     _trans_manager: TransManager = field(init=False)
     _tts_manager: TTSManager = field(init=False)
+    _inflight_manager: InFlightManager = field(init=False)
 
     async def async_init(self) -> None:
         self._cache_manager = TranslationCacheManager(self.config)
-        self._trans_manager = TransManager(self.config, self._cache_manager)
+        self._inflight_manager = InFlightManager()
+        self._trans_manager = TransManager(self.config, self._cache_manager, self._inflight_manager)
         self._tts_manager = TTSManager(self.config)
 
     @property
@@ -48,3 +51,7 @@ class SharedData:
     @property
     def tts_manager(self) -> TTSManager:
         return self._tts_manager
+
+    @property
+    def inflight_manager(self) -> InFlightManager:
+        return self._inflight_manager
