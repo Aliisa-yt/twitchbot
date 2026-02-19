@@ -8,9 +8,7 @@ Provides cache search, registration, in-flight request management, and cleanup f
 from __future__ import annotations
 
 import asyncio
-import hashlib
 import sqlite3
-import unicodedata
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import TYPE_CHECKING, ClassVar, Final
@@ -21,6 +19,7 @@ from models.cache_models import (
     TranslationCacheEntry,
 )
 from utils.logger_utils import LoggerUtils
+from utils.string_utils import StringUtils
 
 if TYPE_CHECKING:
     import logging
@@ -42,20 +41,17 @@ class TranslationCacheManager:
     and capacity-based LRU cleanup.
 
     Attributes:
-        TTL_VIEWER_DAYS (ClassVar[int]): TTL for viewer translations (3-7 days).
-        TTL_STREAMER_DAYS (ClassVar[int]): TTL for streamer translations (30+ days).
+        TTL_TRANSLATION_DAYS (ClassVar[int]): TTL for translation cache entries.
+        TTL_LANGUAGE_DETECTION_DAYS (ClassVar[int]): TTL for language detection cache entries.
         MAX_ENTRIES_PER_ENGINE (ClassVar[int]): Maximum cache entries per engine.
         INFLIGHT_TIMEOUT_SEC (ClassVar[float]): In-flight request timeout in seconds.
         DB_SCHEMA_VERSION (ClassVar[int]): Cache database schema version.
-        CACHE_TEXT_LENGTH_LIMIT (ClassVar[int]): Maximum source text length for caching.
     """
 
-    TTL_VIEWER_DAYS: ClassVar[int] = 7
-    TTL_STREAMER_DAYS: ClassVar[int] = 30
+    TTL_TRANSLATION_DAYS: ClassVar[int] = 7
+    TTL_LANGUAGE_DETECTION_DAYS: ClassVar[int] = 30
     MAX_ENTRIES_PER_ENGINE: ClassVar[int] = 200
-    INFLIGHT_TIMEOUT_SEC: ClassVar[float] = 1.0
-    DB_SCHEMA_VERSION: ClassVar[int] = 2
-    CACHE_TEXT_LENGTH_LIMIT: ClassVar[int] = 50
+    DB_SCHEMA_VERSION: ClassVar[int] = 1
 
     def __init__(self, config: Config) -> None:
         """Initialize the cache manager.
@@ -67,8 +63,6 @@ class TranslationCacheManager:
         self._db_path: Path = TRANSLATION_CACHE_DB_PATH
         self._db_conn: sqlite3.Connection | None = None
         self._is_initialized: bool = False
-        self._inflight: dict[str, asyncio.Event] = {}
-        self._inflight_results: dict[str, TranslationCacheEntry | None] = {}
         self._lock: asyncio.Lock = asyncio.Lock()
         logger.debug("TranslationCacheManager instance created")
 
@@ -111,6 +105,7 @@ class TranslationCacheManager:
         try:
             self._db_conn = sqlite3.connect(str(self._db_path), check_same_thread=False)
             self._db_conn.execute("PRAGMA journal_mode=WAL")
+            self._db_conn.execute("PRAGMA busy_timeout=5000")
 
             self._db_conn.execute(
                 """
@@ -122,8 +117,8 @@ class TranslationCacheManager:
                     translation_text TEXT NOT NULL,
                     translation_profile TEXT NOT NULL,
                     engine TEXT NOT NULL,
-                    created_at TEXT NOT NULL,
-                    last_used_at TEXT NOT NULL,
+                    created_at INTEGER NOT NULL,
+                    last_used_at INTEGER NOT NULL,
                     hit_count INTEGER NOT NULL DEFAULT 0
                 )
                 """
@@ -138,8 +133,8 @@ class TranslationCacheManager:
                     normalized_source TEXT PRIMARY KEY,
                     detected_lang TEXT NOT NULL,
                     confidence REAL NOT NULL,
-                    created_at TEXT NOT NULL,
-                    last_used_at TEXT NOT NULL
+                    created_at INTEGER NOT NULL,
+                    last_used_at INTEGER NOT NULL
                 )
                 """
             )
@@ -172,28 +167,6 @@ class TranslationCacheManager:
                     self.DB_SCHEMA_VERSION,
                 )
 
-            if row is not None and row[0] == "1":
-                self._db_conn.execute(
-                    """
-                    UPDATE translation_cache
-                    SET created_at = strftime('%s', created_at),
-                        last_used_at = strftime('%s', last_used_at)
-                    WHERE created_at LIKE '%-%' OR last_used_at LIKE '%-%'
-                    """
-                )
-                self._db_conn.execute(
-                    """
-                    UPDATE language_detection_cache
-                    SET created_at = strftime('%s', created_at),
-                        last_used_at = strftime('%s', last_used_at)
-                    WHERE created_at LIKE '%-%' OR last_used_at LIKE '%-%'
-                    """
-                )
-                self._db_conn.execute(
-                    "UPDATE cache_metadata SET value = ? WHERE key = ?",
-                    (str(self.DB_SCHEMA_VERSION), "schema_version"),
-                )
-
             self._db_conn.commit()
             logger.info("Database initialized with WAL mode")
         except sqlite3.Error as err:
@@ -215,77 +188,31 @@ class TranslationCacheManager:
             return
 
         try:
-            cutoff_viewer: datetime = datetime.now().astimezone() - timedelta(days=self.TTL_VIEWER_DAYS)
-            cutoff_streamer: datetime = datetime.now().astimezone() - timedelta(days=self.TTL_STREAMER_DAYS)
+            async with self._lock:
+                cutoff_viewer: datetime = datetime.now().astimezone() - timedelta(days=self.TTL_TRANSLATION_DAYS)
+                cutoff_streamer: datetime = datetime.now().astimezone() - timedelta(
+                    days=self.TTL_LANGUAGE_DETECTION_DAYS
+                )
 
-            cursor: sqlite3.Cursor = self._db_conn.execute(
-                "DELETE FROM translation_cache WHERE CAST(last_used_at AS INTEGER) < ?",
-                (int(cutoff_viewer.timestamp()),),
-            )
-            deleted: int = cursor.rowcount
-            logger.info("Deleted %d expired translation cache entries", deleted)
+                cursor: sqlite3.Cursor = self._db_conn.execute(
+                    "DELETE FROM translation_cache WHERE CAST(last_used_at AS INTEGER) < ?",
+                    (int(cutoff_viewer.timestamp()),),
+                )
+                deleted: int = cursor.rowcount
+                logger.info("Deleted %d expired translation cache entries", deleted)
 
-            cursor = self._db_conn.execute(
-                "DELETE FROM language_detection_cache WHERE CAST(last_used_at AS INTEGER) < ?",
-                (int(cutoff_streamer.timestamp()),),
-            )
-            deleted = cursor.rowcount
-            logger.info("Deleted %d expired language detection cache entries", deleted)
+                cursor = self._db_conn.execute(
+                    "DELETE FROM language_detection_cache WHERE CAST(last_used_at AS INTEGER) < ?",
+                    (int(cutoff_streamer.timestamp()),),
+                )
+                deleted = cursor.rowcount
+                logger.info("Deleted %d expired language detection cache entries", deleted)
 
-            self._db_conn.commit()
+                self._db_conn.commit()
         except sqlite3.Error as err:
             logger.error("Error during cache cleanup: %s", err)
 
-    def _normalize_text(self, text: str) -> str:
-        """Normalize text using Unicode NFC normalization.
-
-        Args:
-            text (str): Text to normalize.
-
-        Returns:
-            str: Normalized text.
-        """
-        return unicodedata.normalize("NFC", text)
-
-    def _is_cache_eligible(self, source_text: str) -> bool:
-        """Check if the source text is eligible for caching based on length.
-
-        Args:
-            source_text (str): Source text to check.
-
-        Returns:
-            bool: True if eligible for caching, False otherwise.
-        """
-        if self.CACHE_TEXT_LENGTH_LIMIT <= 0:
-            return True
-        return len(source_text) <= self.CACHE_TEXT_LENGTH_LIMIT
-
-    def _generate_cache_key(
-        self,
-        normalized_source: str,
-        source_lang: str,
-        target_lang: str,
-        translation_profile: str,
-        engine: str | None = None,
-    ) -> str:
-        """Generate cache key from input parameters.
-
-        Args:
-            normalized_source (str): Normalized source text.
-            source_lang (str): Source language code.
-            target_lang (str): Target language code.
-            translation_profile (str): Translation profile identifier.
-            engine (str | None): Translation engine name (None for common cache).
-
-        Returns:
-            str: SHA256 hash as cache key.
-        """
-        key_data: str = f"{normalized_source}|{source_lang}|{target_lang}|{translation_profile}"
-        if engine is not None:
-            key_data += f"|{engine}"
-        return hashlib.sha256(key_data.encode("utf-8")).hexdigest()
-
-    async def search_translation_cache(  # noqa: C901
+    async def search_translation_cache(
         self,
         source_text: str,
         source_lang: str,
@@ -311,43 +238,34 @@ class TranslationCacheManager:
         """
         if not self._is_initialized or self._db_conn is None:
             return None
-        if not self._is_cache_eligible(source_text):
+        if not StringUtils.is_hash_eligible(source_text):
             return None
 
-        normalized_source: str = self._normalize_text(source_text)
-        cache_key: str = self._generate_cache_key(
-            normalized_source, source_lang, target_lang, translation_profile, engine
+        normalized_source: str = StringUtils.normalize_text(source_text)
+        # Keep track whether caller explicitly provided an engine (None means not provided).
+        provided_engine: bool = engine is not None
+        engine_norm: str = engine or ""
+
+        cache_key: str = StringUtils.generate_hash_key(
+            normalized_source, source_lang, target_lang, translation_profile, engine_norm
         )
-
-        event: asyncio.Event | None = None
-        async with self._lock:
-            if cache_key in self._inflight:
-                event = self._inflight[cache_key]
-                logger.debug("In-flight translation detected for key: %s", cache_key[:16])
-
-        if event is not None:
-            try:
-                await asyncio.wait_for(event.wait(), timeout=self.INFLIGHT_TIMEOUT_SEC)
-                result: TranslationCacheEntry | None = self._inflight_results.get(cache_key)
-                if result is not None:
-                    logger.debug("Received in-flight translation result")
-                    return result
-            except TimeoutError:
-                logger.warning("In-flight translation timeout for key: %s", cache_key[:16])
-                return None
+        if cache_key is None:
+            return None
 
         try:
             entry: TranslationCacheEntry | None = await self._search_translation_entry(cache_key)
 
-            if entry is None and engine is not None:
+            if entry is None and provided_engine:
                 logger.debug("Engine-specific cache miss for key: %s, trying fallback", cache_key[:16])
-                common_cache_key: str = self._generate_cache_key(
+
+                common_cache_key: str = StringUtils.generate_hash_key(
                     normalized_source, source_lang, target_lang, translation_profile, engine=""
                 )
+                if common_cache_key is None:
+                    return None
                 entry = await self._search_translation_entry(common_cache_key)
                 if entry is not None:
                     logger.debug("Cache hit via fallback (common cache)")
-
         except sqlite3.Error as err:
             logger.error("Error searching translation cache: %s", err)
             return None
@@ -367,47 +285,54 @@ class TranslationCacheManager:
             return None
 
         try:
-            cursor: sqlite3.Cursor = self._db_conn.execute(
-                """
-                SELECT cache_key, normalized_source, source_lang, target_lang,
-                       translation_text, translation_profile, engine,
-                       created_at, last_used_at, hit_count
-                FROM translation_cache
-                WHERE cache_key = ?
-                """,
-                (cache_key,),
-            )
-            row = cursor.fetchone()
+            async with self._lock:
+                cursor: sqlite3.Cursor = self._db_conn.execute(
+                    """
+                    SELECT cache_key, normalized_source, source_lang, target_lang,
+                           translation_text, translation_profile, engine,
+                           created_at, last_used_at, hit_count
+                    FROM translation_cache
+                    WHERE cache_key = ?
+                    """,
+                    (cache_key,),
+                )
+                row = cursor.fetchone()
 
-            if row is None:
-                logger.debug("Cache miss for key: %s", cache_key[:16])
-                return None
+                if row is None:
+                    logger.debug("Cache miss for key: %s", cache_key[:16])
+                    return None
 
-            entry = TranslationCacheEntry(
-                cache_key=row[0],
-                normalized_source=row[1],
-                source_lang=row[2],
-                target_lang=row[3],
-                translation_text=row[4],
-                translation_profile=row[5],
-                engine=row[6],
-                created_at=self._epoch_to_datetime(row[7]),
-                last_used_at=self._epoch_to_datetime(row[8]),
-                hit_count=row[9],
-            )
+                entry = TranslationCacheEntry(
+                    cache_key=row[0],
+                    normalized_source=row[1],
+                    source_lang=row[2],
+                    target_lang=row[3],
+                    translation_text=row[4],
+                    translation_profile=row[5],
+                    engine=row[6],
+                    created_at=self._epoch_to_datetime(row[7]),
+                    last_used_at=self._epoch_to_datetime(row[8]),
+                    hit_count=row[9],
+                )
 
-            cutoff: datetime = datetime.now().astimezone() - timedelta(days=self.TTL_VIEWER_DAYS)
-            if entry.last_used_at < cutoff:
-                logger.debug("Cache entry expired for key: %s", cache_key[:16])
-                return None
+                cutoff: datetime = datetime.now().astimezone() - timedelta(days=self.TTL_TRANSLATION_DAYS)
+                if entry.last_used_at < cutoff:
+                    self._db_conn.execute("DELETE FROM translation_cache WHERE cache_key = ?", (cache_key,))
+                    self._db_conn.commit()
+                    logger.debug("Cache entry expired for key: %s", cache_key[:16])
+                    return None
 
-            self._db_conn.execute(
-                "UPDATE translation_cache SET last_used_at = ?, hit_count = hit_count + 1 WHERE cache_key = ?",
-                (self._now_epoch(), cache_key),
-            )
-            self._db_conn.commit()
+                now_epoch: int = self._now_epoch()
+                self._db_conn.execute(
+                    "UPDATE translation_cache SET last_used_at = ?, hit_count = hit_count + 1 WHERE cache_key = ?",
+                    (now_epoch, cache_key),
+                )
+                self._db_conn.commit()
 
-            logger.debug("Cache hit for key: %s (hit_count: %d)", cache_key[:16], entry.hit_count + 1)
+                entry.hit_count += 1
+                entry.last_used_at = self._epoch_to_datetime(now_epoch)
+
+                logger.debug("Cache hit for key: %s (hit_count: %d)", cache_key[:16], entry.hit_count)
 
         except sqlite3.Error as err:
             logger.error("Error searching translation cache entry: %s", err)
@@ -424,7 +349,6 @@ class TranslationCacheManager:
         translation_text: str,
         engine: str,
         translation_profile: str = "",
-        is_inflight: bool = False,
     ) -> bool:
         """Register translation result to cache.
 
@@ -435,66 +359,48 @@ class TranslationCacheManager:
             translation_text (str): Translated text.
             engine (str): Translation engine name.
             translation_profile (str): Translation profile identifier.
-            is_inflight (bool): Whether this is an in-flight registration.
 
         Returns:
             bool: True if registration succeeded, False otherwise.
         """
         if not self._is_initialized or self._db_conn is None:
             return False
-        if not self._is_cache_eligible(source_text):
+        if not StringUtils.is_hash_eligible(source_text):
             return False
 
-        normalized_source: str = self._normalize_text(source_text)
-        cache_key: str = self._generate_cache_key(
+        normalized_source: str = StringUtils.normalize_text(source_text)
+        cache_key: str = StringUtils.generate_hash_key(
             normalized_source, source_lang, target_lang, translation_profile, engine
         )
+        if cache_key is None:
+            return False
 
         try:
-            now_epoch: int = self._now_epoch()
-            self._db_conn.execute(
-                """
-                INSERT OR REPLACE INTO translation_cache
-                (cache_key, normalized_source, source_lang, target_lang,
-                 translation_text, translation_profile, engine,
-                 created_at, last_used_at, hit_count)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
-                """,
-                (
-                    cache_key,
-                    normalized_source,
-                    source_lang,
-                    target_lang,
-                    translation_text,
-                    translation_profile,
-                    engine,
-                    now_epoch,
-                    now_epoch,
-                ),
-            )
-            self._db_conn.commit()
+            async with self._lock:
+                now_epoch: int = self._now_epoch()
+                self._db_conn.execute(
+                    """
+                    INSERT OR REPLACE INTO translation_cache
+                    (cache_key, normalized_source, source_lang, target_lang,
+                     translation_text, translation_profile, engine,
+                     created_at, last_used_at, hit_count)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
+                    """,
+                    (
+                        cache_key,
+                        normalized_source,
+                        source_lang,
+                        target_lang,
+                        translation_text,
+                        translation_profile,
+                        engine,
+                        now_epoch,
+                        now_epoch,
+                    ),
+                )
+                self._db_conn.commit()
 
             logger.debug("Translation cached for key: %s", cache_key[:16])
-
-            if is_inflight:
-                entry = TranslationCacheEntry(
-                    cache_key=cache_key,
-                    normalized_source=normalized_source,
-                    source_lang=source_lang,
-                    target_lang=target_lang,
-                    translation_text=translation_text,
-                    translation_profile=translation_profile,
-                    engine=engine,
-                    created_at=self._epoch_to_datetime(now_epoch),
-                    last_used_at=self._epoch_to_datetime(now_epoch),
-                    hit_count=0,
-                )
-
-                async with self._lock:
-                    self._inflight_results[cache_key] = entry
-                    if cache_key in self._inflight:
-                        self._inflight[cache_key].set()
-                        del self._inflight[cache_key]
 
             await self._enforce_capacity_limit(engine)
 
@@ -514,54 +420,31 @@ class TranslationCacheManager:
             return
 
         try:
-            cursor: sqlite3.Cursor = self._db_conn.execute(
-                "SELECT COUNT(*) FROM translation_cache WHERE engine = ?", (engine,)
-            )
-            count: int = cursor.fetchone()[0]
-
-            if count > self.MAX_ENTRIES_PER_ENGINE:
-                to_delete: int = count - self.MAX_ENTRIES_PER_ENGINE
-                self._db_conn.execute(
-                    """
-                    DELETE FROM translation_cache
-                    WHERE cache_key IN (
-                        SELECT cache_key FROM translation_cache
-                        WHERE engine = ?
-                        ORDER BY CAST(last_used_at AS INTEGER) ASC, hit_count ASC
-                        LIMIT ?
-                    )
-                    """,
-                    (engine, to_delete),
+            async with self._lock:
+                cursor: sqlite3.Cursor = self._db_conn.execute(
+                    "SELECT COUNT(*) FROM translation_cache WHERE engine = ?", (engine,)
                 )
-                self._db_conn.commit()
-                logger.info("Deleted %d LRU entries for engine: %s", to_delete, engine)
+                count: int = cursor.fetchone()[0]
+
+                if count > self.MAX_ENTRIES_PER_ENGINE:
+                    to_delete: int = count - self.MAX_ENTRIES_PER_ENGINE
+                    self._db_conn.execute(
+                        """
+                        DELETE FROM translation_cache
+                        WHERE cache_key IN (
+                            SELECT cache_key FROM translation_cache
+                            WHERE engine = ?
+                            ORDER BY CAST(last_used_at AS INTEGER) ASC, hit_count ASC
+                            LIMIT ?
+                        )
+                        """,
+                        (engine, to_delete),
+                    )
+                    self._db_conn.commit()
+                    logger.info("Deleted %d LRU entries for engine: %s", to_delete, engine)
 
         except sqlite3.Error as err:
             logger.error("Error enforcing capacity limit: %s", err)
-
-    async def mark_inflight_start(self, cache_key: str) -> None:
-        """Mark the start of an in-flight translation request.
-
-        Args:
-            cache_key (str): Cache key for the translation.
-        """
-        async with self._lock:
-            if cache_key not in self._inflight:
-                self._inflight[cache_key] = asyncio.Event()
-                logger.debug("Marked in-flight start for key: %s", cache_key[:16])
-
-    async def mark_inflight_complete(self, cache_key: str) -> None:
-        """Mark the completion of an in-flight translation request.
-
-        Args:
-            cache_key (str): Cache key for the translation.
-        """
-        async with self._lock:
-            if cache_key in self._inflight:
-                self._inflight[cache_key].set()
-                del self._inflight[cache_key]
-                self._inflight_results.pop(cache_key, None)
-                logger.debug("Marked in-flight complete for key: %s", cache_key[:16])
 
     async def search_language_detection_cache(self, source_text: str) -> LanguageDetectionCacheEntry | None:
         """Search for language detection result in cache.
@@ -574,47 +457,56 @@ class TranslationCacheManager:
         """
         if not self._is_initialized or self._db_conn is None:
             return None
-        if not self._is_cache_eligible(source_text):
+        if not StringUtils.is_hash_eligible(source_text):
             return None
 
-        normalized_source: str = self._normalize_text(source_text)
+        normalized_source: str = StringUtils.normalize_text(source_text)
 
         try:
-            cursor: sqlite3.Cursor = self._db_conn.execute(
-                """
-                SELECT normalized_source, detected_lang, confidence,
-                       created_at, last_used_at
-                FROM language_detection_cache
-                WHERE normalized_source = ?
-                """,
-                (normalized_source,),
-            )
-            row = cursor.fetchone()
+            async with self._lock:
+                cursor: sqlite3.Cursor = self._db_conn.execute(
+                    """
+                    SELECT normalized_source, detected_lang, confidence,
+                           created_at, last_used_at
+                    FROM language_detection_cache
+                    WHERE normalized_source = ?
+                    """,
+                    (normalized_source,),
+                )
+                row = cursor.fetchone()
 
-            if row is None:
-                logger.debug("Language detection cache miss")
-                return None
+                if row is None:
+                    logger.debug("Language detection cache miss")
+                    return None
 
-            entry = LanguageDetectionCacheEntry(
-                normalized_source=row[0],
-                detected_lang=row[1],
-                confidence=row[2],
-                created_at=self._epoch_to_datetime(row[3]),
-                last_used_at=self._epoch_to_datetime(row[4]),
-            )
+                entry = LanguageDetectionCacheEntry(
+                    normalized_source=row[0],
+                    detected_lang=row[1],
+                    confidence=row[2],
+                    created_at=self._epoch_to_datetime(row[3]),
+                    last_used_at=self._epoch_to_datetime(row[4]),
+                )
 
-            cutoff: datetime = datetime.now().astimezone() - timedelta(days=self.TTL_STREAMER_DAYS)
-            if entry.last_used_at < cutoff:
-                logger.debug("Language detection cache entry expired")
-                return None
+                cutoff: datetime = datetime.now().astimezone() - timedelta(days=self.TTL_LANGUAGE_DETECTION_DAYS)
+                if entry.last_used_at < cutoff:
+                    self._db_conn.execute(
+                        "DELETE FROM language_detection_cache WHERE normalized_source = ?",
+                        (normalized_source,),
+                    )
+                    self._db_conn.commit()
+                    logger.debug("Language detection cache entry expired")
+                    return None
 
-            self._db_conn.execute(
-                "UPDATE language_detection_cache SET last_used_at = ? WHERE normalized_source = ?",
-                (self._now_epoch(), normalized_source),
-            )
-            self._db_conn.commit()
+                now_epoch: int = self._now_epoch()
+                self._db_conn.execute(
+                    "UPDATE language_detection_cache SET last_used_at = ? WHERE normalized_source = ?",
+                    (now_epoch, normalized_source),
+                )
+                self._db_conn.commit()
 
-            logger.debug("Language detection cache hit")
+                entry.last_used_at = self._epoch_to_datetime(now_epoch)
+
+                logger.debug("Language detection cache hit")
 
         except sqlite3.Error as err:
             logger.error("Error searching language detection cache: %s", err)
@@ -637,22 +529,23 @@ class TranslationCacheManager:
         """
         if not self._is_initialized or self._db_conn is None:
             return False
-        if not self._is_cache_eligible(source_text):
+        if not StringUtils.is_hash_eligible(source_text):
             return False
 
-        normalized_source: str = self._normalize_text(source_text)
+        normalized_source: str = StringUtils.normalize_text(source_text)
 
         try:
-            now_epoch: int = self._now_epoch()
-            self._db_conn.execute(
-                """
-                INSERT OR REPLACE INTO language_detection_cache
-                (normalized_source, detected_lang, confidence, created_at, last_used_at)
-                VALUES (?, ?, ?, ?, ?)
-                """,
-                (normalized_source, detected_lang, confidence, now_epoch, now_epoch),
-            )
-            self._db_conn.commit()
+            async with self._lock:
+                now_epoch: int = self._now_epoch()
+                self._db_conn.execute(
+                    """
+                    INSERT OR REPLACE INTO language_detection_cache
+                    (normalized_source, detected_lang, confidence, created_at, last_used_at)
+                    VALUES (?, ?, ?, ?, ?)
+                    """,
+                    (normalized_source, detected_lang, confidence, now_epoch, now_epoch),
+                )
+                self._db_conn.commit()
 
             logger.debug("Language detection cached: %s", detected_lang)
 
@@ -672,23 +565,24 @@ class TranslationCacheManager:
             return CacheStatistics()
 
         try:
-            cursor: sqlite3.Cursor = self._db_conn.execute("SELECT COUNT(*), SUM(hit_count) FROM translation_cache")
-            row = cursor.fetchone()
-            total_entries: int = row[0] or 0
-            total_hits: int = row[1] or 0
+            async with self._lock:
+                cursor: sqlite3.Cursor = self._db_conn.execute("SELECT COUNT(*), SUM(hit_count) FROM translation_cache")
+                row = cursor.fetchone()
+                total_entries: int = row[0] or 0
+                total_hits: int = row[1] or 0
 
-            cursor = self._db_conn.execute("SELECT hit_count, COUNT(*) FROM translation_cache GROUP BY hit_count")
-            hit_distribution: dict[int, int] = {row[0]: row[1] for row in cursor.fetchall()}
+                cursor = self._db_conn.execute("SELECT hit_count, COUNT(*) FROM translation_cache GROUP BY hit_count")
+                hit_distribution: dict[int, int] = {row[0]: row[1] for row in cursor.fetchall()}
 
-            cursor = self._db_conn.execute("SELECT engine, COUNT(*) FROM translation_cache GROUP BY engine")
-            engine_distribution: dict[str, int] = {row[0]: row[1] for row in cursor.fetchall()}
+                cursor = self._db_conn.execute("SELECT engine, COUNT(*) FROM translation_cache GROUP BY engine")
+                engine_distribution: dict[str, int] = {row[0]: row[1] for row in cursor.fetchall()}
 
-            cursor = self._db_conn.execute(
-                "SELECT MIN(CAST(created_at AS INTEGER)), MAX(CAST(created_at AS INTEGER)) FROM translation_cache"
-            )
-            row = cursor.fetchone()
-            oldest_entry: datetime | None = self._epoch_to_datetime(row[0]) if row[0] else None
-            newest_entry: datetime | None = self._epoch_to_datetime(row[1]) if row[1] else None
+                cursor = self._db_conn.execute(
+                    "SELECT MIN(CAST(created_at AS INTEGER)), MAX(CAST(created_at AS INTEGER)) FROM translation_cache"
+                )
+                row = cursor.fetchone()
+                oldest_entry: datetime | None = self._epoch_to_datetime(row[0]) if row[0] else None
+                newest_entry: datetime | None = self._epoch_to_datetime(row[1]) if row[1] else None
 
             return CacheStatistics(
                 total_entries=total_entries,
@@ -717,28 +611,27 @@ class TranslationCacheManager:
             return False
 
         try:
-            cursor: sqlite3.Cursor = self._db_conn.execute(
-                """
-                SELECT cache_key, normalized_source, source_lang, target_lang,
-                       translation_text, engine, hit_count, last_used_at
-                FROM translation_cache
-                  ORDER BY hit_count DESC, CAST(last_used_at AS INTEGER) DESC
-                """
-            )
+            async with self._lock:
+                cursor: sqlite3.Cursor = self._db_conn.execute(
+                    """
+                    SELECT cache_key, normalized_source, source_lang, target_lang,
+                           translation_text, engine, hit_count, last_used_at
+                    FROM translation_cache
+                      ORDER BY hit_count DESC, CAST(last_used_at AS INTEGER) DESC
+                    """
+                )
+                rows = cursor.fetchall()
 
             with output_path.open("w", encoding="utf-8") as f:
                 f.write("Translation Cache Detailed Export\n")
                 f.write("=" * 80 + "\n\n")
 
-                for row in cursor.fetchall():
-                    f.write(f"Cache Key: {row[0]}\n")
-                    f.write(f"Source: {row[1]}\n")
-                    f.write(f"Languages: {row[2]} -> {row[3]}\n")
-                    f.write(f"Translation: {row[4]}\n")
-                    f.write(f"Engine: {row[5]}\n")
-                    f.write(f"Hit Count: {row[6]}\n")
-                    f.write(f"Last Used: {self._epoch_to_datetime(row[7]).isoformat()}\n")
-                    f.write("-" * 80 + "\n")
+                for row in rows:
+                    last_used_dt: str = self._epoch_to_datetime(row[7]).isoformat()
+                    f.write(
+                        f'{row[2]} -> {row[3]}, "{row[1]}", "{row[4]}", Engine: {row[5]}, Hit Count: {row[6]},'
+                        f" Last Used: {last_used_dt}, Cache Key: {row[0]}\n"
+                    )
 
             logger.info("Cache data exported to: %s", output_path)
 
