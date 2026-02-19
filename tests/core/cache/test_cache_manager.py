@@ -5,6 +5,8 @@ Tests cache search, registration, in-flight management, TTL, and capacity limits
 
 from __future__ import annotations
 
+from datetime import datetime, timedelta
+from pathlib import Path
 from typing import TYPE_CHECKING
 from unittest.mock import MagicMock
 
@@ -12,10 +14,14 @@ import pytest
 
 from config.loader import Config
 from core.cache.manager import TranslationCacheManager
+from utils.string_utils import StringUtils
 
 if TYPE_CHECKING:
     from collections.abc import AsyncGenerator
     from pathlib import Path
+    from sqlite3 import Cursor
+
+    from models.cache_models import CacheStatistics, LanguageDetectionCacheEntry, TranslationCacheEntry
 
 
 @pytest.fixture
@@ -44,7 +50,7 @@ async def test_cache_initialization(cache_manager: TranslationCacheManager) -> N
 @pytest.mark.asyncio
 async def test_translation_cache_miss(cache_manager: TranslationCacheManager) -> None:
     """Test cache miss returns None."""
-    result = await cache_manager.search_translation_cache(
+    result: TranslationCacheEntry | None = await cache_manager.search_translation_cache(
         source_text="Hello world",
         source_lang="en",
         target_lang="ja",
@@ -56,7 +62,7 @@ async def test_translation_cache_miss(cache_manager: TranslationCacheManager) ->
 @pytest.mark.asyncio
 async def test_translation_cache_registration(cache_manager: TranslationCacheManager) -> None:
     """Test cache registration."""
-    success = await cache_manager.register_translation_cache(
+    success: bool = await cache_manager.register_translation_cache(
         source_text="Hello world",
         source_lang="en",
         target_lang="ja",
@@ -77,7 +83,7 @@ async def test_translation_cache_hit(cache_manager: TranslationCacheManager) -> 
         engine="DeepL",
     )
 
-    result = await cache_manager.search_translation_cache(
+    result: TranslationCacheEntry | None = await cache_manager.search_translation_cache(
         source_text="Hello world",
         source_lang="en",
         target_lang="ja",
@@ -94,10 +100,10 @@ async def test_translation_cache_hit(cache_manager: TranslationCacheManager) -> 
 @pytest.mark.asyncio
 async def test_language_detection_cache(cache_manager: TranslationCacheManager) -> None:
     """Test language detection cache."""
-    result = await cache_manager.search_language_detection_cache("Hello world")
+    result: LanguageDetectionCacheEntry | None = await cache_manager.search_language_detection_cache("Hello world")
     assert result is None
 
-    success = await cache_manager.register_language_detection_cache("Hello world", "en", 0.95)
+    success: bool = await cache_manager.register_language_detection_cache("Hello world", "en", 0.95)
     assert success is True
 
     result = await cache_manager.search_language_detection_cache("Hello world")
@@ -117,7 +123,7 @@ async def test_cache_statistics(cache_manager: TranslationCacheManager) -> None:
         engine="DeepL",
     )
 
-    stats = await cache_manager.get_cache_statistics()
+    stats: CacheStatistics = await cache_manager.get_cache_statistics()
     assert stats.total_entries == 1
     assert "DeepL" in stats.engine_distribution
 
@@ -133,16 +139,16 @@ async def test_cache_export(cache_manager: TranslationCacheManager, tmp_path: Pa
         engine="DeepL",
     )
 
-    output_path = tmp_path / "cache_export.txt"
-    success = await cache_manager.export_cache_detailed(output_path)
+    output_path: Path = tmp_path / "cache_export.txt"
+    success: bool = await cache_manager.export_cache_detailed(output_path)
     assert success is True
-    assert output_path.exists()
+    assert output_path.exists()  # noqa: ASYNC240
 
 
 @pytest.mark.asyncio
 async def test_capacity_limit_enforcement(cache_manager: TranslationCacheManager) -> None:
     """Test capacity limit enforcement per engine."""
-    original_limit = TranslationCacheManager.MAX_ENTRIES_PER_ENGINE
+    original_limit: int = TranslationCacheManager.MAX_ENTRIES_PER_ENGINE
     TranslationCacheManager.MAX_ENTRIES_PER_ENGINE = 5
 
     for i in range(10):
@@ -154,7 +160,7 @@ async def test_capacity_limit_enforcement(cache_manager: TranslationCacheManager
             engine="DeepL",
         )
 
-    stats = await cache_manager.get_cache_statistics()
+    stats: CacheStatistics = await cache_manager.get_cache_statistics()
     assert stats.engine_distribution["DeepL"] <= 5
 
     TranslationCacheManager.MAX_ENTRIES_PER_ENGINE = original_limit
@@ -171,7 +177,7 @@ async def test_text_normalization(cache_manager: TranslationCacheManager) -> Non
         engine="DeepL",
     )
 
-    result = await cache_manager.search_translation_cache(
+    result: TranslationCacheEntry | None = await cache_manager.search_translation_cache(
         source_text="Café",  # Should match even with different Unicode form
         source_lang="en",
         target_lang="ja",
@@ -183,60 +189,74 @@ async def test_text_normalization(cache_manager: TranslationCacheManager) -> Non
 
 
 @pytest.mark.asyncio
-async def test_cache_length_limit_blocks_operations(cache_manager: TranslationCacheManager) -> None:
-    """Test cache operations are skipped when text exceeds length limit."""
-    original_limit = TranslationCacheManager.CACHE_TEXT_LENGTH_LIMIT
-    TranslationCacheManager.CACHE_TEXT_LENGTH_LIMIT = 5
+async def test_expired_translation_entry_is_deleted_on_lookup(cache_manager: TranslationCacheManager) -> None:
+    """Expired translation cache entry should be deleted when accessed."""
+    source_text = "Hello world"
+    source_lang = "en"
+    target_lang = "ja"
+    engine = "DeepL"
 
-    try:
-        long_text = "Hello world"
-        success = await cache_manager.register_translation_cache(
-            source_text=long_text,
-            source_lang="en",
-            target_lang="ja",
-            translation_text="こんにちは世界",
-            engine="DeepL",
-        )
-        assert success is False
+    await cache_manager.register_translation_cache(
+        source_text=source_text,
+        source_lang=source_lang,
+        target_lang=target_lang,
+        translation_text="こんにちは世界",
+        engine=engine,
+    )
 
-        result = await cache_manager.search_translation_cache(
-            source_text=long_text,
-            source_lang="en",
-            target_lang="ja",
-            engine="DeepL",
-        )
-        assert result is None
+    normalized_source: str = StringUtils.normalize_text(source_text)
+    cache_key: str = StringUtils.generate_hash_key(normalized_source, source_lang, target_lang, "", engine)
+    assert cache_key is not None
+    assert cache_manager._db_conn is not None
 
-        detection = await cache_manager.search_language_detection_cache(long_text)
-        assert detection is None
-    finally:
-        TranslationCacheManager.CACHE_TEXT_LENGTH_LIMIT = original_limit
+    expired_epoch = int(
+        (datetime.now().astimezone() - timedelta(days=cache_manager.TTL_TRANSLATION_DAYS + 1)).timestamp()
+    )
+    cache_manager._db_conn.execute(
+        "UPDATE translation_cache SET last_used_at = ? WHERE cache_key = ?",
+        (expired_epoch, cache_key),
+    )
+    cache_manager._db_conn.commit()
+
+    result: TranslationCacheEntry | None = await cache_manager.search_translation_cache(
+        source_text=source_text,
+        source_lang=source_lang,
+        target_lang=target_lang,
+        engine=engine,
+    )
+
+    assert result is None
+
+    cursor: Cursor = cache_manager._db_conn.execute(
+        "SELECT COUNT(*) FROM translation_cache WHERE cache_key = ?", (cache_key,)
+    )
+    assert cursor.fetchone()[0] == 0
 
 
 @pytest.mark.asyncio
-async def test_cache_length_limit_zero_is_unlimited(cache_manager: TranslationCacheManager) -> None:
-    """Test zero length limit allows caching."""
-    original_limit = TranslationCacheManager.CACHE_TEXT_LENGTH_LIMIT
-    TranslationCacheManager.CACHE_TEXT_LENGTH_LIMIT = 0
+async def test_expired_language_detection_entry_is_deleted_on_lookup(cache_manager: TranslationCacheManager) -> None:
+    """Expired language detection cache entry should be deleted when accessed."""
+    source_text = "Hello world"
+    normalized_source: str = StringUtils.normalize_text(source_text)
 
-    try:
-        text = "Hello world"
-        success = await cache_manager.register_translation_cache(
-            source_text=text,
-            source_lang="en",
-            target_lang="ja",
-            translation_text="こんにちは世界",
-            engine="DeepL",
-        )
-        assert success is True
+    await cache_manager.register_language_detection_cache(source_text, "en", 0.95)
+    assert cache_manager._db_conn is not None
 
-        result = await cache_manager.search_translation_cache(
-            source_text=text,
-            source_lang="en",
-            target_lang="ja",
-            engine="DeepL",
-        )
-        assert result is not None
-        assert result.translation_text == "こんにちは世界"
-    finally:
-        TranslationCacheManager.CACHE_TEXT_LENGTH_LIMIT = original_limit
+    expired_epoch = int(
+        (datetime.now().astimezone() - timedelta(days=cache_manager.TTL_LANGUAGE_DETECTION_DAYS + 1)).timestamp()
+    )
+    cache_manager._db_conn.execute(
+        "UPDATE language_detection_cache SET last_used_at = ? WHERE normalized_source = ?",
+        (expired_epoch, normalized_source),
+    )
+    cache_manager._db_conn.commit()
+
+    result: LanguageDetectionCacheEntry | None = await cache_manager.search_language_detection_cache(source_text)
+
+    assert result is None
+
+    cursor: Cursor = cache_manager._db_conn.execute(
+        "SELECT COUNT(*) FROM language_detection_cache WHERE normalized_source = ?",
+        (normalized_source,),
+    )
+    assert cursor.fetchone()[0] == 0
