@@ -34,6 +34,7 @@ logger: logging.Logger = LoggerUtils.get_logger(__name__)
 
 MESSAGE_QUEUE_MAX_SIZE: int = 50
 MESSAGE_QUEUE_USAGE_DEBUG_THRESHOLD: float = 0.9
+MESSAGE_CONCURRENCY_DEFAULT: int = 3
 
 
 class ChatEventsManager(ComponentBase):
@@ -49,9 +50,21 @@ class ChatEventsManager(ComponentBase):
         super().__init__(bot)
         self._message_queue: ExcludableQueue[ChatMessageDTO] = ExcludableQueue(maxsize=MESSAGE_QUEUE_MAX_SIZE)
         self._message_worker_task: asyncio.Task[None] | None = None
+        # tasks spawned per-message when using create_task approach
+        self._spawned_tasks: set[asyncio.Task[None]] = set()
+        # concurrency limiter (Semaphore) will be initialized in component_load
+        self._concurrency_sem: asyncio.Semaphore | None = None
 
     async def component_load(self) -> None:
         """Load the component. No setup required for this component."""
+        # initialize concurrency semaphore from config if present, otherwise use default
+        max_concurrent: int = getattr(self.config.TTS, "MAX_CONCURRENT_MESSAGES", MESSAGE_CONCURRENCY_DEFAULT)
+        try:
+            max_concurrent = int(max_concurrent)
+        except (ValueError, TypeError):
+            max_concurrent = MESSAGE_CONCURRENCY_DEFAULT
+        self._concurrency_sem = asyncio.Semaphore(max_concurrent)
+
         if self._message_worker_task is None:
             self._message_worker_task = asyncio.create_task(self._message_worker_loop())
         logger.debug("'%s' component loaded", self.__class__.__name__)
@@ -64,6 +77,14 @@ class ChatEventsManager(ComponentBase):
             with contextlib.suppress(asyncio.CancelledError):
                 await self._message_worker_task
             self._message_worker_task = None
+        # cancel and await any per-message tasks we spawned
+        if self._spawned_tasks:
+            for _t in list(self._spawned_tasks):
+                _t.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await asyncio.gather(*self._spawned_tasks, return_exceptions=True)
+            self._spawned_tasks.clear()
+        self._concurrency_sem = None
         logger.debug("'%s' component unloaded", self.__class__.__name__)
 
     @Component.listener()
@@ -164,14 +185,38 @@ class ChatEventsManager(ComponentBase):
         """
         while True:
             dto: ChatMessageDTO = await self._message_queue.get()
+            # spawn a background task per message; concurrency is limited by semaphore
+            task: asyncio.Task[None] = asyncio.create_task(self._handle_message_task(dto))
+            self._spawned_tasks.add(task)
+            task.add_done_callback(self._task_done_callback)
+
+    async def _handle_message_task(self, dto: ChatMessageDTO) -> None:
+        """Wrapper that enforces concurrency via semaphore and ensures task_done() is called."""
+        sem: asyncio.Semaphore = self._concurrency_sem or asyncio.Semaphore(MESSAGE_CONCURRENCY_DEFAULT)
+        async with sem:
             try:
                 await self._handle_message(dto)
             except asyncio.CancelledError:
                 raise
-            except Exception as err:  # noqa: BLE001 - isolate worker failures
-                logger.error("Message worker error: %s", err)
+            except Exception as err:  # noqa: BLE001 - isolate handler failures
+                logger.error("Message handler task error: %s", err)
             finally:
-                self._message_queue.task_done()
+                # mark queue item as processed when the background task finishes
+                # suppress ValueError (double task_done) and RuntimeError (queue edge cases)
+                with contextlib.suppress(ValueError, RuntimeError):
+                    self._message_queue.task_done()
+
+    def _task_done_callback(self, task: asyncio.Task[None]) -> None:
+        """Callback for spawned tasks to remove them from tracking and log exceptions."""
+        self._spawned_tasks.discard(task)
+        try:
+            exc: BaseException | None = task.exception()
+        except asyncio.CancelledError:
+            return
+        except Exception:  # noqa: BLE001
+            return
+        if exc is not None:
+            logger.error("Spawned message task finished with exception: %s", exc)
 
     async def _handle_message(self, dto: ChatMessageDTO) -> None:
         """Handle a chat message DTO for translation and TTS processing.
@@ -180,6 +225,7 @@ class ChatEventsManager(ComponentBase):
             dto (ChatMessageDTO): The chat message data transfer object.
         """
         start_time: float = time.perf_counter()
+        logger.debug("Handling message id '%s' from user '%s'", dto.message_id, dto.author)
 
         message: ChatMessageHandler = self._preprocess_message(dto)
 
