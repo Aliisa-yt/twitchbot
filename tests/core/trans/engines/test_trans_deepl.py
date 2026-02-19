@@ -94,7 +94,7 @@ def test_initialize_sets_attributes_and_instance(monkeypatch: pytest.MonkeyPatch
     assert engine.engine_attributes.name == "deepl"
     assert engine.engine_attributes.supports_dedicated_detection_api is False
     assert engine.engine_attributes.supports_quota_api is True
-    assert engine.isavailable is True
+    assert engine.is_available is True
 
     inst: DummyClient = cast("DummyClient", engine._inst)
     assert inst.auth_key == "token"
@@ -137,7 +137,7 @@ async def test_translation_handles_quota_exceeded(monkeypatch: pytest.MonkeyPatc
     with pytest.raises(TranslationQuotaExceededError):
         await engine.translation("hello", tgt_lang="ja", src_lang="en")
 
-    assert engine.isavailable is False
+    assert engine.is_available is False
 
 
 @pytest.mark.asyncio
@@ -164,7 +164,7 @@ async def test_close_resets_instance_and_usage(config: Config) -> None:
 
     await engine.close()
 
-    assert engine.isavailable is False
+    assert engine.is_available is False
     with pytest.raises(TranslateExceptionError):
         _ = engine._inst
     with pytest.raises(TranslateExceptionError):
