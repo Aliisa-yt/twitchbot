@@ -27,14 +27,14 @@ __all__: list[str] = ["GUIApp", "StreamRedirector"]
 
 logger: logging.Logger = LoggerUtils.get_logger(__name__)
 
-# GUI color constants (web colors)
+# GUI color constants
 TEXT_COLOR: Final[str] = "#FFFAF0"  # Floral White
-STATUS_WAKEUP_COLOR: Final[str] = "#2F4F4F"  # Dark Slate Gray
-STATUS_RUNNING_COLOR: Final[str] = "#2E8B57"  # Sea Green
-STATUS_ERROR_COLOR: Final[str] = "#DC143C"  # Crimson
+STATUS_WAKEUP_COLOR: Final[str] = "#5CC8EB"  # Light Blue
+STATUS_RUNNING_COLOR: Final[str] = "#00D000"  # Green
+STATUS_ERROR_COLOR: Final[str] = "#FF2A04"  # Red
 BUTTON_BG_COLOR: Final[str] = "#FF6347"  # Tomato
-TEXT_WIDGET_BG: Final[str] = "#1E1E1E"  # Dark background
-TEXT_WIDGET_FG: Final[str] = "#00FF00"  # Green text
+TEXT_WIDGET_BG: Final[str] = "#0F0F0F"  # Dark background
+TEXT_WIDGET_FG: Final[str] = "#56F000"  # Green text
 
 
 class StreamRedirector(io.StringIO):
@@ -174,6 +174,9 @@ class GUIApp:
         # Create frame for buttons
         button_frame: ttk.Frame = ttk.Frame(self.root)
         button_frame.pack(side=tk.BOTTOM, fill=tk.X, padx=5, pady=5)
+
+        separator = ttk.Separator(self.root, orient="horizontal")
+        separator.pack(side=tk.BOTTOM, fill="x")
 
         # Create exit button
         self.exit_button: ttk.Button = ttk.Button(

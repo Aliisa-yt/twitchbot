@@ -24,10 +24,10 @@ logger: logging.Logger = LoggerUtils.get_logger(__name__)
 
 __all__: list[str] = ["GUILoggingHandler"]
 
-# Define colors for different log levels (web colors)
-WARNING_COLOR: Final[str] = "#FFD700"  # Gold
-ERROR_COLOR: Final[str] = "#FF7F50"  # Coral
-CRITICAL_COLOR: Final[str] = "#FF0000"  # Red
+# Define colors for different log levels
+WARNING_COLOR: Final[str] = "#FCE83A"  # Yellow
+ERROR_COLOR: Final[str] = "#FFB302"  # Orange
+CRITICAL_COLOR: Final[str] = "#FF3838"  # Red
 
 
 class GUILoggingHandler(logging.Handler):
