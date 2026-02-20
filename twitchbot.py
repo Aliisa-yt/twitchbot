@@ -27,6 +27,7 @@ from core.version import VERSION
 from handlers.katakana import E2KConverter, Romaji
 from utils.file_utils import FileUtils
 from utils.gui_app import (
+    STATUS_ERROR_COLOR,
     STATUS_RUNNING_COLOR,
     STATUS_WAKEUP_COLOR,
     GUIApp,
@@ -159,6 +160,7 @@ def show_token_setup_dialog(app: GUIApp) -> None:
             "Please run the following command:\n"
             "  python setup_tokens.py [--owner <name>] [--bot <name>]"
         )
+    app.update_status("Error: Token database is missing or invalid.", STATUS_ERROR_COLOR)
     app.show_error_dialog("Error", message)
 
 
@@ -240,16 +242,19 @@ async def _gui_bootstrap(app: GUIApp, args: argparse.Namespace, log_setup: Logge
 
     except ConfigLoaderError as err:
         logger.error("Configuration loading failed: %s", err)
+        app.update_status(f"Error: {err}", STATUS_ERROR_COLOR)
         app.show_error_dialog("Configuration Error", f"Failed to load the configuration file.\n\nDetails: {err}")
         raise
     except RuntimeError as err:
         logger.error("Runtime error: %s", err)
         # Token error is already shown via show_token_setup_dialog
         if "Token database" not in str(err):
+            app.update_status(f"Error: {err}", STATUS_ERROR_COLOR)
             app.show_error_dialog("Error", str(err))
         raise
     except (OSError, ValueError, TypeError) as err:
         logger.exception("Unexpected error during initialization")
+        app.update_status(f"Error: {err}", STATUS_ERROR_COLOR)
         app.show_error_dialog("Error", f"An unexpected error occurred.\n\nDetails: {err}")
         raise
 
