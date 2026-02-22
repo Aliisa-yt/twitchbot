@@ -19,6 +19,7 @@ from core.trans.interface import (
 from models.cache_models import TranslationCacheEntry
 from models.re_models import ONE_LANGUAGE_DESIGNATION_PATTERN, TWO_LANGUAGE_DESIGNATIONS_PATTERN
 from models.translation_models import CharacterQuota
+from utils.cache_utils import CacheUtils
 from utils.logger_utils import LoggerUtils
 from utils.string_utils import StringUtils
 
@@ -344,7 +345,7 @@ class TransManager:
         if not trans_info.src_lang or not trans_info.tgt_lang:
             return None
 
-        return StringUtils.generate_translation_hash_key(
+        return CacheUtils.generate_translation_hash_key(
             source_text=trans_info.content,
             source_lang=trans_info.src_lang,
             target_lang=trans_info.tgt_lang,

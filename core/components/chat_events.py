@@ -15,6 +15,7 @@ from models.translation_models import TranslationInfo
 from utils.chat_utils import ChatUtils
 from utils.excludable_queue import ExcludableQueue
 from utils.logger_utils import LoggerUtils
+from utils.time_utils import TimeUtils
 from utils.tts_utils import TTSUtils
 
 if TYPE_CHECKING:
@@ -320,7 +321,7 @@ class ChatEventsManager(ComponentBase):
         """
         self.print_console_message(
             message.formatting_messages(content=trans_info.content, language=trans_info.src_lang),
-            header="<- " + ChatUtils.get_current_time() + " ",
+            header="<- " + TimeUtils.get_time_in_hours_minutes() + " ",
         )
 
         if self.config.TTS.ORIGINAL_TEXT:
@@ -356,6 +357,6 @@ class ChatEventsManager(ComponentBase):
             content=trans_info.translated_text, language=trans_info.tgt_lang, is_translated=True
         )
         self.print_console_message(
-            trans_info.translated_text, header="-> " + ChatUtils.get_current_time() + " ", footer=footer
+            trans_info.translated_text, header="-> " + TimeUtils.get_time_in_hours_minutes() + " ", footer=footer
         )
         await self.send_chat_message(trans_info.translated_text, header="/me ", footer=footer)
