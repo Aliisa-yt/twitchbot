@@ -6,7 +6,7 @@ import logging
 import tkinter as tk
 from tkinter import scrolledtext
 
-from utils.gui_logging_handler import GUILoggingHandler
+from core.gui.gui_logging_handler import GUILoggingHandler
 from utils.logger_utils import LoggerUtils
 
 
@@ -16,7 +16,7 @@ def run_gui_logging_demo() -> None:
     This script is not intended for automated test runs.
     """
     # Setup logger
-    logger = LoggerUtils.get_logger(__name__)
+    logger: logging.Logger = LoggerUtils.get_logger(__name__)
 
     # Create root window
     root = tk.Tk()

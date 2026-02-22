@@ -5,17 +5,23 @@ from __future__ import annotations
 
 import logging
 import sys
-from pathlib import Path
+from typing import TYPE_CHECKING
 
-# Add project root to path
-project_root: Path = Path(__file__).parent.parent.parent
-sys.path.insert(0, str(project_root))
+from core.gui.gui_app import GUIApp
+from core.gui.gui_logging_handler import GUILoggingHandler
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
+
+# # Add project root to path
+# project_root: Path = Path(__file__).parent.parent.parent
+# sys.path.insert(0, str(project_root))
 
 
 def test_gui_logging_handler_import() -> None:
     """Test importing GUILoggingHandler."""
     try:
-        from utils.gui_logging_handler import GUILoggingHandler
+        # from core.gui.gui_logging_handler import GUILoggingHandler
 
         print("✓ GUILoggingHandler imported successfully")
         assert GUILoggingHandler is not None
@@ -27,7 +33,7 @@ def test_gui_logging_handler_import() -> None:
 def test_gui_app_import() -> None:
     """Test importing GUIApp."""
     try:
-        from utils.gui_app import GUIApp
+        # from core.gui.gui_app import GUIApp
 
         print("✓ GUIApp imported successfully")
         assert GUIApp is not None
@@ -42,7 +48,7 @@ def test_gui_handler_creation() -> None:
         import tkinter as tk
         from tkinter import scrolledtext
 
-        from utils.gui_logging_handler import GUILoggingHandler
+        # from core.gui.gui_logging_handler import GUILoggingHandler
 
         # Create a minimal tkinter window
         root = tk.Tk()
@@ -72,7 +78,7 @@ def test_logging_output() -> None:
         import tkinter as tk
         from tkinter import scrolledtext
 
-        from utils.gui_logging_handler import GUILoggingHandler
+        # from core.gui.gui_logging_handler import GUILoggingHandler
 
         # Create a minimal tkinter window
         root = tk.Tk()
@@ -82,7 +88,7 @@ def test_logging_output() -> None:
         handler = GUILoggingHandler(text_widget, max_lines=30)
         handler.setFormatter(logging.Formatter("%(levelname)-8s: %(message)s"))
 
-        test_logger = logging.getLogger("test_logger")
+        test_logger: logging.Logger = logging.getLogger("test_logger")
         test_logger.addHandler(handler)
         test_logger.setLevel(logging.DEBUG)
 
@@ -130,7 +136,7 @@ def main() -> None:
     print("GUI Implementation Validation Tests")
     print("=" * 60)
 
-    tests = [
+    tests: list[Callable[[], None]] = [
         test_gui_logging_handler_import,
         test_gui_app_import,
         test_gui_handler_creation,

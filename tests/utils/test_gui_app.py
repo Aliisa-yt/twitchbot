@@ -1,4 +1,4 @@
-"""Unit tests for utils.gui_app module."""
+"""Unit tests for core.gui.gui_app module."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING, Any, cast
 
 import pytest
 
-from utils import gui_app as gui_module
+from core.gui import gui_app as gui_module
 
 if TYPE_CHECKING:
     from logging import Logger
@@ -96,6 +96,14 @@ class DummyFrame:
         _ = args, kwargs
 
 
+class DummySeparator:
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        _ = args, kwargs
+
+    def pack(self, *args: Any, **kwargs: Any) -> None:
+        _ = args, kwargs
+
+
 class DummyStyle:
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         _ = args, kwargs
@@ -131,12 +139,16 @@ class DummyRoot:
     def destroy(self) -> None:
         self.destroyed = True
 
+    def configure(self, *args: Any, **kwargs: Any) -> None:
+        _ = args, kwargs
+
 
 @pytest.fixture
 def patched_gui(monkeypatch: pytest.MonkeyPatch) -> SimpleNamespace:
     monkeypatch.setattr(gui_module.tk, "Tk", DummyRoot)
     monkeypatch.setattr(gui_module.ttk, "Style", DummyStyle)
     monkeypatch.setattr(gui_module.ttk, "Frame", DummyFrame)
+    monkeypatch.setattr(gui_module.ttk, "Separator", DummySeparator)
     monkeypatch.setattr(gui_module.ttk, "Button", DummyButton)
     monkeypatch.setattr(gui_module.ttk, "Label", DummyLabel)
     monkeypatch.setattr(gui_module.scrolledtext, "ScrolledText", DummyTextWidget)

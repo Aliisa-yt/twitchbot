@@ -14,6 +14,7 @@ import pytest
 
 from config.loader import Config
 from core.cache.manager import TranslationCacheManager
+from utils.cache_utils import CacheUtils
 from utils.string_utils import StringUtils
 
 if TYPE_CHECKING:
@@ -204,8 +205,8 @@ async def test_expired_translation_entry_is_deleted_on_lookup(cache_manager: Tra
         engine=engine,
     )
 
-    normalized_source: str = StringUtils.normalize_text(source_text)
-    cache_key: str = StringUtils.generate_hash_key(normalized_source, source_lang, target_lang, "", engine)
+    normalized_source: str = StringUtils.unicode_normalize(source_text)
+    cache_key: str = CacheUtils.generate_hash_key(normalized_source, source_lang, target_lang, "", engine)
     assert cache_key is not None
     assert cache_manager._db_conn is not None
 
@@ -237,7 +238,7 @@ async def test_expired_translation_entry_is_deleted_on_lookup(cache_manager: Tra
 async def test_expired_language_detection_entry_is_deleted_on_lookup(cache_manager: TranslationCacheManager) -> None:
     """Expired language detection cache entry should be deleted when accessed."""
     source_text = "Hello world"
-    normalized_source: str = StringUtils.normalize_text(source_text)
+    normalized_source: str = StringUtils.unicode_normalize(source_text)
 
     await cache_manager.register_language_detection_cache(source_text, "en", 0.95)
     assert cache_manager._db_conn is not None
