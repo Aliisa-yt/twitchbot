@@ -15,7 +15,7 @@ import tkinter as tk
 from tkinter import messagebox, scrolledtext, ttk
 from typing import TYPE_CHECKING, Any, Final
 
-from utils.gui_logging_handler import GUILoggingHandler
+from core.gui.gui_logging_handler import GUILoggingHandler
 from utils.logger_utils import LoggerUtils
 
 if TYPE_CHECKING:
@@ -35,6 +35,7 @@ STATUS_ERROR_COLOR: Final[str] = "#FF2A04"  # Red
 BUTTON_BG_COLOR: Final[str] = "#FF6347"  # Tomato
 TEXT_WIDGET_BG: Final[str] = "#0F0F0F"  # Dark background
 TEXT_WIDGET_FG: Final[str] = "#56F000"  # Green text
+BACKGROUND_COLOR: Final[str] = "#F0F0F0"  # Light background for the whole app
 
 
 class StreamRedirector(io.StringIO):
@@ -145,7 +146,12 @@ class GUIApp:
         self.stream_redirector: StreamRedirector | None = None
 
         # Create GUI components
-        self._create_widgets()
+        try:
+            self._create_widgets()
+        except tk.TclError as err:
+            logger.exception("Error creating GUI widgets")
+            msg: str = f"Failed to create GUI widgets: {err}"
+            raise RuntimeError(msg) from err
 
         # Create stream redirector for stdout/stderr (dual output to GUI and console)
         self.stream_redirector = StreamRedirector(self.text_widget, sys.__stdout__, max_lines=50)
@@ -167,12 +173,20 @@ class GUIApp:
 
     def _create_widgets(self) -> None:
         """Create the GUI widgets."""
+        self.root.configure(bg=BACKGROUND_COLOR)
         style = ttk.Style(self.root)
+        # style.theme_use("clam")
         style.configure("Twitchbot.TButton", font=("Arial", 10, "bold"))
-        style.configure("Twitchbot.TLabel", font=("Arial", 10, "bold"), foreground=STATUS_WAKEUP_COLOR)
+        style.configure(
+            "Twitchbot.TLabel",
+            font=("Arial", 10, "bold"),
+            foreground=STATUS_WAKEUP_COLOR,
+            background=BACKGROUND_COLOR,
+        )
+        style.configure("Twitchbot.TFrame", background=BACKGROUND_COLOR)
 
         # Create frame for buttons
-        button_frame: ttk.Frame = ttk.Frame(self.root)
+        button_frame: ttk.Frame = ttk.Frame(self.root, style="Twitchbot.TFrame")
         button_frame.pack(side=tk.BOTTOM, fill=tk.X, padx=5, pady=5)
 
         separator = ttk.Separator(self.root, orient="horizontal")
@@ -189,13 +203,20 @@ class GUIApp:
 
         # Create status label
         self.status_label: ttk.Label = ttk.Label(button_frame, text="Starting...", style="Twitchbot.TLabel")
-        self.status_label.pack(side=tk.LEFT, padx=5)
+        self.status_label.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=5)
 
         # Create scrolled text widget for console output
         self.text_widget: scrolledtext.ScrolledText = scrolledtext.ScrolledText(
-            self.root, state="disabled", wrap=tk.WORD, font=("Courier", 10), bg=TEXT_WIDGET_BG, fg=TEXT_WIDGET_FG
+            self.root,
+            state="disabled",
+            wrap=tk.WORD,
+            font=("Courier", 10),
+            bg=TEXT_WIDGET_BG,
+            fg=TEXT_WIDGET_FG,
+            relief=tk.SUNKEN,
+            borderwidth=2,
         )
-        self.text_widget.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        self.text_widget.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
 
     def _on_closing(self) -> None:
         """Handle window close button."""
