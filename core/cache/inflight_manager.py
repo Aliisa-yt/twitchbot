@@ -36,6 +36,7 @@ class InFlightManager:
     async def component_load(self) -> None:
         """Initialize the in-flight manager component."""
         self._is_initialized = True
+        logger.debug("InFlightManager timeout: %s seconds", self.INFLIGHT_TIMEOUT_SEC)
         logger.info("InFlightManager initialized successfully")
 
     async def component_teardown(self) -> None:
