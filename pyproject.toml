@@ -59,7 +59,12 @@ ignore = [
 fixable = ["ALL"]
 unfixable = []
 dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
-extend-per-file-ignores = { "tests/**/*" = ["S106", "S108", "SLF001"] }
+extend-per-file-ignores = { "tests/**/*" = [
+    "INP001",
+    "S106",
+    "S108",
+    "SLF001",
+] }
 
 [tool.ruff.format]
 quote-style = "double"
