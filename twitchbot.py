@@ -21,17 +21,17 @@ from config.loader import (
     ConfigLoaderError,
 )
 from core.bot import Bot
-from core.token_manager import TokenManager, TwitchBotToken
-from core.token_storage import TokenStorage
-from core.version import VERSION
-from handlers.katakana import E2KConverter, Romaji
-from utils.file_utils import FileUtils
-from utils.gui_app import (
+from core.gui.gui_app import (
     STATUS_ERROR_COLOR,
     STATUS_RUNNING_COLOR,
     STATUS_WAKEUP_COLOR,
     GUIApp,
 )
+from core.token_manager import TokenManager, TwitchBotToken
+from core.token_storage import TokenStorage
+from core.version import VERSION
+from handlers.katakana import E2KConverter, Romaji
+from utils.file_utils import FileUtils
 from utils.logger_utils import LoggerUtils
 
 if TYPE_CHECKING:
@@ -138,8 +138,6 @@ def token_db_has_data(db_path: Path) -> bool:
         return False
     else:
         return has_data
-
-    return False
 
 
 def show_token_setup_dialog(app: GUIApp) -> None:
