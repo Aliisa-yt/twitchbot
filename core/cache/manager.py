@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import asyncio
 import sqlite3
-from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import TYPE_CHECKING, ClassVar, Final
 
@@ -18,11 +17,14 @@ from models.cache_models import (
     LanguageDetectionCacheEntry,
     TranslationCacheEntry,
 )
+from utils.cache_utils import CacheUtils
 from utils.logger_utils import LoggerUtils
 from utils.string_utils import StringUtils
+from utils.time_utils import TimeUtils
 
 if TYPE_CHECKING:
     import logging
+    from datetime import datetime
 
     from config.loader import Config
 
@@ -174,14 +176,6 @@ class TranslationCacheManager:
             logger.critical(msg)
             raise RuntimeError(msg) from err
 
-    def _now_epoch(self) -> int:
-        """Get current time as epoch integer."""
-        return int(datetime.now().astimezone().timestamp())
-
-    def _epoch_to_datetime(self, value: int | str) -> datetime:
-        """Convert epoch integer to datetime object."""
-        return datetime.fromtimestamp(int(value), tz=UTC).astimezone()
-
     async def cleanup_expired_entries(self) -> None:
         """Remove expired cache entries based on TTL."""
         if not self._is_initialized or self._db_conn is None:
@@ -189,21 +183,19 @@ class TranslationCacheManager:
 
         try:
             async with self._lock:
-                cutoff_viewer: datetime = datetime.now().astimezone() - timedelta(days=self.TTL_TRANSLATION_DAYS)
-                cutoff_streamer: datetime = datetime.now().astimezone() - timedelta(
-                    days=self.TTL_LANGUAGE_DETECTION_DAYS
-                )
+                cutoff_translation_epoch: int = TimeUtils.cutoff_epoch(self.TTL_TRANSLATION_DAYS)
+                cutoff_language_detection_epoch: int = TimeUtils.cutoff_epoch(self.TTL_LANGUAGE_DETECTION_DAYS)
 
                 cursor: sqlite3.Cursor = self._db_conn.execute(
                     "DELETE FROM translation_cache WHERE CAST(last_used_at AS INTEGER) < ?",
-                    (int(cutoff_viewer.timestamp()),),
+                    (cutoff_translation_epoch,),
                 )
                 deleted: int = cursor.rowcount
                 logger.info("Deleted %d expired translation cache entries", deleted)
 
                 cursor = self._db_conn.execute(
                     "DELETE FROM language_detection_cache WHERE CAST(last_used_at AS INTEGER) < ?",
-                    (int(cutoff_streamer.timestamp()),),
+                    (cutoff_language_detection_epoch,),
                 )
                 deleted = cursor.rowcount
                 logger.info("Deleted %d expired language detection cache entries", deleted)
@@ -238,15 +230,15 @@ class TranslationCacheManager:
         """
         if not self._is_initialized or self._db_conn is None:
             return None
-        if not StringUtils.is_hash_eligible(source_text):
+        if not CacheUtils.is_hash_eligible(source_text):
             return None
 
-        normalized_source: str = StringUtils.normalize_text(source_text)
+        normalized_source: str = StringUtils.unicode_normalize(source_text)
         # Keep track whether caller explicitly provided an engine (None means not provided).
         provided_engine: bool = engine is not None
         engine_norm: str = engine or ""
 
-        cache_key: str = StringUtils.generate_hash_key(
+        cache_key: str = CacheUtils.generate_hash_key(
             normalized_source, source_lang, target_lang, translation_profile, engine_norm
         )
         if cache_key is None:
@@ -258,7 +250,7 @@ class TranslationCacheManager:
             if entry is None and provided_engine:
                 logger.debug("Engine-specific cache miss for key: %s, trying fallback", cache_key[:16])
 
-                common_cache_key: str = StringUtils.generate_hash_key(
+                common_cache_key: str = CacheUtils.generate_hash_key(
                     normalized_source, source_lang, target_lang, translation_profile, engine=""
                 )
                 if common_cache_key is None:
@@ -310,19 +302,20 @@ class TranslationCacheManager:
                     translation_text=row[4],
                     translation_profile=row[5],
                     engine=row[6],
-                    created_at=self._epoch_to_datetime(row[7]),
-                    last_used_at=self._epoch_to_datetime(row[8]),
+                    created_at=TimeUtils.epoch_to_datetime(row[7]),
+                    last_used_at=TimeUtils.epoch_to_datetime(row[8]),
                     hit_count=row[9],
                 )
 
-                cutoff: datetime = datetime.now().astimezone() - timedelta(days=self.TTL_TRANSLATION_DAYS)
-                if entry.last_used_at < cutoff:
+                cutoff_epoch: int = TimeUtils.cutoff_epoch(self.TTL_TRANSLATION_DAYS)
+                last_used_epoch: int = int(row[8])
+                if last_used_epoch < cutoff_epoch:
                     self._db_conn.execute("DELETE FROM translation_cache WHERE cache_key = ?", (cache_key,))
                     self._db_conn.commit()
                     logger.debug("Cache entry expired for key: %s", cache_key[:16])
                     return None
 
-                now_epoch: int = self._now_epoch()
+                now_epoch: int = TimeUtils.get_current_epoch()
                 self._db_conn.execute(
                     "UPDATE translation_cache SET last_used_at = ?, hit_count = hit_count + 1 WHERE cache_key = ?",
                     (now_epoch, cache_key),
@@ -330,7 +323,7 @@ class TranslationCacheManager:
                 self._db_conn.commit()
 
                 entry.hit_count += 1
-                entry.last_used_at = self._epoch_to_datetime(now_epoch)
+                entry.last_used_at = TimeUtils.epoch_to_datetime(now_epoch)
 
                 logger.debug("Cache hit for key: %s (hit_count: %d)", cache_key[:16], entry.hit_count)
 
@@ -365,11 +358,11 @@ class TranslationCacheManager:
         """
         if not self._is_initialized or self._db_conn is None:
             return False
-        if not StringUtils.is_hash_eligible(source_text):
+        if not CacheUtils.is_hash_eligible(source_text):
             return False
 
-        normalized_source: str = StringUtils.normalize_text(source_text)
-        cache_key: str = StringUtils.generate_hash_key(
+        normalized_source: str = StringUtils.unicode_normalize(source_text)
+        cache_key: str = CacheUtils.generate_hash_key(
             normalized_source, source_lang, target_lang, translation_profile, engine
         )
         if cache_key is None:
@@ -377,7 +370,7 @@ class TranslationCacheManager:
 
         try:
             async with self._lock:
-                now_epoch: int = self._now_epoch()
+                now_epoch: int = TimeUtils.get_current_epoch()
                 self._db_conn.execute(
                     """
                     INSERT OR REPLACE INTO translation_cache
@@ -457,10 +450,10 @@ class TranslationCacheManager:
         """
         if not self._is_initialized or self._db_conn is None:
             return None
-        if not StringUtils.is_hash_eligible(source_text):
+        if not CacheUtils.is_hash_eligible(source_text):
             return None
 
-        normalized_source: str = StringUtils.normalize_text(source_text)
+        normalized_source: str = StringUtils.unicode_normalize(source_text)
 
         try:
             async with self._lock:
@@ -483,12 +476,13 @@ class TranslationCacheManager:
                     normalized_source=row[0],
                     detected_lang=row[1],
                     confidence=row[2],
-                    created_at=self._epoch_to_datetime(row[3]),
-                    last_used_at=self._epoch_to_datetime(row[4]),
+                    created_at=TimeUtils.epoch_to_datetime(row[3]),
+                    last_used_at=TimeUtils.epoch_to_datetime(row[4]),
                 )
 
-                cutoff: datetime = datetime.now().astimezone() - timedelta(days=self.TTL_LANGUAGE_DETECTION_DAYS)
-                if entry.last_used_at < cutoff:
+                cutoff_epoch: int = TimeUtils.cutoff_epoch(self.TTL_LANGUAGE_DETECTION_DAYS)
+                last_used_epoch: int = int(row[4])
+                if last_used_epoch < cutoff_epoch:
                     self._db_conn.execute(
                         "DELETE FROM language_detection_cache WHERE normalized_source = ?",
                         (normalized_source,),
@@ -497,14 +491,14 @@ class TranslationCacheManager:
                     logger.debug("Language detection cache entry expired")
                     return None
 
-                now_epoch: int = self._now_epoch()
+                now_epoch: int = TimeUtils.get_current_epoch()
                 self._db_conn.execute(
                     "UPDATE language_detection_cache SET last_used_at = ? WHERE normalized_source = ?",
                     (now_epoch, normalized_source),
                 )
                 self._db_conn.commit()
 
-                entry.last_used_at = self._epoch_to_datetime(now_epoch)
+                entry.last_used_at = TimeUtils.epoch_to_datetime(now_epoch)
 
                 logger.debug("Language detection cache hit")
 
@@ -529,14 +523,14 @@ class TranslationCacheManager:
         """
         if not self._is_initialized or self._db_conn is None:
             return False
-        if not StringUtils.is_hash_eligible(source_text):
+        if not CacheUtils.is_hash_eligible(source_text):
             return False
 
-        normalized_source: str = StringUtils.normalize_text(source_text)
+        normalized_source: str = StringUtils.unicode_normalize(source_text)
 
         try:
             async with self._lock:
-                now_epoch: int = self._now_epoch()
+                now_epoch: int = TimeUtils.get_current_epoch()
                 self._db_conn.execute(
                     """
                     INSERT OR REPLACE INTO language_detection_cache
@@ -581,8 +575,8 @@ class TranslationCacheManager:
                     "SELECT MIN(CAST(created_at AS INTEGER)), MAX(CAST(created_at AS INTEGER)) FROM translation_cache"
                 )
                 row = cursor.fetchone()
-                oldest_entry: datetime | None = self._epoch_to_datetime(row[0]) if row[0] else None
-                newest_entry: datetime | None = self._epoch_to_datetime(row[1]) if row[1] else None
+                oldest_entry: datetime | None = TimeUtils.epoch_to_datetime(row[0]) if row[0] else None
+                newest_entry: datetime | None = TimeUtils.epoch_to_datetime(row[1]) if row[1] else None
 
             return CacheStatistics(
                 total_entries=total_entries,
@@ -627,7 +621,7 @@ class TranslationCacheManager:
                 f.write("=" * 80 + "\n\n")
 
                 for row in rows:
-                    last_used_dt: str = self._epoch_to_datetime(row[7]).isoformat()
+                    last_used_dt: str = TimeUtils.epoch_to_datetime(row[7]).isoformat()
                     f.write(
                         f'{row[2]} -> {row[3]}, "{row[1]}", "{row[4]}", Engine: {row[5]}, Hit Count: {row[6]},'
                         f" Last Used: {last_used_dt}, Cache Key: {row[0]}\n"
