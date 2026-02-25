@@ -87,6 +87,8 @@ class Bot(commands.Bot):
 
         self.attached_components: list[ComponentBase] = []
 
+        self.send_message_cache: set[str] = set()
+
         logger.debug("Initialising TwitchIO")
         super().__init__(
             client_id=self.client_id,
@@ -389,6 +391,7 @@ class Bot(commands.Bot):
         header: str | None = None,
         footer: str | None = None,
         chatter: User | PartialUser | Chatter | None = None,
+        sender: str | int | PartialUser | None = None,
     ) -> None:
         """Send a message to Twitch chat.
 
@@ -400,6 +403,7 @@ class Bot(commands.Bot):
             header (str | None): Optional header prefix (e.g., '/me ').
             footer (str | None): Optional footer suffix.
             chatter (User | PartialUser | Chatter | None): Target channel. If None, uses owner's channel.
+            sender (str | int | PartialUser | None): The sender of the message. If None, uses the bot's ID.
         """
         if not content:
             return
@@ -418,10 +422,12 @@ class Bot(commands.Bot):
         logger.debug("Send channel: %s", chatter.name)
         try:
             sent_message: SentMessage = await chatter.send_message(
-                message=content, sender=self.bot_id, token_for=self.access_token
+                message=content, sender=sender or self.bot_id, token_for=self.access_token
             )
             if not sent_message.sent:
                 logger.warning("Failed to send message: %s", content)
+
+            self.send_message_cache.add(sent_message.id)
         except ValueError as err:
             logger.warning("Invalid content error: %s", err)
         except twitchio.HTTPException as err:
