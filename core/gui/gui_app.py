@@ -37,6 +37,14 @@ TEXT_WIDGET_BG: Final[str] = "#0F0F0F"  # Dark background
 TEXT_WIDGET_FG: Final[str] = "#56F000"  # Green text
 BACKGROUND_COLOR: Final[str] = "#F0F0F0"  # Light background for the whole app
 
+# Styles for ttk widgets
+BUTTON_STYLE: Final[str] = "Twitchbot.TButton"
+LABEL_STYLE: Final[str] = "Twitchbot.TLabel"
+FRAME_STYLE: Final[str] = "Twitchbot.TFrame"
+
+# Maximum lines to keep in the scrolled text widget
+MAX_SCROLLED_LINES: Final[int] = 50
+
 
 class StreamRedirector(io.StringIO):
     """Redirect stdout/stderr to a tkinter Text widget while preserving standard output.
@@ -154,10 +162,10 @@ class GUIApp:
             raise RuntimeError(msg) from err
 
         # Create stream redirector for stdout/stderr (dual output to GUI and console)
-        self.stream_redirector = StreamRedirector(self.text_widget, sys.__stdout__, max_lines=50)
+        self.stream_redirector = StreamRedirector(self.text_widget, sys.__stdout__, max_lines=MAX_SCROLLED_LINES)
 
         # Create and configure logging handler
-        self.gui_handler: GUILoggingHandler = GUILoggingHandler(self.text_widget, max_lines=50)
+        self.gui_handler: GUILoggingHandler = GUILoggingHandler(self.text_widget, max_lines=MAX_SCROLLED_LINES)
         # Try to get the root logger's formatter if available
         root_logger: logging.Logger = logging.getLogger()
         if root_logger.handlers:
@@ -174,22 +182,13 @@ class GUIApp:
     def _create_widgets(self) -> None:
         """Create the GUI widgets."""
         self.root.configure(bg=BACKGROUND_COLOR)
-        style = ttk.Style(self.root)
-        # style.theme_use("clam")
-        style.configure("Twitchbot.TButton", font=("Arial", 10, "bold"))
-        style.configure(
-            "Twitchbot.TLabel",
-            font=("Arial", 10, "bold"),
-            foreground=STATUS_WAKEUP_COLOR,
-            background=BACKGROUND_COLOR,
-        )
-        style.configure("Twitchbot.TFrame", background=BACKGROUND_COLOR)
+        self._configure_styles()
 
         # Create frame for buttons
-        button_frame: ttk.Frame = ttk.Frame(self.root, style="Twitchbot.TFrame")
+        button_frame: ttk.Frame = ttk.Frame(self.root, style=FRAME_STYLE)
         button_frame.pack(side=tk.BOTTOM, fill=tk.X, padx=5, pady=5)
 
-        separator = ttk.Separator(self.root, orient="horizontal")
+        separator: ttk.Separator = ttk.Separator(self.root, orient="horizontal")
         separator.pack(side=tk.BOTTOM, fill="x")
 
         # Create exit button
@@ -197,12 +196,12 @@ class GUIApp:
             button_frame,
             text="Close",
             command=self._on_closing,
-            style="Twitchbot.TButton",
+            style=BUTTON_STYLE,
         )
         self.exit_button.pack(side=tk.RIGHT, padx=5)
 
         # Create status label
-        self.status_label: ttk.Label = ttk.Label(button_frame, text="Starting...", style="Twitchbot.TLabel")
+        self.status_label: ttk.Label = ttk.Label(button_frame, text="Starting...", style=LABEL_STYLE)
         self.status_label.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=5)
 
         # Create scrolled text widget for console output
@@ -217,6 +216,19 @@ class GUIApp:
             borderwidth=2,
         )
         self.text_widget.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+
+    def _configure_styles(self) -> None:
+        """Configure ttk widget styles for the GUI."""
+        style = ttk.Style(self.root)
+        # style.theme_use("clam")
+        style.configure(BUTTON_STYLE, font=("Arial", 10, "bold"))
+        style.configure(
+            LABEL_STYLE,
+            font=("Arial", 10, "bold"),
+            foreground=STATUS_WAKEUP_COLOR,
+            background=BACKGROUND_COLOR,
+        )
+        style.configure(FRAME_STYLE, background=BACKGROUND_COLOR)
 
     def _on_closing(self) -> None:
         """Handle window close button."""
