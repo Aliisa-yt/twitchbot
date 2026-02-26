@@ -3,7 +3,7 @@ deepl
 emoji
 gTTS
 numpy
-PyAudio
+sounddevice
 pywin32
 soundfile
 twitchio[starlette]
@@ -13,7 +13,6 @@ pyinstaller
 pyinstaller-hooks-contrib
 dataclasses-json
 google-cloud-translate
-types-pyaudio
 types-pywin32
 types-dataclasses-json
 coverage

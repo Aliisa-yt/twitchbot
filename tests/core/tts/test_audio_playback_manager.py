@@ -8,6 +8,7 @@ from types import SimpleNamespace
 from typing import TYPE_CHECKING, Self, cast
 from unittest.mock import MagicMock
 
+import numpy as np
 import pytest
 
 from core.tts import audio_playback_manager as apm
@@ -24,8 +25,7 @@ def _make_config(limit_time: str = "2.5") -> Config:
 
 
 @pytest.fixture
-def manager(monkeypatch: pytest.MonkeyPatch) -> AudioPlaybackManager:
-    monkeypatch.setattr(apm.pyaudio, "PyAudio", MagicMock)
+def manager() -> AudioPlaybackManager:
     config: apm.Config = _make_config()
     file_manager = MagicMock()
     playback_queue = MagicMock()
@@ -59,27 +59,20 @@ def test_is_playing_false_when_stream_none(manager: AudioPlaybackManager) -> Non
 
 def test_is_playing_true_when_stream_active(manager: AudioPlaybackManager) -> None:
     stream = MagicMock()
-    stream.is_active.return_value = True
+    stream.active = True
     manager.stream = stream
     assert manager.is_playing is True
 
 
-def test_release_pyaudio_terminates(manager: AudioPlaybackManager) -> None:
-    mock_pyaudio = MagicMock()
-    manager._pyaudio = mock_pyaudio
+def test_release_audio_resources_closes_stream(manager: AudioPlaybackManager) -> None:
+    mock_stream = MagicMock()
+    manager.stream = mock_stream
 
-    manager.release_pyaudio()
+    manager.release_audio_resources()
 
-    mock_pyaudio.terminate.assert_called_once()
-    assert manager._pyaudio is None
-
-
-def test_pyaudio_property_recreates_instance(monkeypatch: pytest.MonkeyPatch, manager: AudioPlaybackManager) -> None:
-    created = MagicMock()
-    monkeypatch.setattr(apm.pyaudio, "PyAudio", MagicMock(return_value=created))
-    manager._pyaudio = None
-
-    assert manager.pyaudio is created
+    mock_stream.stop.assert_called_once()
+    mock_stream.close.assert_called_once()
+    assert manager.stream is None
 
 
 def test_stream_callback_logic_aborts_on_terminate_event() -> None:
@@ -88,12 +81,11 @@ def test_stream_callback_logic_aborts_on_terminate_event() -> None:
     terminate_event = MagicMock()
     terminate_event.is_set.return_value = True
     cancel_playback_event = MagicMock()
+    outdata = np.ones((256, 1), dtype=np.int16)
 
-    data, status = apm._stream_callback_logic(
-        None,
+    action = apm._stream_callback_logic(
+        outdata,
         256,
-        None,
-        None,
         sf=sf,
         dtype="int16",
         loop=loop,
@@ -101,8 +93,8 @@ def test_stream_callback_logic_aborts_on_terminate_event() -> None:
         cancel_playback_event=cancel_playback_event,
     )
 
-    assert data is None
-    assert status == apm.pyaudio.paAbort
+    assert action == apm._CallbackAction.ABORT
+    assert np.all(outdata == 0)
     loop.call_soon_threadsafe.assert_called_once_with(cancel_playback_event.set)
 
 
@@ -112,17 +104,14 @@ def test_stream_callback_logic_completes_on_short_read() -> None:
     terminate_event = MagicMock()
     terminate_event.is_set.return_value = False
     cancel_playback_event = MagicMock()
+    outdata = np.zeros((256, 1), dtype=np.int16)
 
-    data = MagicMock()
-    data.shape = (128,)
-    data.tobytes.return_value = b"data"
+    data = np.ones((128, 1), dtype=np.int16)
     sf.read.return_value = data
 
-    result_data, status = apm._stream_callback_logic(
-        None,
+    action = apm._stream_callback_logic(
+        outdata,
         256,
-        None,
-        None,
         sf=sf,
         dtype="int16",
         loop=loop,
@@ -130,8 +119,9 @@ def test_stream_callback_logic_completes_on_short_read() -> None:
         cancel_playback_event=cancel_playback_event,
     )
 
-    assert result_data == b"data"
-    assert status == apm.pyaudio.paComplete
+    assert action == apm._CallbackAction.STOP
+    assert np.all(outdata[:128] == 1)
+    assert np.all(outdata[128:] == 0)
     loop.call_soon_threadsafe.assert_called_once_with(cancel_playback_event.set)
 
 
@@ -141,13 +131,12 @@ def test_stream_callback_logic_aborts_on_soundfile_error() -> None:
     terminate_event = MagicMock()
     terminate_event.is_set.return_value = False
     cancel_playback_event = MagicMock()
+    outdata = np.ones((256, 1), dtype=np.int16)
     sf.read.side_effect = apm.soundfile.SoundFileRuntimeError("fail")
 
-    data, status = apm._stream_callback_logic(
-        None,
+    action = apm._stream_callback_logic(
+        outdata,
         256,
-        None,
-        None,
         sf=sf,
         dtype="int16",
         loop=loop,
@@ -155,14 +144,14 @@ def test_stream_callback_logic_aborts_on_soundfile_error() -> None:
         cancel_playback_event=cancel_playback_event,
     )
 
-    assert data is None
-    assert status == apm.pyaudio.paAbort
+    assert action == apm._CallbackAction.ABORT
+    assert np.all(outdata == 0)
     loop.call_soon_threadsafe.assert_called_once_with(cancel_playback_event.set)
 
 
 @pytest.mark.asyncio
 async def test_playback_queue_processor_skips_invalid_path(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(apm.pyaudio, "PyAudio", MagicMock)
+    _ = monkeypatch
     config: apm.Config = _make_config("0")
     file_manager = MagicMock()
 
@@ -183,18 +172,16 @@ async def test_playback_queue_processor_skips_invalid_path(monkeypatch: pytest.M
     manager = AudioPlaybackManager(
         config, file_manager, cast("ExcludableQueue[TTSParam]", playback_queue), asyncio.Event()
     )
-    manager.release_pyaudio = MagicMock()
+    manager.release_audio_resources = MagicMock()
 
     await manager.playback_queue_processor()
 
     playback_queue._task_done_mock.assert_called_once()
-    manager.release_pyaudio.assert_called_once()
+    manager.release_audio_resources.assert_called_once()
 
 
 @pytest.mark.asyncio
-async def test_play_pyaudio_enqueues_deletion_on_unsupported_format(
-    monkeypatch: pytest.MonkeyPatch, manager: AudioPlaybackManager
-) -> None:
+async def test_play_sounddevice_enqueues_deletion_on_unsupported_format(manager: AudioPlaybackManager) -> None:
     class FakeSoundFile:
         subtype: str = "PCM_24"
         channels: int = 1
@@ -206,9 +193,13 @@ async def test_play_pyaudio_enqueues_deletion_on_unsupported_format(
         def __exit__(self, exc_type, exc, tb) -> None:
             return None
 
-    monkeypatch.setattr(apm.soundfile, "SoundFile", lambda _: FakeSoundFile())
+    original_soundfile = apm.soundfile.SoundFile
+    apm.soundfile.SoundFile = lambda _: FakeSoundFile()  # type: ignore[method-assign]
 
-    file_path = Path("dummy.wav")
-    await manager._play_pyaudio(file_path, asyncio.Event())
+    try:
+        file_path = Path("dummy.wav")
+        await manager._play_sounddevice(file_path, asyncio.Event())
+    finally:
+        apm.soundfile.SoundFile = original_soundfile  # type: ignore[assignment]
 
     cast("MagicMock", manager.file_manager).enqueue_file_deletion.assert_called_once_with(file_path)

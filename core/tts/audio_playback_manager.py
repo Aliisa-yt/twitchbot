@@ -1,18 +1,18 @@
-"""Audio playback manager using PyAudio and soundfile.
+"""Audio playback manager using sounddevice and soundfile.
 
 This module provides the AudioPlaybackManager class, which handles
 the playback of audio files in a non-blocking manner using asyncio.
-It uses PyAudio for audio output and soundfile for reading audio files.
+It uses sounddevice for audio output and soundfile for reading audio files.
 """
 
 from __future__ import annotations
 
 import asyncio
 import contextlib
-from functools import partial
+from enum import IntEnum
 from typing import TYPE_CHECKING, Final
 
-import pyaudio
+import sounddevice
 import soundfile
 
 from models.voice_models import TTSParam
@@ -22,21 +22,33 @@ from utils.logger_utils import LoggerUtils
 if TYPE_CHECKING:
     import logging
     from pathlib import Path
+    from typing import Any
+
+    from numpy.typing import NDArray
 
     from config.loader import Config
     from core.tts.file_manager import TTSFileManager
     from utils.excludable_queue import ExcludableQueue
 
-# soundfile -> pyaudio conversion tables
+# soundfile -> sounddevice conversion tables
 # PCM_S8, PCM_U8, PCM_24 are commented out because they have not been confirmed to play
-FORMAT_CONV: Final[dict[str, tuple[int, str]]] = {
-    # "PCM_S8": (pyaudio.paInt8, "int16"),
-    "PCM_16": (pyaudio.paInt16, "int16"),
-    # "PCM_24": (pyaudio.paInt24, "int32"),
-    "PCM_32": (pyaudio.paInt32, "int32"),
-    # "PCM_U8": (pyaudio.paUInt8, "int16"),
-    "FLOAT": (pyaudio.paFloat32, "float32"),
+FORMAT_CONV: Final[dict[str, str]] = {
+    # "PCM_S8": "int16",
+    "PCM_16": "int16",
+    # "PCM_24": "int32",
+    "PCM_32": "int32",
+    # "PCM_U8": "int16",
+    "FLOAT": "float32",
 }
+
+
+class _CallbackAction(IntEnum):
+    """Represents stream callback actions."""
+
+    CONTINUE = 0
+    STOP = 1
+    ABORT = 2
+
 
 __all__: list[str] = ["AudioPlaybackManager"]
 
@@ -44,26 +56,22 @@ logger: logging.Logger = LoggerUtils.get_logger(__name__)
 
 
 def _stream_callback_logic(
-    in_data,
-    frame_count,
-    time_info,
-    status,
+    outdata: NDArray[Any],
+    frames: int,
     /,
     sf: soundfile.SoundFile,
     dtype: str,
     loop: asyncio.AbstractEventLoop,
     terminate_event: asyncio.Event,
     cancel_playback_event: asyncio.Event,
-) -> tuple[bytes | None, int]:
-    """Callback function for the PyAudio stream.
+) -> _CallbackAction:
+    """Callback function for the sounddevice stream.
 
-    This function is called by PyAudio to fill the audio buffer with data.
+    This function is called by sounddevice to fill the audio buffer with data.
 
     Args:
-        _in_data: Input data (not used).
-        frame_count: Number of frames to read.
-        _time_info: Time information (not used).
-        _status: Status information (not used).
+        outdata: Output buffer provided by sounddevice.
+        frames: Number of frames to read.
         sf (soundfile.SoundFile): SoundFile object for reading audio data.
         dtype (str): Data type of the audio data.
         loop (asyncio.AbstractEventLoop): Event loop for asyncio.
@@ -71,42 +79,44 @@ def _stream_callback_logic(
         cancel_playback_event (asyncio.Event): Event to signal when playback is cancelled.
 
     Returns:
-        tuple[bytes | None, int]: Audio data and playback status.
+        _CallbackAction: Callback action for the stream.
     """
-    # The first four are position-only arguments.
-    # The order of definitions cannot be changed.
-    _ = in_data
-    _ = time_info
-    _ = status
     try:
         if terminate_event.is_set():
+            outdata.fill(0)
             loop.call_soon_threadsafe(cancel_playback_event.set)
-            return (None, pyaudio.paAbort)
+            return _CallbackAction.ABORT
 
-        data = sf.read(frames=frame_count, dtype=dtype)
+        data = sf.read(frames=frames, dtype=dtype, always_2d=True)
         # Considered complete when there is no more data to playback
         frames_read = data.shape[0]
-        if frames_read < frame_count:
+        outdata.fill(0)
+        if frames_read > 0:
+            outdata[:frames_read] = data
+
+        if frames_read < frames:
             loop.call_soon_threadsafe(cancel_playback_event.set)
-            return (data.tobytes(), pyaudio.paComplete)
+            return _CallbackAction.STOP
 
     except soundfile.SoundFileRuntimeError:
+        outdata.fill(0)
         loop.call_soon_threadsafe(cancel_playback_event.set)
-        return (None, pyaudio.paAbort)
+        return _CallbackAction.ABORT
 
     except RuntimeError as err:
         # Event loop already closed when cancel_playback_event is set
+        outdata.fill(0)
         logger.critical("Runtime error in audio callback: %s", err)
-        return (None, pyaudio.paAbort)
+        return _CallbackAction.ABORT
 
-    return (data.tobytes(), pyaudio.paContinue)
+    return _CallbackAction.CONTINUE
 
 
 class AudioPlaybackManager:
-    """Audio playback manager using PyAudio and soundfile.
+    """Audio playback manager using sounddevice and soundfile.
 
     This class handles the playback of audio files in a non-blocking manner using asyncio.
-    It uses PyAudio for audio output and soundfile for reading audio files.
+    It uses sounddevice for audio output and soundfile for reading audio files.
 
     Supported WAV formats: PCM_16, PCM_32, FLOAT
     """
@@ -134,8 +144,7 @@ class AudioPlaybackManager:
         # An event that interrupts playback. Must be cleared before playback.
         self.cancel_playback_event: asyncio.Event = asyncio.Event()
         self.play_task: asyncio.Task[None] | None = None
-        self._pyaudio: pyaudio.PyAudio | None = pyaudio.PyAudio()
-        self.stream: pyaudio.Stream | None = None
+        self.stream: sounddevice.OutputStream | None = None
 
     async def playback_queue_processor(self) -> None:
         """Asynchronous task to process and play queued audio files.
@@ -161,7 +170,7 @@ class AudioPlaybackManager:
                         continue
 
                     logger.debug("Audio file: '%s'", file_path)
-                    self.play_task = asyncio.create_task(self._play_pyaudio(file_path, self.task_terminate_event))
+                    self.play_task = asyncio.create_task(self._play_sounddevice(file_path, self.task_terminate_event))
 
                     _timelimit: float | None = self._get_timelimit()
 
@@ -184,7 +193,7 @@ class AudioPlaybackManager:
                     await asyncio.sleep(0.5)
         except asyncio.QueueShutDown:
             logger.debug("Playback queue closed")
-            self.release_pyaudio()
+            self.release_audio_resources()
 
         logger.info("Audio playback task finished")
 
@@ -224,8 +233,61 @@ class AudioPlaybackManager:
             except RuntimeError as err:
                 logger.error("Error during playback cancellation: %s", err)
 
-    async def _play_pyaudio(self, file_path: Path, task_terminate_event: asyncio.Event) -> None:
-        """Plays a WAV file using PyAudio.
+    def _create_stream_callback(
+        self,
+        sf: soundfile.SoundFile,
+        dtype: str,
+        loop: asyncio.AbstractEventLoop,
+        task_terminate_event: asyncio.Event,
+    ):
+        """Creates a stream callback function for sounddevice output stream."""
+
+        def callback_fn(outdata: NDArray[Any], frames: int, time_info, status) -> None:
+            _ = time_info, status
+            action = _stream_callback_logic(
+                outdata,
+                frames,
+                sf=sf,
+                dtype=dtype,
+                loop=loop,
+                terminate_event=task_terminate_event,
+                cancel_playback_event=self.cancel_playback_event,
+            )
+            if action == _CallbackAction.ABORT:
+                raise sounddevice.CallbackAbort
+            if action == _CallbackAction.STOP:
+                raise sounddevice.CallbackStop
+
+        return callback_fn
+
+    def _open_output_stream(
+        self,
+        sf: soundfile.SoundFile,
+        dtype: str,
+        frame_buffer_size: int,
+        callback_fn,
+    ) -> bool:
+        """Opens and validates the sounddevice output stream."""
+        try:
+            self.stream = sounddevice.OutputStream(
+                samplerate=sf.samplerate,
+                channels=sf.channels,
+                dtype=dtype,
+                blocksize=frame_buffer_size,
+                callback=callback_fn,
+            )
+        except Exception as err:  # noqa: BLE001
+            logger.error("Error opening sounddevice stream: %s", err)
+            return False
+
+        if self.stream is None:
+            logger.error("Failed to create sounddevice stream")
+            return False
+
+        return True
+
+    async def _play_sounddevice(self, file_path: Path, task_terminate_event: asyncio.Event) -> None:
+        """Plays a WAV file using sounddevice.
 
         Args:
             file_path (Path): Path to the audio file.
@@ -238,19 +300,12 @@ class AudioPlaybackManager:
         try:
             with soundfile.SoundFile(file_path) as sf:
                 try:
-                    (_format, _dtype) = FORMAT_CONV[sf.subtype]
+                    _dtype: str = FORMAT_CONV[sf.subtype]
                 except KeyError:
                     logger.error("Unsupported wav file format: '%s'", sf.subtype)
                     return
 
-                callback_fn: partial[tuple[bytes | None, int]] = partial(
-                    _stream_callback_logic,
-                    sf=sf,
-                    dtype=_dtype,
-                    loop=loop,
-                    terminate_event=task_terminate_event,
-                    cancel_playback_event=self.cancel_playback_event,
-                )
+                callback_fn = self._create_stream_callback(sf, _dtype, loop, task_terminate_event)
 
                 # The buffer size is set to 0.2 seconds of audio data.
                 # The value set here is the number of words,
@@ -262,30 +317,21 @@ class AudioPlaybackManager:
                     sf.samplerate,
                     frame_buffer_size,
                 )
-                try:
-                    self.stream = self.pyaudio.open(
-                        format=_format,
-                        channels=sf.channels,
-                        rate=sf.samplerate,
-                        output=True,
-                        frames_per_buffer=frame_buffer_size,
-                        stream_callback=callback_fn,
-                    )
-                except Exception as err:  # noqa: BLE001
-                    logger.error("Error opening PyAudio stream: %s", err)
+                if not self._open_output_stream(sf, _dtype, frame_buffer_size, callback_fn):
                     return
-                # It is unclear whether the stream can become 'None' without an exception occurring.
-                if self.stream is None:
-                    logger.error("Failed to create PyAudio stream")
+                stream: sounddevice.OutputStream | None = self.stream
+                if stream is None:
                     return
 
-                self.stream.start_stream()
+                stream.start()
                 await self.cancel_playback_event.wait()
-                self.stream.stop_stream()
-                self.stream.close()
+                stream.stop()
+                stream.close()
                 self.stream = None
         except (soundfile.LibsndfileError, soundfile.SoundFileRuntimeError) as err:
             logger.error("Soundfile error: %s", err)
+        except sounddevice.PortAudioError as err:
+            logger.error("Sounddevice error: %s", err)
         except (OSError, AttributeError, TypeError, ValueError) as err:
             logger.error("System error: %s", err)
         except asyncio.CancelledError as err:
@@ -296,7 +342,7 @@ class AudioPlaybackManager:
             # Ensure stream is closed if an error occured earlier
             if self.stream is not None:
                 with contextlib.suppress(Exception):
-                    self.stream.stop_stream()
+                    self.stream.stop()
                 with contextlib.suppress(Exception):
                     self.stream.close()
                 self.stream = None
@@ -310,23 +356,14 @@ class AudioPlaybackManager:
         """
         if self.stream is None:
             return False
-        return self.stream.is_active()
+        return bool(self.stream.active)
 
-    @property
-    def pyaudio(self) -> pyaudio.PyAudio:
-        """Gets the PyAudio instance, recreating it if necessary.
-
-        Returns:
-            pyaudio.PyAudio: The PyAudio instance.
-        """
-        if self._pyaudio is None:
-            self._pyaudio = pyaudio.PyAudio()
-            logger.info("PyAudio instance recreated")
-        return self._pyaudio
-
-    def release_pyaudio(self) -> None:
-        """Releases the PyAudio resources."""
-        if self._pyaudio is not None:
-            self._pyaudio.terminate()
-            self._pyaudio = None
-            logger.info("PyAudio resources released")
+    def release_audio_resources(self) -> None:
+        """Releases the audio stream resources."""
+        if self.stream is not None:
+            with contextlib.suppress(Exception):
+                self.stream.stop()
+            with contextlib.suppress(Exception):
+                self.stream.close()
+            self.stream = None
+            logger.info("Audio stream resources released")
