@@ -29,6 +29,7 @@ from core.components import (
     ChatEventsManager,  # noqa: F401
     ComponentBase,
     ComponentDescriptor,
+    STTServiceComponent,  # noqa: F401
     TranslationServiceComponent,  # noqa: F401
     TTSServiceComponent,  # noqa: F401
 )
@@ -44,12 +45,17 @@ if TYPE_CHECKING:
     from twitchio.models.chat import SentMessage
 
     from config.loader import Config
+    from core.stt.manager import STTManager
+    from core.stt.recorder import LevelEventCallback
     from core.token_manager import TwitchBotToken
 
 
 __all__: list[str] = ["Bot"]
 
 logger: logging.Logger = LoggerUtils.get_logger(__name__)
+
+# STT_CHAT_SEND_ENABLED: bool = False  # for debugging
+# STT_CONSOLE_PREFIX: str = "[STT] "
 
 
 class Bot(commands.Bot):
@@ -84,6 +90,7 @@ class Bot(commands.Bot):
 
         self.shared_data: SharedData = SharedData(config)
         self._closed: bool = False
+        self._pending_stt_level_callback: LevelEventCallback | None = None
 
         self.attached_components: list[ComponentBase] = []
 
@@ -157,6 +164,7 @@ class Bot(commands.Bot):
         logger.debug("Setting up %s", self.__class__.__name__)
 
         await self.shared_data.async_init()
+        self.shared_data.stt_manager.set_level_event_callback(self._pending_stt_level_callback)
 
         self.validate_dependencies(ComponentBase.component_registry)
         attach_order: list[str] = self.resolve_dependencies(ComponentBase.component_registry)
@@ -164,6 +172,17 @@ class Bot(commands.Bot):
 
         for component_name in attach_order:
             await self.attach_component(ComponentBase.component_registry[component_name].component(self))
+
+    def set_stt_level_callback(self, callback: LevelEventCallback | None) -> None:
+        """Register callback for STT input level events.
+
+        Args:
+            callback: Callback invoked when STT recorder emits input-level events.
+        """
+        self._pending_stt_level_callback = callback
+        stt_manager: STTManager | None = getattr(self.shared_data, "stt_manager", None)
+        if stt_manager is not None:
+            stt_manager.set_level_event_callback(callback)
 
     def validate_dependencies(self, deps: dict[str, ComponentDescriptor]) -> None:
         """Validate component dependencies.
@@ -370,7 +389,6 @@ class Bot(commands.Bot):
             logger.info("Start shutdown sequence")
             for _component in reversed(self.attached_components):
                 await self.detach_component(_component)
-
             self._closed = True
             logger.info("Shutdown sequence complete")
         await super().close(**kwargs)

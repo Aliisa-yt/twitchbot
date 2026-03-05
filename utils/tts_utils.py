@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 from typing import TYPE_CHECKING, TypeVar
 
 from models.voice_models import TTSParam, VoiceParamType
@@ -75,3 +76,30 @@ class TTSUtils:
 
         msg: str = f"Expected value of type {expected_type.__name__}, got {type(value).__name__}"
         raise TypeError(msg)
+
+    @staticmethod
+    def linear_to_db(value: float, *, floor_db: float = -60.0) -> float:
+        """Convert a linear scale value to decibels (dB).
+
+        Args:
+            value (float): The linear scale value to convert.
+            floor_db (float): The minimum value in dB to avoid log(0) errors.
+
+        Returns:
+            float: The corresponding value in decibels.
+        """
+        if value <= (10 ** (floor_db / 20.0)):  # Corresponding linear value for floor_db
+            return floor_db  # Minimum dB value for silence
+        return 20.0 * math.log10(value)
+
+    @staticmethod
+    def db_to_linear(value: float) -> float:
+        """Convert a decibel (dB) value to linear scale.
+
+        Args:
+            value (float): The decibel value to convert.
+
+        Returns:
+            float: The corresponding value in linear scale.
+        """
+        return 10 ** (value / 20.0)

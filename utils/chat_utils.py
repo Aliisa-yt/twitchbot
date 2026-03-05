@@ -116,10 +116,10 @@ class ChatUtils:
         _footer: str = StringUtils.ensure_str(footer)
         _ellipsis: str = " ..."
 
-        message_length: int = len(_content) + len(_header) + len(_footer)
+        message_length: int = len(_content) + len(_header) + len(_footer) + len(_ellipsis)
 
         if message_length > limit_length:
-            limit: int = len(_content) - len(_header) - len(_footer) - len(_ellipsis)
+            limit: int = limit_length - len(_header) - len(_footer) - len(_ellipsis)
             if limit < SHORTEST_MESSAGE_LENGTH:
                 logger.warning(
                     "The message cannot be truncated to the specified length. "

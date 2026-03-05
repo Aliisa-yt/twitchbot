@@ -21,6 +21,7 @@ if TYPE_CHECKING:
     from config.loader import Config
     from core.bot import Bot
     from core.shared_data import SharedData
+    from core.stt.manager import STTManager
     from core.trans.manager import TransManager
     from core.tts.manager import TTSManager
     from handlers.chat_message import ChatMessageHandler
@@ -95,6 +96,20 @@ class ComponentBase(Component):
             raise RuntimeError(msg)
         self.shared: SharedData = bot.shared_data
 
+    def get_attached_component(self, component_name: str) -> ComponentBase | None:
+        """Get an attached component by class name.
+
+        Args:
+            component_name (str): Target component class name.
+
+        Returns:
+            ComponentBase | None: Attached component instance when found.
+        """
+        for component in self.bot.attached_components:
+            if component.__class__.__name__ == component_name:
+                return component
+        return None
+
     @property
     def config(self) -> Config:
         """Get the application configuration."""
@@ -109,6 +124,11 @@ class ComponentBase(Component):
     def tts_manager(self) -> TTSManager:
         """Get the TTS manager."""
         return self.shared.tts_manager
+
+    @property
+    def stt_manager(self) -> STTManager:
+        """Get the STT manager."""
+        return self.shared.stt_manager
 
     def prepare_original_text(self, message: ChatMessageHandler, tts_param: TTSParam) -> TTSParam:
         """Prepare TTS parameters for original (non-translated) text.
@@ -213,7 +233,7 @@ class ComponentBase(Component):
         self.bot.print_console_message(message, header=header, footer=footer)
 
     async def send_chat_message(
-        self, content: str | None, *, header: str | None = None, footer: str | None = None
+        self, content: str | None, *, header: str | None = None, footer: str | None = None, sender: str | None = None
     ) -> None:
         """Send a message to Twitch chat with optional header and footer.
 
@@ -221,5 +241,6 @@ class ComponentBase(Component):
             content (str | None): Message content to send.
             header (str | None): Optional header prefix (e.g., '/me ' for action messages).
             footer (str | None): Optional footer suffix.
+            sender (str | None): Optional sender ID.
         """
-        await self.bot.send_chat_message(content, header=header, footer=footer)
+        await self.bot.send_chat_message(content, header=header, footer=footer, sender=sender)

@@ -37,6 +37,7 @@ __all__: list[str] = [
 logger: logging.Logger = LoggerUtils.get_logger(__name__)
 
 ALLOWED_TRANSLATION_ENGINES: list[str] = ["google", "deepl", "google_cloud"]
+ALLOWED_STT_ENGINES: list[str] = ["google_cloud_stt", "google_cloud_stt_v2"]
 
 API_COLORS: list[str] = [
     "blue",
@@ -171,6 +172,9 @@ class ConfigLoader:
             if section.name == "VOICE_PARAMETERS":
                 continue
             self._convert_section_field(parser, formatter, section)
+
+        if not parser.has_section("STT"):
+            logger.info("[STT] section is not defined. STT is disabled by default.")
 
     def _convert_section_field(
         self, parser: ConfigParser, formatter: _ConfigFormatter, section: DataclassField[Any]
@@ -336,9 +340,64 @@ class ConfigLoader:
             self._validate_username("BOT", "BOT_NAME")
             self._inspect_defined_item("TRANSLATION", "ENGINE", ALLOWED_TRANSLATION_ENGINES)
             self._validate_color_setting("BOT", "COLOR")
+            self._validate_stt_settings()
         except (NameError, SyntaxError, AttributeError, TypeError, ValueError) as err:
             msg: str = f"Invalid configuration value: {err}"
             raise ConfigFormatError(msg) from None
+
+    def _validate_stt_settings(self) -> None:
+        """Validate STT settings.
+
+        STT is optional. When disabled, relaxed validation is applied.
+        """
+        stt = self.config.STT
+        if not stt.ENABLED:
+            return
+
+        if not stt.ENGINE:
+            msg = "'STT.ENGINE' is required when STT is enabled."
+            raise ConfigValueError(msg)
+        if stt.ENGINE not in ALLOWED_STT_ENGINES:
+            msg = f"Unsupported value for 'STT.ENGINE': {stt.ENGINE}"
+            raise ConfigValueError(msg)
+
+        if not stt.INPUT_DEVICE:
+            msg = "'STT.INPUT_DEVICE' must not be empty when STT is enabled."
+            raise ConfigValueError(msg)
+        if not stt.LANGUAGE:
+            msg = "'STT.LANGUAGE' must not be empty when STT is enabled."
+            raise ConfigValueError(msg)
+
+        self._validate_stt_numeric_range("STT.SAMPLE_RATE", stt.SAMPLE_RATE, min_value=8000)
+        self._validate_stt_numeric_range("STT.CHANNELS", stt.CHANNELS, min_value=1)
+
+        self._validate_stt_numeric_range("STT.START_LEVEL", stt.START_LEVEL, min_value=-60.0, max_value=0.0)
+        self._validate_stt_numeric_range("STT.STOP_LEVEL", stt.STOP_LEVEL, min_value=-60.0, max_value=0.0)
+        if stt.START_LEVEL < stt.STOP_LEVEL:
+            msg = "'STT.START_LEVEL' must be greater than or equal to 'STT.STOP_LEVEL'."
+            raise ConfigValueError(msg)
+
+        self._validate_stt_numeric_range("STT.PRE_BUFFER_MS", stt.PRE_BUFFER_MS, min_value=0)
+        self._validate_stt_numeric_range("STT.POST_BUFFER_MS", stt.POST_BUFFER_MS, min_value=0)
+        self._validate_stt_numeric_range("STT.MAX_SEGMENT_SEC", stt.MAX_SEGMENT_SEC, min_value=1)
+        self._validate_stt_numeric_range("STT.RETRY_MAX", stt.RETRY_MAX, min_value=0)
+        self._validate_stt_numeric_range("STT.RETRY_BACKOFF_MS", stt.RETRY_BACKOFF_MS, min_value=0)
+
+    def _validate_stt_numeric_range(
+        self,
+        field_name: str,
+        value: float,
+        *,
+        min_value: float,
+        max_value: float | None = None,
+    ) -> None:
+        """Validate numeric range for STT settings."""
+        if value < min_value:
+            msg = f"'{field_name}' must be greater than or equal to {min_value}."
+            raise ConfigValueError(msg)
+        if max_value is not None and value > max_value:
+            msg = f"'{field_name}' must be less than or equal to {max_value}."
+            raise ConfigValueError(msg)
 
     def _validate_username(self, section_name: str, key_name: str) -> None:
         """Validate username against Twitch requirements (4-25 chars, alphanumeric + underscore).

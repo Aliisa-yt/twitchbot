@@ -30,6 +30,9 @@ def mock_config() -> Config:
     config.BOT.LOGIN_MESSAGE = "Bot is ready"
     config.BOT.DONT_LOGIN_MESSAGE = False
     config.BOT.CONSOLE_OUTPUT = True
+    config.STT = MagicMock()
+    config.STT.ENABLED = False
+    config.STT.FORWARD_TO_TTS = None
     return config
 
 
@@ -101,8 +104,11 @@ class TestBotSetupHook:
     @pytest.mark.asyncio
     async def test_setup_hook_attaches_components(self, bot_instance: Bot) -> None:
         """Test that setup_hook attaches components from the priority list."""
-        shared_data_async_init = AsyncMock()
-        bot_instance.shared_data.async_init = shared_data_async_init
+        shared_data = MagicMock()
+        shared_data.async_init = AsyncMock()
+        shared_data.stt_manager = MagicMock()
+        shared_data.stt_manager.set_level_event_callback = MagicMock()
+        bot_instance.shared_data = shared_data
         attach_component = AsyncMock()
         bot_instance.attach_component = attach_component
         component_registry: dict[str, ComponentDescriptor] = {
@@ -117,7 +123,7 @@ class TestBotSetupHook:
         ):
             await bot_instance.setup_hook()
 
-        shared_data_async_init.assert_called_once()
+        shared_data.async_init.assert_called_once()
         assert attach_component.call_count == 1
         attached = [call_args.args[0].__class__ for call_args in attach_component.call_args_list]
         assert DummyComponent in attached
@@ -125,8 +131,11 @@ class TestBotSetupHook:
     @pytest.mark.asyncio
     async def test_setup_hook_validates_dependencies(self, bot_instance: Bot) -> None:
         """Test that setup_hook validates dependencies before attaching components."""
-        shared_data_async_init = AsyncMock()
-        bot_instance.shared_data.async_init = shared_data_async_init
+        shared_data = MagicMock()
+        shared_data.async_init = AsyncMock()
+        shared_data.stt_manager = MagicMock()
+        shared_data.stt_manager.set_level_event_callback = MagicMock()
+        bot_instance.shared_data = shared_data
         validate_dependencies = MagicMock()
         bot_instance.validate_dependencies = validate_dependencies
 
@@ -143,6 +152,58 @@ class TestBotSetupHook:
             await bot_instance.setup_hook()
 
         validate_dependencies.assert_called_once_with(component_registry)
+
+    @pytest.mark.asyncio
+    async def test_setup_hook_initializes_stt_when_enabled(self, bot_instance: Bot) -> None:
+        """Test that setup_hook initializes STT manager when STT is enabled."""
+        shared_data = MagicMock()
+        shared_data.async_init = AsyncMock()
+        shared_data.stt_manager = MagicMock()
+        shared_data.stt_manager.set_level_event_callback = MagicMock()
+        bot_instance.shared_data = shared_data
+        bot_instance.config.STT.ENABLED = True
+        bot_instance.attach_component = AsyncMock()
+
+        component_registry: dict[str, ComponentDescriptor] = {
+            "DummyComponent": ComponentDescriptor(
+                component=DummyComponent,
+                depends=[],
+                is_removable=False,
+            )
+        }
+        with patch.object(ComponentBase, "component_registry", component_registry):
+            await bot_instance.setup_hook()
+
+        shared_data.stt_manager.set_level_event_callback.assert_called_once_with(None)
+
+    @pytest.mark.asyncio
+    async def test_setup_hook_passes_stt_level_callback(self, bot_instance: Bot) -> None:
+        """Test that setup_hook forwards the STT level callback when configured."""
+        shared_data = MagicMock()
+        shared_data.async_init = AsyncMock()
+        shared_data.stt_manager = MagicMock()
+        shared_data.stt_manager.set_level_event_callback = MagicMock()
+        bot_instance.shared_data = shared_data
+        bot_instance.config.STT.ENABLED = True
+        bot_instance.attach_component = AsyncMock()
+
+        async def on_level(_event) -> None:
+            return None
+
+        bot_instance.set_stt_level_callback(on_level)
+
+        component_registry: dict[str, ComponentDescriptor] = {
+            "DummyComponent": ComponentDescriptor(
+                component=DummyComponent,
+                depends=[],
+                is_removable=False,
+            )
+        }
+        with patch.object(ComponentBase, "component_registry", component_registry):
+            await bot_instance.setup_hook()
+
+        shared_data.stt_manager.set_level_event_callback.assert_any_call(on_level)
+        assert shared_data.stt_manager.set_level_event_callback.call_count == 2
 
 
 class TestDependencyResolution:
@@ -434,3 +495,19 @@ class TestBotClose:
         assert detach_component.call_args_list == [call(component_b), call(component_a)]
         assert bot_instance._closed is True
         close_mock.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_close_calls_stt_manager_close(self, bot_instance: Bot) -> None:
+        """Test that close does not directly invoke STT manager shutdown."""
+        shared_data = MagicMock()
+        shared_data.stt_manager = MagicMock()
+        shared_data.stt_manager.close = AsyncMock()
+        bot_instance.shared_data = shared_data
+        bot_instance.print_console_message = MagicMock()
+        bot_instance.detach_component = AsyncMock()
+        bot_instance.attached_components = []
+
+        with patch("core.bot.commands.Bot.close", new_callable=AsyncMock):
+            await bot_instance.close()
+
+        shared_data.stt_manager.close.assert_not_called()

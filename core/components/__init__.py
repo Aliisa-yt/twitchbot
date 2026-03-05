@@ -18,6 +18,7 @@ from core.components.cache_component import CacheServiceComponent
 from core.components.chat_events import ChatEventsManager
 from core.components.command import BotCommandManager
 from core.components.inflight_component import InFlightServiceComponent
+from core.components.stt_component import STTServiceComponent
 from core.components.trans_component import TranslationServiceComponent
 from core.components.tts_component import TTSServiceComponent
 
@@ -28,6 +29,7 @@ __all__: list[str] = [
     "ComponentBase",
     "ComponentDescriptor",
     "InFlightServiceComponent",
+    "STTServiceComponent",
     "TTSServiceComponent",
     "TranslationServiceComponent",
 ]

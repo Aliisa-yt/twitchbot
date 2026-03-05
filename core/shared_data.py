@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING
 
 from core.cache.inflight_manager import InFlightManager
 from core.cache.manager import TranslationCacheManager
+from core.stt.manager import STTManager
 from core.trans.manager import TransManager
 from core.tts.manager import TTSManager
 
@@ -28,6 +29,7 @@ class SharedData:
     _cache_manager: TranslationCacheManager = field(init=False)
     _trans_manager: TransManager = field(init=False)
     _tts_manager: TTSManager = field(init=False)
+    _stt_manager: STTManager = field(init=False)
     _inflight_manager: InFlightManager = field(init=False)
 
     async def async_init(self) -> None:
@@ -35,6 +37,7 @@ class SharedData:
         self._inflight_manager = InFlightManager()
         self._trans_manager = TransManager(self.config, self._cache_manager, self._inflight_manager)
         self._tts_manager = TTSManager(self.config)
+        self._stt_manager = STTManager(self.config)
 
     @property
     def config(self) -> Config:
@@ -51,6 +54,10 @@ class SharedData:
     @property
     def tts_manager(self) -> TTSManager:
         return self._tts_manager
+
+    @property
+    def stt_manager(self) -> STTManager:
+        return self._stt_manager
 
     @property
     def inflight_manager(self) -> InFlightManager:

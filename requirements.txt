@@ -13,6 +13,7 @@ pyinstaller
 pyinstaller-hooks-contrib
 dataclasses-json
 google-cloud-translate
+google-cloud-speech
 types-pywin32
 types-dataclasses-json
 coverage

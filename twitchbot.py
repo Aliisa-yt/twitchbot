@@ -185,7 +185,7 @@ class SignalHandler:
         signal.signal(self.sig, self.original_handler)
 
 
-async def _gui_bootstrap(app: GUIApp, args: argparse.Namespace, log_setup: LoggerUtils) -> None:
+async def _gui_bootstrap(app: GUIApp, args: argparse.Namespace, log_setup: LoggerUtils) -> None:  # noqa: PLR0915
     """Bootstrap sequence for GUI mode.
 
     Args:
@@ -235,6 +235,25 @@ async def _gui_bootstrap(app: GUIApp, args: argparse.Namespace, log_setup: Logge
             logger.info("Created temporary directory: %s", config.GENERAL.TMP_DIR)
 
             async with Bot(config, token_data) as bot:
+                app.bot = bot
+                refresh_rate: int = max(
+                    10, min(100, bot.config.GUI.LEVEL_METER_REFRESH_RATE)
+                )  # Clamp refresh rate to reasonable range (10-100fps)
+                app.ema_alpha = 1.0 / (1.0 + app.STT_LEVEL_EMA_RESPONSE_TIME * refresh_rate)
+
+                stt_enabled: bool = bool(getattr(config.STT, "ENABLED", False))
+                if stt_enabled:
+                    app.set_stt_controls_enabled(enabled=True)
+                    app.update_stt_thresholds(config.STT.START_LEVEL, config.STT.STOP_LEVEL)
+                    is_stt_muted: bool = bool(config.STT.MUTE)
+                    app.set_stt_mute_state(is_muted=is_stt_muted)
+                    app.set_stt_status("Muted" if is_stt_muted else "Input monitoring")
+                else:
+                    app.set_stt_controls_enabled(enabled=False)
+                    app.set_stt_status("Disabled")
+
+                bot.set_stt_level_callback(app.apply_stt_level_event)
+
                 app.update_status("Bot running...", STATUS_RUNNING_COLOR)
                 await bot.start(with_adapter=False)
 
@@ -269,7 +288,6 @@ async def _console_bootstrap(args: argparse.Namespace, log_setup: LoggerUtils) -
     """
     config: Config = load_config(args)
     configure_logging(log_setup, config)
-
     token_db_path: Path = FileUtils.resolve_path(TOKEN_DB_FILE)
     if not token_db_has_data(token_db_path):
         msg = (

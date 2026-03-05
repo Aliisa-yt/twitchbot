@@ -151,3 +151,73 @@ def test_invalid_cast_param_raises_config_value_error(tmp_path: Path) -> None:
 
     with pytest.raises(ConfigValueError):
         ConfigLoader(config_filename=str(ini_path), script_name="test")
+
+
+def test_missing_stt_section_defaults_to_disabled(tmp_path: Path) -> None:
+    ini_path: Path = _write_ini(
+        tmp_path,
+        """
+        [TWITCH]
+        OWNER_NAME = "owner1"
+
+        [BOT]
+        BOT_NAME = "bot1"
+        COLOR = "blue"
+
+        [TRANSLATION]
+        ENGINE = ["google"]
+        """,
+    )
+
+    loader = ConfigLoader(config_filename=str(ini_path), script_name="test")
+    assert loader.config.STT.ENABLED is False
+
+
+def test_stt_enabled_with_invalid_engine_raises_config_value_error(tmp_path: Path) -> None:
+    ini_path: Path = _write_ini(
+        tmp_path,
+        """
+        [TWITCH]
+        OWNER_NAME = "owner1"
+
+        [BOT]
+        BOT_NAME = "bot1"
+        COLOR = "blue"
+
+        [TRANSLATION]
+        ENGINE = ["google"]
+
+        [STT]
+        ENABLED = True
+        ENGINE = "unknown_engine"
+        """,
+    )
+
+    with pytest.raises(ConfigValueError):
+        ConfigLoader(config_filename=str(ini_path), script_name="test")
+
+
+def test_stt_enabled_with_invalid_thresholds_raises_config_value_error(tmp_path: Path) -> None:
+    ini_path: Path = _write_ini(
+        tmp_path,
+        """
+        [TWITCH]
+        OWNER_NAME = "owner1"
+
+        [BOT]
+        BOT_NAME = "bot1"
+        COLOR = "blue"
+
+        [TRANSLATION]
+        ENGINE = ["google"]
+
+        [STT]
+        ENABLED = True
+        ENGINE = "google_cloud_speech_to_text"
+        START_LEVEL = 0.2
+        STOP_LEVEL = 0.6
+        """,
+    )
+
+    with pytest.raises(ConfigValueError):
+        ConfigLoader(config_filename=str(ini_path), script_name="test")

@@ -7,10 +7,12 @@ from __future__ import annotations
 
 import json
 from dataclasses import asdict, dataclass, field, fields, replace
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 if TYPE_CHECKING:
     from pathlib import Path
+
+    from _typeshed import DataclassInstance
 
 __all__: list[str] = [
     "TTSInfo",
@@ -167,7 +169,7 @@ class UserTypeInfo:
             list[str]: List of unique engine names across all user types and languages.
         """
         tts_engine_names: set[str] = set()
-        for _field in fields(self):
+        for _field in fields(cast("DataclassInstance", self)):
             lang_map: TTSInfoPerLanguage = getattr(self, _field.name)
             for tts_info in lang_map.values():
                 if tts_info.engine:
@@ -185,7 +187,7 @@ class UserTypeInfo:
             list[str]: List of cast names used by the specified engine.
         """
         cast_list: set[str] = set()
-        for _field in fields(self):
+        for _field in fields(cast("DataclassInstance", self)):
             lang_map: TTSInfoPerLanguage = getattr(self, _field.name)
             for tts_info in lang_map.values():
                 if tts_info.engine == engine_name:

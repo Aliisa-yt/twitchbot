@@ -42,6 +42,30 @@ LIMIT_CHARACTERS = 0
 LIMIT_TIME = 0
 ALLOW_TTS_TWEAK = True
 
+# ==================== Speech-To-Text settings ====================
+[STT]
+ENABLED = False
+ENGINE = "google_cloud_stt"
+INPUT_DEVICE = "default"
+START_LEVEL = -20.0
+STOP_LEVEL = -40.0
+PRE_BUFFER_MS = 300
+POST_BUFFER_MS = 500
+MAX_SEGMENT_SEC = 20
+MUTE = True
+LANGUAGE = "ja-JP"
+FORWARD_TO_TTS = True
+RETRY_MAX = 3
+RETRY_BACKOFF_MS = 500
+GOOGLE_CLOUD_STT_V2_LOCATION = "global"
+GOOGLE_CLOUD_STT_V2_MODEL = "latest_short"
+GOOGLE_CLOUD_STT_V2_RECOGNIZER = "_"
+
+# ==================== GUI settings ====================
+
+[GUI]
+LEVEL_METER_REFRESH_RATE = 10
+
 # ==================== TTS format settings ====================
 [TTS_FORMAT]
 ORIGINAL_MESSAGE = {
@@ -133,7 +157,7 @@ SERVER = "127.0.0.1:50032"
 TIMEOUT = 5.0
 EARLY_SPEECH = False
 AUTO_STARTUP = True
-EXECUTE_PATH = "${LOCALAPPDATA}\\Programs\\COEIROINK_WIN_GPU_v.2.11.2\\COEIROINKv2.exe"
+EXECUTE_PATH = "${LOCALAPPDATA}\\Programs\\COEIROINK_WIN_GPU_v.2.12.3\\COEIROINKv2.exe"
 
 # ==================== Miscellaneous Settings ====================
 [TIME_SIGNAL]

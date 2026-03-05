@@ -170,7 +170,10 @@ class AudioPlaybackManager:
                         continue
 
                     logger.debug("Audio file: '%s'", file_path)
-                    self.play_task = asyncio.create_task(self._play_sounddevice(file_path, self.task_terminate_event))
+                    self.play_task = asyncio.create_task(
+                        self._play_sounddevice(file_path, self.task_terminate_event),
+                        name=f"AudioPlayback-{file_path.stem}",
+                    )
 
                     _timelimit: float | None = self._get_timelimit()
 

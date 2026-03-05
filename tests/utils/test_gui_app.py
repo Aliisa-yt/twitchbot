@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING, Any, cast
 import pytest
 
 from core.gui import gui_app as gui_module
+from core.stt.recorder import STTLevelEvent
 
 if TYPE_CHECKING:
     from logging import Logger
@@ -70,11 +71,14 @@ class DummyTextWidget:
 
 class DummyLabel:
     def __init__(self, *args: Any, **kwargs: Any) -> None:
-        _ = args, kwargs
+        _ = args
         self.last_config: dict[str, Any] = {}
+        self.text: str = str(kwargs.get("text", ""))
 
     def config(self, **kwargs: Any) -> None:
         self.last_config = kwargs
+        if "text" in kwargs:
+            self.text = str(kwargs["text"])
 
     def pack(self, *args: Any, **kwargs: Any) -> None:
         _ = args, kwargs
@@ -82,10 +86,23 @@ class DummyLabel:
 
 class DummyButton:
     def __init__(self, *args: Any, **kwargs: Any) -> None:
-        _ = args, kwargs
+        _ = args
+        self.command = kwargs.get("command")
+        self.last_config: dict[str, Any] = {}
+        self.states: list[list[str]] = []
 
     def pack(self, *args: Any, **kwargs: Any) -> None:
         _ = args, kwargs
+
+    def config(self, **kwargs: Any) -> None:
+        self.last_config = kwargs
+
+    def state(self, state: list[str]) -> None:
+        self.states.append(state)
+
+    def invoke(self) -> None:
+        if self.command is not None:
+            self.command()
 
 
 class DummyFrame:
@@ -94,6 +111,67 @@ class DummyFrame:
 
     def pack(self, *args: Any, **kwargs: Any) -> None:
         _ = args, kwargs
+
+
+class DummyCanvas:
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        _ = args
+        self.width: int = int(kwargs.get("width", 0))
+        self.height: int = int(kwargs.get("height", 0))
+        self.next_item_id: int = 1
+        self.coords_map: dict[int, tuple[float, float, float, float]] = {}
+        self.item_config_map: dict[int, dict[str, Any]] = {}
+
+    def pack(self, *args: Any, **kwargs: Any) -> None:
+        _ = args, kwargs
+
+    def create_rectangle(self, x1: float, y1: float, x2: float, y2: float, **kwargs: Any) -> int:
+        item_id = self.next_item_id
+        self.next_item_id += 1
+        self.coords_map[item_id] = (x1, y1, x2, y2)
+        self.item_config_map[item_id] = kwargs
+        return item_id
+
+    def create_line(self, x1: float, y1: float, x2: float, y2: float, **kwargs: Any) -> int:
+        item_id = self.next_item_id
+        self.next_item_id += 1
+        self.coords_map[item_id] = (x1, y1, x2, y2)
+        self.item_config_map[item_id] = kwargs
+        return item_id
+
+    def coords(self, item_id: int, x1: float, y1: float, x2: float, y2: float) -> None:
+        self.coords_map[item_id] = (x1, y1, x2, y2)
+
+    def itemconfigure(self, item_id: int, **kwargs: Any) -> None:
+        if item_id not in self.item_config_map:
+            self.item_config_map[item_id] = {}
+        self.item_config_map[item_id].update(kwargs)
+
+
+class DummyScale:
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        _ = args
+        self.value: float = 0.0
+        self.states: list[list[str]] = []
+        self.command = kwargs.get("command")
+
+    def pack(self, *args: Any, **kwargs: Any) -> None:
+        _ = args, kwargs
+
+    def set(self, value: float) -> None:
+        self.value = value
+        if self.command is not None:
+            self.command(str(self.value))
+
+    def get(self) -> float:
+        return self.value
+
+    def state(self, state: list[str]) -> None:
+        self.states.append(state)
+
+    def invoke(self) -> None:
+        if self.command is not None:
+            self.command(str(self.value))
 
 
 class DummySeparator:
@@ -107,8 +185,15 @@ class DummySeparator:
 class DummyStyle:
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         _ = args, kwargs
+        self.theme: str | None = None
 
     def configure(self, *args: Any, **kwargs: Any) -> None:
+        _ = args, kwargs
+
+    def theme_use(self, theme_name: str) -> None:
+        self.theme = theme_name
+
+    def map(self, *args: Any, **kwargs: Any) -> None:
         _ = args, kwargs
 
 
@@ -148,9 +233,12 @@ def patched_gui(monkeypatch: pytest.MonkeyPatch) -> SimpleNamespace:
     monkeypatch.setattr(gui_module.tk, "Tk", DummyRoot)
     monkeypatch.setattr(gui_module.ttk, "Style", DummyStyle)
     monkeypatch.setattr(gui_module.ttk, "Frame", DummyFrame)
+    monkeypatch.setattr(gui_module.ttk, "LabelFrame", DummyFrame)
     monkeypatch.setattr(gui_module.ttk, "Separator", DummySeparator)
     monkeypatch.setattr(gui_module.ttk, "Button", DummyButton)
     monkeypatch.setattr(gui_module.ttk, "Label", DummyLabel)
+    monkeypatch.setattr(gui_module.tk, "Canvas", DummyCanvas)
+    monkeypatch.setattr(gui_module.ttk, "Scale", DummyScale)
     monkeypatch.setattr(gui_module.scrolledtext, "ScrolledText", DummyTextWidget)
 
     show_info_calls: list[tuple[str, str]] = []
@@ -213,6 +301,49 @@ def test_update_status_updates_label(patched_gui: SimpleNamespace) -> None:
     assert cast("DummyRoot", app.root).updated == 1
 
 
+def test_update_stt_level_updates_meter_style_by_level(patched_gui: SimpleNamespace) -> None:
+    _ = patched_gui
+    app = gui_module.GUIApp()
+
+    meter = cast("DummyCanvas", app.stt_level_meter)
+    widgets = app._require_stt_widgets()
+    fill_id = widgets.level_meter_fill_id
+
+    app.update_stt_level(0.2, 0.0)
+    x1, y1, x2, y2 = meter.coords_map[fill_id]
+    assert (x1, y1, y2) == (1, 2, 24)
+    assert x2 == pytest.approx(116.58552)
+    assert meter.item_config_map[fill_id]["fill"] == gui_module.STT_LEVEL_WARNING_COLOR
+
+    app.update_stt_level(0.7, 0.0)
+    x1, y1, x2, y2 = meter.coords_map[fill_id]
+    assert (x1, y1, y2) == (1, 2, 24)
+    assert x2 == pytest.approx(144.15163)
+    assert meter.item_config_map[fill_id]["fill"] == gui_module.STT_LEVEL_DANGER_COLOR
+
+    app.update_stt_level(0.95, 0.0)
+    x1, y1, x2, y2 = meter.coords_map[fill_id]
+    assert (x1, y1, y2) == (1, 2, 24)
+    assert x2 == pytest.approx(150.87133)
+    assert meter.item_config_map[fill_id]["fill"] == gui_module.STT_LEVEL_DANGER_COLOR
+
+
+def test_apply_stt_level_event_updates_meter_and_mute_button(patched_gui: SimpleNamespace) -> None:
+    _ = patched_gui
+    app = gui_module.GUIApp()
+
+    event = STTLevelEvent(rms=0.7, peak=0.2, muted=True, timestamp=0.0)
+    app.apply_stt_level_event(event)
+
+    button = cast("DummyButton", app.stt_mute_button)
+    meter = cast("DummyCanvas", app.stt_level_meter)
+    widgets = app._require_stt_widgets()
+    fill_id = widgets.level_meter_fill_id
+
+    assert meter.coords_map[fill_id][2] == pytest.approx(144.15163)
+    assert button.last_config.get("text") == "Unmute"
+
+
 def test_dialog_helpers_call_messagebox(patched_gui: SimpleNamespace) -> None:
     _ = patched_gui
     app = gui_module.GUIApp()
@@ -236,3 +367,82 @@ async def test_run_with_bot_handles_close(patched_gui: SimpleNamespace) -> None:
 
     assert app.running is False
     assert cast("DummyRoot", app.root).destroyed is True
+
+
+def test_stt_mute_button_toggles_manager_state(patched_gui: SimpleNamespace) -> None:
+    _ = patched_gui
+    app = gui_module.GUIApp()
+
+    class DummySTTManager:
+        def __init__(self) -> None:
+            self.muted = False
+
+        def toggle_mute(self) -> bool:
+            self.muted = not self.muted
+            return self.muted
+
+    stt_manager = DummySTTManager()
+    app.bot = cast("Any", SimpleNamespace(shared_data=SimpleNamespace(stt_manager=stt_manager)))
+
+    button = cast("DummyButton", app.stt_mute_button)
+    button.invoke()
+
+    assert stt_manager.muted is True
+    assert button.last_config.get("text") == "Unmute"
+    assert cast("DummyLabel", app.stt_state_label).last_config == {"text": "Status: Muted"}
+
+    button.invoke()
+
+    assert stt_manager.muted is False
+    assert button.last_config.get("text") == "Mute"
+    assert cast("DummyLabel", app.stt_state_label).last_config == {"text": "Status: Input monitoring"}
+
+
+def test_stt_threshold_slider_applies_manager_thresholds(patched_gui: SimpleNamespace) -> None:
+    _ = patched_gui
+    app = gui_module.GUIApp()
+
+    class DummySTTManager:
+        def __init__(self) -> None:
+            self.calls: list[tuple[float, float]] = []
+
+        def set_thresholds(self, *, start_level_db: float, stop_level_db: float) -> tuple[float, float]:
+            self.calls.append((start_level_db, stop_level_db))
+            return start_level_db, stop_level_db
+
+    stt_manager = DummySTTManager()
+    app.bot = cast("Any", SimpleNamespace(shared_data=SimpleNamespace(stt_manager=stt_manager)))
+
+    start_scale = cast("DummyScale", app.stt_start_scale)
+    stop_scale = cast("DummyScale", app.stt_stop_scale)
+    stop_scale.set(-10.0)
+    stt_manager.calls.clear()
+    start_scale.set(-40.0)
+
+    assert stt_manager.calls == [(-20.0, -40.0)]
+    assert start_scale.value == -20.0
+    assert stop_scale.value == -40.0
+    assert cast("DummyLabel", app.stt_start_value_label).text == "-20.0dB"
+    assert cast("DummyLabel", app.stt_stop_value_label).text == "-40.0dB"
+
+
+def test_update_stt_thresholds_does_not_reenter_threshold_callback(patched_gui: SimpleNamespace) -> None:
+    _ = patched_gui
+    app = gui_module.GUIApp()
+
+    class DummySTTManager:
+        def __init__(self) -> None:
+            self.calls: list[tuple[float, float]] = []
+
+        def set_thresholds(self, *, start_level_db: float, stop_level_db: float) -> tuple[float, float]:
+            self.calls.append((start_level_db, stop_level_db))
+            return start_level_db, stop_level_db
+
+    stt_manager = DummySTTManager()
+    app.bot = cast("Any", SimpleNamespace(shared_data=SimpleNamespace(stt_manager=stt_manager)))
+
+    app.update_stt_thresholds(-20, -40)
+
+    assert stt_manager.calls == []
+    assert cast("DummyLabel", app.stt_start_value_label).text == "-20.0dB"
+    assert cast("DummyLabel", app.stt_stop_value_label).text == "-40.0dB"

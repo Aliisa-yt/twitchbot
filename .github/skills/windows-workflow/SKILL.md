@@ -1,0 +1,90 @@
+name: windows-workflow
+description: Windows 環境での開発用ツール実行手順と、venv 有効化忘れを防ぐ運用ルール
+keywords: windows, powershell, venv, activate, pytest, coverage, pyinstaller, ruff, mypy
+
+共通規約は [.github/copilot-instructions.md](../../copilot-instructions.md) を参照してください。
+
+この文書は Windows 環境での実行フローを統一し、仮想環境の有効化漏れによる無駄な試行を防ぐための運用ガイドです。
+
+## 1. 最重要ルール（毎回共通）
+- すべてのコマンド実行前に、必ず venv を有効化する。
+- 実行シェルは PowerShell を前提とする。
+- venv 未有効化が疑われる場合は、まず有効化を再実行してから再試行する。
+
+```powershell
+& .\.venv\Scripts\Activate.ps1
+```
+
+## 2. 実行順序テンプレート
+1. リポジトリルートへ移動する。
+2. venv を有効化する。
+3. 必要なツール（lint / test / build / run）を実行する。
+
+```powershell
+Set-Location D:\workspace\twitchbot
+& .\.venv\Scripts\Activate.ps1
+```
+
+## 3. ローカル実行（Bot 起動）
+- Twitch API の環境変数を設定してから `twitchbot.py` を実行する。
+- トラブルシュート時は `--debug` を付ける。
+
+```powershell
+& .\.venv\Scripts\Activate.ps1
+$env:TWITCH_API_CLIENT_ID = "<id>"
+$env:TWITCH_API_CLIENT_SECRET = "<secret>"
+python .\twitchbot.py --owner <owner_name> --bot <bot_name> --debug
+```
+
+## 4. テスト実行（pytest / coverage）
+- 単体確認は `pytest`、全体確認は `coverage` を使う。
+- どちらも venv 有効化後に実行する。
+
+```powershell
+& .\.venv\Scripts\Activate.ps1
+pytest tests/
+```
+
+```powershell
+& .\.venv\Scripts\Activate.ps1
+coverage run -m pytest tests/ -v
+coverage report
+```
+
+## 5. Lint / Format / Type Check
+- 実装変更後は `ruff check`、`ruff format`、`mypy` を順に実行する。
+
+```powershell
+& .\.venv\Scripts\Activate.ps1
+ruff check .
+ruff format .
+mypy .
+```
+
+## 6. EXE ビルド（PyInstaller）
+- 配布用ビルドは `pyinstaller twitchbot.spec --clean` を使う。
+
+```powershell
+& .\.venv\Scripts\Activate.ps1
+pyinstaller twitchbot.spec --clean
+```
+
+## 7. VS Code タスク利用時の扱い
+- 既存タスク（Coverage / PyInstaller）は `.venv/Scripts` を PATH に含めているため、タスク実行時は venv 有効化漏れの影響を受けにくい。
+- ただし、手動コマンド実行時は必ず `Activate.ps1` を先に実行する。
+
+## 8. 失敗時の一次切り分け
+1. 先頭で `& .\.venv\Scripts\Activate.ps1` を実行したか確認する。
+2. `Get-Command python` の参照先が `.venv\Scripts\python.exe` になっているか確認する。
+3. 依存パッケージ未検出エラーは、まず venv 有効化漏れを疑う。
+
+```powershell
+& .\.venv\Scripts\Activate.ps1
+Get-Command python
+```
+
+## 9. 修正時チェックリスト
+1. すべての実行例が venv 有効化付きになっているか。
+2. Windows PowerShell 構文（`$env:` など）で統一されているか。
+3. `copilot-instructions.md` と本 SKILL の手順に矛盾がないか。
+4. 新しい実行コマンドを追加した場合、ここにも追記したか。

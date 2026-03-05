@@ -8,6 +8,8 @@ based on log level (WARNING and above are colored).
 from __future__ import annotations
 
 import logging
+import sys
+import threading
 from typing import TYPE_CHECKING, Final
 
 from utils.logger_utils import LoggerUtils
@@ -81,8 +83,12 @@ class GUILoggingHandler(logging.Handler):
         Args:
             record (LogRecord): The log record to emit.
         """
+        msg: str = self.format(record)
+        if threading.current_thread() is not threading.main_thread():
+            self._emit_to_stderr(msg)
+            return
+
         try:
-            msg: str = self.format(record)
             tag: str | None = self.log_colors.get(record.levelno)
 
             # Insert message into text widget
@@ -99,8 +105,15 @@ class GUILoggingHandler(logging.Handler):
             self.text_widget.see("end")
             self.text_widget.config(state="disabled")
         except (AttributeError, RuntimeError, TclError):
-            logger.exception("Failed to emit log record to GUI")
-            self.handleError(record)
+            self._emit_to_stderr(msg)
+
+    @staticmethod
+    def _emit_to_stderr(msg: str) -> None:
+        try:
+            sys.__stderr__.write(msg + "\n")  # pyright: ignore[reportOptionalMemberAccess]
+            sys.__stderr__.flush()  # pyright: ignore[reportOptionalMemberAccess]
+        except Exception:  # noqa: BLE001
+            return
 
     def _trim_lines(self) -> None:
         """Trim the text widget to keep only the most recent max_lines lines."""

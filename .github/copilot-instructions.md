@@ -1,64 +1,66 @@
-# Copilot Instructions for `twitchbot`
+# `twitchbot` 向け Copilot 指示
 
-## Architecture overview
-**Data flow**: Twitch message → `ChatEventsCog.event_message()` → `ChatMessageHandler` → `TransManager` (detect & translate) → `TTSManager` (synthesize & queue playback) → audio output.
+## 基本方針
+- このファイルは **プロジェクト全体で共通のルールのみ** を記載する。
+- コンポーネント別・ドメイン別の詳細仕様は、各 `.github/skills/*/SKILL.md` を正とする。
+- 共通ルールと SKILL が競合する場合、**SKILL を優先** する。
 
-**Component layers**:
-- Entry: [twitchbot.py](../twitchbot.py) loads config/dictionaries, OAuth via `TokenManager`, then runs `core.bot.Bot`.
-- Bot runtime: [core/bot.py](../core/bot.py) registers three components (`ChatEventsCog`, `Command`, `TimeSignalManager`) via `setup_hook()` and initializes `SharedData`.
-- Shared managers: [core/shared_data.py](../core/shared_data.py) provides `TransManager` and `TTSManager` to all components (initialized in `Bot.setup_hook()`).
-- **Translation flow**: [core/trans/manager.py](../core/trans/manager.py) → detect language → parse forced prefixes (e.g., `"en:ja:text"`) → determine target → perform translation.
-- **TTS flow**: [core/tts/manager.py](../core/tts/manager.py) orchestrates three workers: `ParameterManager` (voice config per user type), `SynthesisManager` (queues → synthesizes via engines), `AudioPlaybackManager` (plays files via queue).
-- Queue pattern: `ExcludableQueue` ([utils/excludable_queue.py](../utils/excludable_queue.py)) allows safe concurrent access and graceful shutdown via `shutdown()`.
-- Config: [config/loader.py](../config/loader.py) validates INI, coerces types, builds `VOICE_PARAMETERS` dataclass tree (user type → language → voice).
+## SKILL 参照先
+- チャットイベントフロー: [.github/skills/chat-events-flow/SKILL.md](skills/chat-events-flow/SKILL.md)
+- 翻訳マネージャー: [.github/skills/translation-manager/SKILL.md](skills/translation-manager/SKILL.md)
+- 翻訳エンジン仕様: [.github/skills/translation-engine-spec/SKILL.md](skills/translation-engine-spec/SKILL.md)
+- TTS マネージャー: [.github/skills/tts-manager/SKILL.md](skills/tts-manager/SKILL.md)
+- STT サービス: [.github/skills/stt-service/SKILL.md](skills/stt-service/SKILL.md)
+- キャッシュ / in-flight: [.github/skills/cache-inflight/SKILL.md](skills/cache-inflight/SKILL.md)
+- コンポーネント仕様: [.github/skills/component-spec/SKILL.md](skills/component-spec/SKILL.md)
+- interface 仕様: [.github/skills/interface-spec/SKILL.md](skills/interface-spec/SKILL.md)
+- マネージャー共通: [.github/skills/manager-common/SKILL.md](skills/manager-common/SKILL.md)
+- 命名規則: [.github/skills/naming-rules/SKILL.md](skills/naming-rules/SKILL.md)
+- 単体テスト規約: [.github/skills/unit-test/SKILL.md](skills/unit-test/SKILL.md)
+- Windows実行フロー: [.github/skills/windows-workflow/SKILL.md](skills/windows-workflow/SKILL.md)
 
-## Critical workflows (Windows)
-- **Activate venv first**: `& .\.venv\Scripts\Activate.ps1` before any commands.
-- **Run locally**: `set TWITCH_API_CLIENT_ID=<id> && set TWITCH_API_CLIENT_SECRET=<secret> && python .\twitchbot.py [--owner NAME --bot NAME --debug]` (OAuth tokens cached in [tokens.json](../tokens.json)).
-- **Build EXE**: `pyinstaller twitchbot.spec --clean` (or use "Build EXE with PyInstaller" task).
-- **Tests** (pytest-asyncio): `pytest tests/` (single) or `coverage run -m pytest tests/ -v && coverage report` (full).
-- **Lint**: `ruff check . && ruff format . && mypy .` ([pyproject.toml](../pyproject.toml) sets rules).
-- **Debug logging**: Add `--debug` flag or set `DEBUG = True` in INI; twitchio logger set to WARNING by default.
+## 重要ワークフロー（Windows）
+- **最初に venv を有効化**: すべてのコマンド実行前に `& .\.venv\Scripts\Activate.ps1` を実行する。
+- **ローカル実行**: `set TWITCH_API_CLIENT_ID=<id> && set TWITCH_API_CLIENT_SECRET=<secret> && python .\twitchbot.py [--owner NAME --bot NAME --debug]`（OAuth トークンは [tokens.json](../tokens.json) に保存される）。
+- **EXE ビルド**: `pyinstaller twitchbot.spec --clean`（または「Build EXE with PyInstaller」タスクを使用）。
+- **テスト**（pytest-asyncio）: `pytest tests/`（単体）または `coverage run -m pytest tests/ -v && coverage report`（全体）。
+- **Lint**: `ruff check . && ruff format . && mypy .`（ルールは [pyproject.toml](../pyproject.toml) を参照）。
+- **デバッグログ**: `--debug` フラグを付与するか、INI で `DEBUG = True` を設定する。twitchio ロガーの既定は WARNING。
 
-## Project conventions
-- **Python 3.13 only**; always keep `from __future__ import annotations` at module top.
-- **File format**: UTF-8 + LF line endings, line length 120 (ruff enforced).
-- **Logging**: Use `logger = LoggerUtils.get_logger(__name__)` once per module; never re-initialize `LoggerUtils`.
-- **Exceptions**: Assign error message to `msg` variable before raising (e.g., `msg = "error"; raise ValueError(msg)`).
-- **Unused parameters**: Use `_ = arg1, arg2` immediately after docstring to suppress linting.
-- **Docstrings**: Google style; place module docstring first, then `from __future__ import annotations`, then imports.
-  - Module docstrings: Brief description of the module's purpose.
-  - Class docstrings: Brief description of behavior and key attributes.
-  - Method docstrings: Brief description of behavior, arguments, return values, and raised exceptions.
-  - **Exception**: Trivial methods whose behavior is self-evident from the code may omit docstrings.
-  - **CRITICAL**: Compatibility information and bug-workaround details must never be deleted; they may be made concise but must be preserved. This rule takes precedence over all other documentation guidelines.
-- **Comments**: All comments (including docstrings and inline comments) must be written in English only. Japanese is strictly prohibited in comments, except when it is necessary to describe argument values, data content, or user-facing text that must be in Japanese for functional reasons (e.g., dictionary entries, kana conversion tables, or when the comment itself is a sample of user input/output in Japanese). Any other use of Japanese in comments is not allowed.
-  - **CRITICAL**: Compatibility information and bug-workaround details must never be deleted; they may be made concise but must be preserved. This rule takes precedence over all other comment guidelines.
-- **Inline comments**: Only for non-obvious or bug-prone logic; omit obvious code comments.
-  - **CRITICAL**: Compatibility information and bug-workaround details must never be deleted; they may be made concise but must be preserved.
+## プロジェクト規約
+- **Python 3.13 のみ**: 各モジュールの先頭に常に `from __future__ import annotations` を配置する。
+- **ファイル形式**: UTF-8 + LF 改行、行長は 120（ruff で強制）。
+- **ロギング**: モジュールごとに `logger = LoggerUtils.get_logger(__name__)` を 1 回だけ使用し、`LoggerUtils` を再初期化しない。
+- **例外**: 送出前にエラーメッセージを `msg` 変数へ代入する（例: `msg = "error"; raise ValueError(msg)`）。
+- **未使用引数**: Lint 抑制のため、docstring 直後に `_ = arg1, arg2` を置く。
+- **Docstring**: Google スタイルを使用し、モジュール docstring → `from __future__ import annotations` → import の順序を守る。
+  - モジュール docstring: モジュールの目的を簡潔に記述する。
+  - クラス docstring: 挙動と主要属性を簡潔に記述する。
+  - メソッド docstring: 挙動、引数、戻り値、送出例外を簡潔に記述する。
+  - **例外**: 挙動が自明な単純メソッドは docstring を省略してよい。
+  - **重要**: 互換性情報やバグ回避策に関する記述は削除しない。簡潔化は許可されるが保持が必須。この規則は他の文書規約より優先する。
+- **コメント**: コメント（docstring・インラインコメント含む）は英語のみで記述する。機能要件上必要な場合（辞書エントリ、かな変換表、ユーザー向け日本語文言、I/O サンプルなど）を除き、日本語コメントは禁止。
+  - **重要**: 互換性情報やバグ回避策に関する記述は削除しない。簡潔化は許可されるが保持が必須。この規則は他のコメント規約より優先する。
+- **インラインコメント**: 非自明またはバグを生みやすいロジックに限定し、自明なコードへのコメントは避ける。
+- **型ヒント**: すべての関数・メソッドには可能な限り完全な型ヒントを付与する。未使用引数は `_` で始める。
+  - **例外**: 非常に複雑な表記になる場合や、テストコードについては省略してもよい。
 
-## Integration points
-- **EventSub webhooks** ([core/bot.py](../core/bot.py)): `Bot._subscribe_to_chat_events()` registers chat message, delete, and clear subscriptions.
-- **OAuth flow** ([core/token_manager.py](../core/token_manager.py)): `TokenManager.start_authorization_flow()` handles Twitch login; tokens cached in `tokens.json`.
-- **Engine registration**: Translation engines inherit `TransInterface`; TTS engines inherit `Interface`. Auto-register via `@init_subclass()`. Names must match INI `engine` entries.
-- **Language detection** ([core/trans/manager.py](../core/trans/manager.py)): Engines with `has_dedicated_detection_api=True` (DeepL) detect-only; others return translated text during detection.
-- **User type voice mapping** ([core/tts/parameter_manager.py](../core/tts/parameter_manager.py)): Maps Twitch user badges (STREAMER, MODERATOR, VIP, SUBSCRIBER, OTHERS, SYSTEM) to voice parameters per language.
+## 変更時の共通ルール
+- 変更は最小差分で行い、無関係なリファクタや整形を混在させない。
+- 互換性情報・バグ回避策に関する既存記述は削除しない（簡潔化は可）。
+- 例外・ログ・非同期終了処理は失敗系を先に考慮し、異常時でも安全停止できる状態を維持する。
+- 新規仕様追加時は、まず該当 SKILL を更新し、その後コードへ反映する。
 
-## Data models (key patterns)
-- **TranslationInfo** ([models/translation_models.py](../models/translation_models.py)): Stores content, src/tgt languages, translated text, translation flag.
-- **TTSParam** ([models/voice_models.py](../models/voice_models.py)): Carries message, TTS parameters, and output file path through synthesis queue.
-- **TTSInfo/UserTypeInfo**: Nested dataclasses organizing voice parameters by user type and language.
+## テストパターン
+- `@pytest.fixture` を使用して再利用可能なモックを作成する（[tests/test_bot.py](../tests/test_bot.py) を参照）。
+- 非同期テストには `@pytest.mark.asyncio` を付与する（pytest-asyncio）。
+- 外部依存は `unittest.mock.AsyncMock`、`MagicMock`、`patch` でモックする。
+- 複数テストファイルで共有する fixture は conftest.py に配置する。
 
-## Where to extend
-- **New component**: Inherit [core/components/base.py](../core/components/base.py) (`Base`), implement `async_init()` and `close()`, register in [core/bot.py](../core/bot.py) (`Bot.setup_hook()`).
-- **New translation engine**: Inherit [core/trans/interface.py](../core/trans/interface.py) (`TransInterface`), implement abstract methods, add INI entry under `[TRANSLATION] engine = <name>`, handle init errors in `initialize()`.
-- **New TTS engine**: Inherit [core/tts/interface.py](../core/tts/interface.py) (`Interface`), set `engine_name` class var, implement synthesis method, add INI entry under `[CAST]`.
+## 変更完了時チェック（共通）
+- 変更したファイルに対して `ruff check .` / `mypy .` の影響を確認する。
+- 影響範囲に応じて `pytest tests/` もしくは対象テストを実行する。
+- ドキュメント変更を伴う場合は、関連する SKILL / `docs/` の記述整合を確認する。
 
-## Testing patterns
-- Use `@pytest.fixture` to create reusable mocks (see [tests/test_bot.py](../tests/test_bot.py)).
-- Mark async tests with `@pytest.mark.asyncio` (pytest-asyncio).
-- Mock external dependencies with `unittest.mock.AsyncMock`, `MagicMock`, or `patch`.
-- Place shared fixtures in conftest.py if used across multiple test files.
-
-## Docs placement
-- Analysis/design docs go in [docs/](../docs/); root-level exceptions: `README.md`, `LICENSE`.
+## ドキュメント配置
+- 分析・設計ドキュメントは [docs/](../docs/) に配置する。ルート直下の例外は `README.md` と `LICENSE`。

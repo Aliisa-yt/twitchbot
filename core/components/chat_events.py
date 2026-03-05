@@ -67,7 +67,9 @@ class ChatEventsManager(ComponentBase):
         self._concurrency_sem = asyncio.Semaphore(max_concurrent)
 
         if self._message_worker_task is None:
-            self._message_worker_task = asyncio.create_task(self._message_worker_loop())
+            self._message_worker_task = asyncio.create_task(
+                self._message_worker_loop(), name="ChatEventsManagerMessageWorker"
+            )
         logger.debug("'%s' component loaded", self.__class__.__name__)
 
     async def component_teardown(self) -> None:
@@ -162,6 +164,14 @@ class ChatEventsManager(ComponentBase):
         dto: ChatMessageDTO = ChatMessageDTO.from_twitch_message(payload)
         await self._enqueue_message(dto)
 
+    async def enqueue_external_message(self, dto: ChatMessageDTO) -> None:
+        """Enqueue an externally generated chat message DTO.
+
+        Args:
+            dto (ChatMessageDTO): The externally generated chat message DTO.
+        """
+        await self._enqueue_message(dto)
+
     async def _enqueue_message(self, dto: ChatMessageDTO) -> None:
         """Enqueue a chat message DTO for processing.
 
@@ -187,7 +197,9 @@ class ChatEventsManager(ComponentBase):
         while True:
             dto: ChatMessageDTO = await self._message_queue.get()
             # spawn a background task per message; concurrency is limited by semaphore
-            task: asyncio.Task[None] = asyncio.create_task(self._handle_message_task(dto))
+            task: asyncio.Task[None] = asyncio.create_task(
+                self._handle_message_task(dto), name=f"ChatEventsManagerMessageTask-{dto.message_id}"
+            )
             self._spawned_tasks.add(task)
             task.add_done_callback(self._task_done_callback)
 

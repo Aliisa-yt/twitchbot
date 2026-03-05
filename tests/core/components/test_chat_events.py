@@ -123,6 +123,18 @@ async def test_event_message_enqueues_dto_when_not_ignored() -> None:
 
 
 @pytest.mark.asyncio
+async def test_enqueue_external_message_enqueues_dto() -> None:
+    bundle: SimpleNamespace = _make_cog_bundle()
+    dto = ChatMessageDTO(message_id="msg-external")
+
+    bundle.cog._enqueue_message = AsyncMock()
+
+    await bundle.cog.enqueue_external_message(dto)
+
+    bundle.cog._enqueue_message.assert_awaited_once_with(dto)
+
+
+@pytest.mark.asyncio
 async def test_handle_message_task_calls_task_done_on_handler_error() -> None:
     bundle: SimpleNamespace = _make_cog_bundle()
     dto = ChatMessageDTO(message_id="msg-2")
@@ -225,3 +237,21 @@ async def test_enqueue_message_drops_newest_on_overflow() -> None:
     bundle.cog._message_queue.task_done()
 
     assert [first.message_id, second.message_id] == ["1", "2"]
+
+
+@pytest.mark.asyncio
+async def test_enqueue_external_message_processes_all_under_burst() -> None:
+    bundle: SimpleNamespace = _make_cog_bundle()
+    bundle.cog._handle_message = AsyncMock(return_value=None)
+
+    await bundle.cog.component_load()
+
+    for i in range(15):
+        await bundle.cog.enqueue_external_message(ChatMessageDTO(message_id=f"burst-{i}"))
+
+    await asyncio.wait_for(bundle.cog._message_queue.join(), timeout=2.0)
+
+    assert bundle.cog._handle_message.await_count == 15
+    assert bundle.cog._message_queue.empty()
+
+    await bundle.cog.component_teardown()

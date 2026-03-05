@@ -4,13 +4,16 @@ from PyInstaller.utils.hooks import collect_data_files
 
 # Collect all *.json files within the unicode_codes folder of the emoji module
 emoji_datas = collect_data_files('emoji.unicode_codes', includes=['*.json'])
+extra_datas = [
+    ('data/stt/google-cloud-stt-v2_supported-languages.txt', 'data/stt'),
+]
 
 a = Analysis(
     ['twitchbot.py'],
     pathex=['.'],
     binaries=[],
-    datas=emoji_datas,
-    hiddenimports=[],
+    datas=emoji_datas + extra_datas,
+    hiddenimports=["google.cloud.speech", "google.cloud.speech_v2"],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],

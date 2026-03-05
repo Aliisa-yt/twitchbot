@@ -14,6 +14,7 @@ if TYPE_CHECKING:
     from pathlib import Path
 
 __all__: list[str] = [
+    "STT",
     # "TTS",
     # "Bot",
     # "Cast",
@@ -128,6 +129,34 @@ class TimeSignal:
 
 
 @dataclass
+class STT:
+    ENABLED: bool = False
+    ENGINE: str = "google_cloud_stt"
+    INPUT_DEVICE: str = "default"
+    SAMPLE_RATE: int = 16000
+    CHANNELS: int = 1
+    START_LEVEL: float = -20.0
+    STOP_LEVEL: float = -40.0
+    PRE_BUFFER_MS: int = 300
+    POST_BUFFER_MS: int = 500
+    MAX_SEGMENT_SEC: int = 20
+    MUTE: bool = False
+    LANGUAGE: str = "ja-JP"
+    INTERIM_RESULT: bool = False
+    FORWARD_TO_TTS: bool | None = None
+    RETRY_MAX: int = 3
+    RETRY_BACKOFF_MS: int = 500
+    GOOGLE_CLOUD_STT_V2_LOCATION: str = ""
+    GOOGLE_CLOUD_STT_V2_MODEL: str = ""
+    GOOGLE_CLOUD_STT_V2_RECOGNIZER: str = ""
+
+
+@dataclass
+class GUI:
+    LEVEL_METER_REFRESH_RATE: int = 10  # fps
+
+
+@dataclass
 class Config:
     GENERAL: General = field(default_factory=General)
     TWITCH: Twitch = field(default_factory=Twitch)
@@ -144,4 +173,6 @@ class Config:
     COEIROINK: TTSEngine = field(default_factory=TTSEngine)
     COEIROINK2: TTSEngine = field(default_factory=TTSEngine)
     TIME_SIGNAL: TimeSignal = field(default_factory=TimeSignal)
+    STT: STT = field(default_factory=STT)
+    GUI: GUI = field(default_factory=GUI)
     VOICE_PARAMETERS: UserTypeInfo = field(default_factory=UserTypeInfo)

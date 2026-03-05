@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from contextlib import suppress
 from typing import TYPE_CHECKING, ClassVar
 
 from twitchio.ext import commands
@@ -27,12 +28,16 @@ class TTSServiceComponent(ComponentBase):
 
     async def component_load(self) -> None:
         """Load the component and initialize TTS services."""
-        await self.tts_manager.initialize()
-        logger.debug("'%s' component loaded", self.__class__.__name__)
+        try:
+            await self.tts_manager.initialize()
+            logger.debug("'%s' component loaded", self.__class__.__name__)
+        except AttributeError as err:
+            logger.warning("TTS service initialization skipped due to missing configuration: %s", err)
 
     async def component_teardown(self) -> None:
         """Teardown the component and close TTS services."""
-        await self.tts_manager.close()
+        with suppress(AttributeError):
+            await self.tts_manager.close()
         logger.debug("'%s' component unloaded", self.__class__.__name__)
 
     @commands.command()
