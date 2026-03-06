@@ -4,6 +4,16 @@
 - このファイルは **プロジェクト全体で共通のルールのみ** を記載する。
 - コンポーネント別・ドメイン別の詳細仕様は、各 `.github/skills/*/SKILL.md` を正とする。
 - 共通ルールと SKILL が競合する場合、**SKILL を優先** する。
+- SKILL 同士が競合する場合は、以下の優先順位で判断する。
+  1. 変更対象に最も近いドメイン SKILL（例: `tts-engine-spec`）
+  2. 横断 SKILL（例: `manager-common`, `interface-spec`）
+  3. 本ファイル（`copilot-instructions.md`）
+
+## このファイルの適用範囲
+- ここには「全体で常に守るべき事項」だけを置く。
+- 実装フロー、例外分類、テスト観点などの詳細は SKILL に置く。
+- 本ファイルに詳細仕様を追加しない。必要な詳細は該当 SKILL に追記する。
+- 既存の SKILL 内容と重複する記述は、原則として本ファイルから削除し参照リンクに置き換える。
 
 ## SKILL 参照先
 - チャットイベントフロー: [.github/skills/chat-events-flow/SKILL.md](skills/chat-events-flow/SKILL.md)
@@ -23,13 +33,11 @@
 - GUI デザイン: [.github/skills/gui-design/SKILL.md](skills/gui-design/SKILL.md)
 - Windows実行フロー: [.github/skills/windows-workflow/SKILL.md](skills/windows-workflow/SKILL.md)
 
-## 重要ワークフロー（Windows）
-- **最初に venv を有効化**: すべてのコマンド実行前に `& .\.venv\Scripts\Activate.ps1` を実行する。
-- **ローカル実行**: `set TWITCH_API_CLIENT_ID=<id> && set TWITCH_API_CLIENT_SECRET=<secret> && python .\twitchbot.py [--owner NAME --bot NAME --debug]`（OAuth トークンは [tokens.json](../tokens.json) に保存される）。
-- **EXE ビルド**: `pyinstaller twitchbot.spec --clean`（または「Build EXE with PyInstaller」タスクを使用）。
-- **テスト**（pytest-asyncio）: `pytest tests/`（単体）または `coverage run -m pytest tests/ -v && coverage report`（全体）。
-- **Lint**: `ruff check . && ruff format . && mypy .`（ルールは [pyproject.toml](../pyproject.toml) を参照）。
-- **デバッグログ**: `--debug` フラグを付与するか、INI で `DEBUG = True` を設定する。twitchio ロガーの既定は WARNING。
+## 作業開始時の必須手順
+- 変更対象に対応する SKILL を最初に読む。
+- 複数ドメインへ跨る変更では、関連 SKILL をすべて確認してから実装する。
+- Windows でコマンドを手動実行する場合は、最初に `& .\.venv\Scripts\Activate.ps1` を実行する。
+- Windows の詳細コマンド手順は `windows-workflow` SKILL を参照する。
 
 ## プロジェクト規約
 - **Python 3.13 のみ**: 各モジュールの先頭に常に `from __future__ import annotations` を配置する。
@@ -39,42 +47,37 @@
 - **例外**: 送出前にエラーメッセージを `msg` 変数へ代入する（例: `msg = "error"; raise ValueError(msg)`）。
 - **未使用引数**: Lint 抑制のため、docstring 直後に `_ = arg1, arg2` を置く。
 - **Docstring**: Google スタイルを使用し、モジュール docstring → `from __future__ import annotations` → import の順序を守る。
-  - モジュール docstring: モジュールの目的を簡潔に記述する。
-  - クラス docstring: 挙動と主要属性を簡潔に記述する。
-  - メソッド docstring: 挙動、引数、戻り値、送出例外を簡潔に記述する。
-  - **例外**: 挙動が自明な単純メソッドは docstring を省略してよい。
-  - **重要**: 互換性情報やバグ回避策に関する記述は削除しない。簡潔化は許可されるが保持が必須。この規則は他の文書規約より優先する。
+- **Docstring/コメント保持**: 互換性情報やバグ回避策に関する記述は削除しない。簡潔化は許可されるが保持が必須。
 - **コメント**: コメント（docstring・インラインコメント含む）は英語のみで記述する。機能要件上必要な場合（辞書エントリ、かな変換表、ユーザー向け日本語文言、I/O サンプルなど）を除き、日本語コメントは禁止。
-  - **重要**: 互換性情報やバグ回避策に関する記述は削除しない。簡潔化は許可されるが保持が必須。この規則は他のコメント規約より優先する。
 - **インラインコメント**: 非自明またはバグを生みやすいロジックに限定し、自明なコードへのコメントは避ける。
 - **型ヒント**: すべての関数・メソッドには可能な限り完全な型ヒントを付与する。未使用引数は `_` で始める。
   - **例外**: 非常に複雑な表記になる場合や、テストコードについては省略してもよい。
-- **タスク生成**: `asyncio.create_task` でタスクを作成する際は、`name` 引数でわかりやすい名前を付ける（例: `name=f"STT-{service_name}-Task"`）。名前はタスクの目的と関連コンポーネントを反映させ、ログやデバッグで識別しやすいものにする。
-  - **例外**: 一時的なタスクや、ループ内で大量に作成されるタスクなど、識別が困難な場合は省略してもよい。
-  - **重要**: タスクの例外は必ずログに記録する。タスク完了後に `task.exception()` を呼び出し、例外が発生している場合は適切なログレベルで記録する（例: `logger.warning("STT background task failed (name=%s): %s", task.get_name(), err)`）。これにより、タスク内で発生したエラーが見逃されることを防止する。
-- **非同期コード**: すべての非同期関数は `async def` で定義し、適切な場所で `await` を使用する。非同期コード内での例外処理は、異常系を考慮して安全に停止できる状態を維持する。
-- **実行環境**: コードは Windows 10/11 上の Python 3.13 で動作することを前提とする。クロスプラットフォーム対応も可能な限り行うが、Windows以外の環境でのテストができないため動作は保証しない。
-  - **例外**: Windows固有の機能やAPIを使用する場合は、コード内で明確にコメントし、非Windows環境での動作は保証しない旨を記載する。
-  - **重要**: Pyinstaller でのビルドを前提とするため、外部依存はできるだけ少なくし、必要な場合は明確にドキュメント化する。ビルド後の実行環境で必要なランタイムやライブラリが適切に含まれていることを確認する。特にファイルパスは Pyinstaller での実行時には参照先が合わなくなっていることがあるため注意する。
-
+- **非同期コード**: `asyncio.create_task` で作成するタスクには、可能な限り `name` を付与し、タスク例外をログで可視化する。
+- **安全停止**: 例外・ログ・非同期終了処理は失敗系を先に考慮し、異常時でも安全停止できる状態を維持する。
+- **機密情報保護**: APIキー、トークン、認証情報、秘密鍵はログや例外文字列に出力しない。
+- **実行環境**: Windows 10/11 + Python 3.13 を前提とし、Windows固有実装はその旨をコメントで明示する。
+- **配布前提**: PyInstaller 実行を前提に、ファイルパスと外部依存の扱いを明示する。
 
 ## 変更時の共通ルール
 - 変更は最小差分で行い、無関係なリファクタや整形を混在させない。
 - 互換性情報・バグ回避策に関する既存記述は削除しない（簡潔化は可）。
-- 例外・ログ・非同期終了処理は失敗系を先に考慮し、異常時でも安全停止できる状態を維持する。
-- 新規仕様追加時は、まず該当 SKILL を更新し、その後コードへ反映する。
-
-## テストパターン
-- `@pytest.fixture` を使用して再利用可能なモックを作成する（[tests/test_bot.py](../tests/test_bot.py) を参照）。
-- 非同期テストには `@pytest.mark.asyncio` を付与する（pytest-asyncio）。
-- 外部依存は `unittest.mock.AsyncMock`、`MagicMock`、`patch` でモックする。
-- 複数テストファイルで共有する fixture は conftest.py に配置する。
+- 仕様変更時は、まず該当 SKILL を更新し、その後コードへ反映する。
+- 振る舞い変更時は、実装・テスト・ドキュメント（SKILL/`docs/`）を同一変更で整合させる。
+- 既存 SKILL と実装の不整合を見つけた場合は、推測で実装を寄せず、先に不整合を解消してから修正する。
+- 命名規約、マネージャー実装、インターフェース契約、各ドメイン仕様は該当 SKILL を参照する。
 
 ## 変更完了時チェック（共通）
 - 変更したファイルに対して `ruff check .` / `mypy .` の影響を確認する。
 - 影響範囲に応じて `pytest tests/` もしくは対象テストを実行する。
 - ドキュメント変更を伴う場合は、関連する SKILL / `docs/` の記述整合を確認する。
+- Windows 実行手順に関わる変更では、`windows-workflow` SKILL との矛盾がないことを確認する。
+- テスト方針・作法の詳細確認が必要な場合は `unit-test` SKILL を参照する。
 
 ## ドキュメント配置
 - 分析・設計ドキュメントは [docs/](../docs/) に配置するが、必要に応じてサブディレクトリを作成して整理する。ルート直下の例外は `README.md` と `LICENSE`。
 - SKILL は `.github/skills/` に配置する。SKILL はドキュメントと同様に、必要に応じてサブディレクトリを作成して整理する。
+
+## 更新ルール（本ファイル）
+- 本ファイルを更新するのは、プロジェクト全体に適用される新しい横断ルールを追加・変更する場合のみとする。
+- 特定ドメインに閉じるルールを追加する場合は、本ファイルではなく該当 SKILL を更新する。
+- 参照先 SKILL の追加・改名・削除時は、この `SKILL 参照先` セクションを同時に更新する。
