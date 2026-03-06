@@ -6,7 +6,8 @@ import asyncio
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from core.stt.interface import STTInput, STTInterface, STTResult
+from core.stt.interface import STTInput, STTInterface, STTNonRetriableError, STTResult
+from utils.file_utils import FileUtils, FileUtilsError
 from utils.logger_utils import LoggerUtils
 
 if TYPE_CHECKING:
@@ -69,7 +70,7 @@ class STTProcessor:
                 logger.warning("STT engine unavailable; dropping segment path=%s", segment.audio_path)
                 return
 
-            stt_input = STTInput(
+            stt_input: STTInput = STTInput(
                 audio_path=segment.audio_path,
                 language=self._options.language,
                 sample_rate=segment.sample_rate,
@@ -85,12 +86,26 @@ class STTProcessor:
             self._cleanup_segment_file(segment.audio_path)
 
     async def _transcribe_with_retry(self, stt_input: STTInput) -> STTResult | None:
+        # Keep a defensive check even though callers currently guard this path.
+        engine: STTInterface | None = self._engine
+        if engine is None:
+            logger.error("STT engine is not initialized")
+            return None
+
         attempts: int = max(1, self._options.retry_max)
 
         for attempt in range(1, attempts + 1):
             try:
-                return await asyncio.to_thread(self._engine.transcribe, stt_input)  # type: ignore[union-attr]
+                return await asyncio.to_thread(engine.transcribe, stt_input)
+            except STTNonRetriableError as err:
+                logger.error(
+                    "STT non-retriable transcribe error (language=%s): %s",
+                    stt_input.language,
+                    err,
+                )
+                return None
             except Exception as err:  # noqa: BLE001
+                # Retry all transcription failures because recoverability is engine-specific.
                 logger.warning(
                     "STT transcribe failed (attempt=%d/%d, language=%s): %s",
                     attempt,
@@ -108,7 +123,8 @@ class STTProcessor:
         return None
 
     def _cleanup_segment_file(self, file_path: Path) -> None:
+        # Use shared file utility to centralize path validation and delete behavior.
         try:
-            file_path.unlink(missing_ok=True)
-        except OSError as err:
+            FileUtils.remove(file_path)
+        except FileUtilsError as err:
             logger.warning("Failed to remove STT temp file path=%s err=%s", file_path, err)

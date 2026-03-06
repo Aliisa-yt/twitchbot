@@ -29,6 +29,10 @@ logger: logging.Logger = LoggerUtils.get_logger(__name__)
 class STTManager:
     """Manager responsible for STT pipeline lifecycle."""
 
+    _FIXED_SAMPLE_RATE: int = 16000
+    _FIXED_CHANNELS: int = 1
+    _TMP_DIR_REQUIRED_MSG: str = "GENERAL.TMP_DIR configuration is required for STT temporary file storage"
+
     def __init__(self, config: Config) -> None:
         self.config: Config = config
         self._segment_queue: ExcludableQueue[STTSegment] = ExcludableQueue()
@@ -51,9 +55,7 @@ class STTManager:
 
     @property
     def is_muted(self) -> bool:
-        if self._recorder is not None:
-            return self._recorder.muted
-        return self._mute
+        return self._recorder.muted if self._recorder is not None else self._mute
 
     async def async_init(
         self,
@@ -66,26 +68,23 @@ class STTManager:
 
         stt_config: STT | None = getattr(self.config, "STT", None)
 
-        _name: str = getattr(stt_config, "ENGINE", "")
-        _cls: type[STTInterface] | None = STTInterface.registered.get(_name)
-        if _cls is None:
-            logger.critical("STT engine class not found: '%s'", _name)
+        engine_name: str = getattr(stt_config, "ENGINE", "")
+        engine_cls: type[STTInterface] | None = STTInterface.registered.get(engine_name)
+        if engine_cls is None:
+            logger.critical("STT engine class not found: '%s'", engine_name)
             return
 
         try:
-            self._engine = _cls()
+            self._engine = engine_cls()
             self._engine.initialize(self.config)
-            logger.info("STT engine initialized: '%s'", _name)
-            # Output a message to the console
-            print(f"Loaded Speech-to-Text engine: {_name}")
+            logger.info("STT engine initialized: '%s'", engine_name)
+            print(f"Loaded Speech-to-Text engine: {engine_name}")
         except RuntimeError as err:
-            logger.warning("STT engine '%s' could not be initialized: %s", _name, err)
+            logger.warning("STT engine '%s' could not be initialized: %s", engine_name, err)
             self._engine = None
             return
 
         tmp_dir_path: Path = self._resolve_tmp_dir()
-        # sample_rate: int = int(getattr(stt_config, "SAMPLE_RATE", 16000))
-        # channels: int = int(getattr(stt_config, "CHANNELS", 1))
         input_device: str = str(getattr(stt_config, "INPUT_DEVICE", "default"))
         start_level: float = float(getattr(stt_config, "START_LEVEL", -20.0))
         stop_level: float = float(getattr(stt_config, "STOP_LEVEL", -40.0))
@@ -104,8 +103,9 @@ class STTManager:
         self._recorder = STTRecorder(
             segment_queue=self._segment_queue,
             tmp_directory=tmp_dir_path,
-            sample_rate=16000,  # 設定を変えると認識率に影響があるため、configから直接変更できないようにする
-            channels=1,  # アプリ自体が複数チャンネルに対応していないため、固定値とする
+            # Keep these fixed: recognition quality and current pipeline assumptions depend on them.
+            sample_rate=self._FIXED_SAMPLE_RATE,
+            channels=self._FIXED_CHANNELS,
             input_device=input_device,
             start_level_db=start_level,
             stop_level_db=stop_level,
@@ -132,7 +132,7 @@ class STTManager:
             self._enabled = False
             return
 
-        task: asyncio.Task[None] = asyncio.create_task(self._processor.run(), name="stt_processor_task")
+        task: asyncio.Task[None] = asyncio.create_task(self._processor.run(), name="STT-Processor-Task")
         self._background_tasks.add(task)
         self._enabled = True
 
@@ -202,7 +202,7 @@ class STTManager:
 
         for task in done_tasks:
             with contextlib.suppress(asyncio.CancelledError):
-                err = task.exception()
+                err: BaseException | None = task.exception()
                 if err is not None:
                     logger.warning("STT background task failed (name=%s): %s", task.get_name(), err)
 
@@ -230,6 +230,15 @@ class STTManager:
         await self._recorder.record_mock_segment(duration_sec=duration_sec, mode=SegmentMode.WHITE_NOISE)
 
     def _resolve_tmp_dir(self) -> Path:
-        general_config = getattr(self.config, "GENERAL", None)
-        tmp_dir = getattr(general_config, "TMP_DIR", "tmp")
+        # Fail fast instead of falling back when TMP_DIR is missing.
+        # Other features rely on this path as well, so fallback would only hide a misconfiguration.
+        try:
+            tmp_dir: Path | None = self.config.GENERAL.TMP_DIR
+        except AttributeError as err:
+            msg = self._TMP_DIR_REQUIRED_MSG
+            raise RuntimeError(msg) from err
+
+        if not tmp_dir:
+            msg = self._TMP_DIR_REQUIRED_MSG
+            raise RuntimeError(msg)
         return Path(tmp_dir)

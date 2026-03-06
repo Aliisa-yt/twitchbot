@@ -22,6 +22,7 @@ __all__: list[str] = [
     "STTExceptionError",
     "STTInput",
     "STTInterface",
+    "STTNonRetriableError",
     "STTNotAvailableError",
     "STTResult",
 ]
@@ -69,6 +70,10 @@ class STTExceptionError(Exception):
 
 class STTNotAvailableError(STTExceptionError):
     """Raised when STT engine is not available."""
+
+
+class STTNonRetriableError(STTExceptionError):
+    """Raised when retrying an STT request is not expected to recover."""
 
 
 class STTInterface(ABC):
