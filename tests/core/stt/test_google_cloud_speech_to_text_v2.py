@@ -5,8 +5,10 @@ from typing import TYPE_CHECKING, Any, cast
 
 import pytest
 
+import core.stt.engines.google_cloud_speech_to_text_v2 as stt_v2_module
 from core.stt.engines.google_cloud_speech_to_text_v2 import GoogleCloudSpeechToTextV2
 from core.stt.interface import STTInput, STTNonRetriableError, STTNotAvailableError
+from utils.file_utils import FileUtils
 
 if TYPE_CHECKING:
     from config.loader import Config
@@ -141,6 +143,12 @@ def test_initialize_enables_engine_with_credentials_file(monkeypatch: pytest.Mon
     engine.initialize(config=cast("Config", SimpleNamespace()))
 
     assert engine.is_available is True
+
+
+def test_supported_languages_file_uses_fileutils_resource_path() -> None:
+    expected = FileUtils.resource_path("data/stt/google-cloud-stt-v2_supported-languages.txt")
+
+    assert expected == stt_v2_module.STT_V2_SUPPORTED_LANGUAGES_FILE
 
 
 def test_initialize_keeps_engine_disabled_when_project_id_missing(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:

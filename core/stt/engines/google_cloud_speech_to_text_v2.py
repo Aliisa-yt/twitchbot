@@ -22,6 +22,7 @@ from core.stt.stt_location_model_loader import (
     get_stt_language_info,
     load_stt_language_index,
 )
+from utils.file_utils import FileUtils
 from utils.logger_utils import LoggerUtils
 
 if TYPE_CHECKING:
@@ -45,9 +46,7 @@ NON_RETRIABLE_GOOGLE_ERROR_NAMES: frozenset[str] = frozenset(
     }
 )
 
-STT_V2_SUPPORTED_LANGUAGES_FILE: Path = (
-    Path(__file__).resolve().parents[3] / "data" / "stt" / "google-cloud-stt-v2_supported-languages.txt"
-)
+STT_V2_SUPPORTED_LANGUAGES_FILE: Path = FileUtils.resource_path("data/stt/google-cloud-stt-v2_supported-languages.txt")
 STT_V2_PREFERRED_LOCATIONS: tuple[str, ...] = ("global", "us", "eu", "us-central1")
 
 
