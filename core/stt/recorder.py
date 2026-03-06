@@ -40,6 +40,8 @@ DEFAULT_MIN_LEVEL_dB: float = -60.0
 DEFAULT_PRE_BUFFER_MS: int = 300
 DEFAULT_POST_BUFFER_MS: int = 500
 DEFAULT_MAX_SEGMENT_SEC: int = 20
+DEFAULT_INPUT_STALL_TIMEOUT_SEC: float = 2.0
+DEFAULT_RECONNECT_BACKOFF_SEC: float = 3.0
 
 
 class SegmentMode(StrEnum):
@@ -127,6 +129,12 @@ class STTRecorder:
         self._recording_active: bool = False
         self._silence_duration_sec: float = 0.0
         self._pending_segment_tasks: set[asyncio.Task[None]] = set()
+        self._input_watchdog_task: asyncio.Task[None] | None = None
+        self._last_audio_callback_monotonic: float = time.monotonic()
+        self._last_reconnect_attempt_monotonic: float = 0.0
+        self._input_stall_timeout_sec: float = DEFAULT_INPUT_STALL_TIMEOUT_SEC
+        self._reconnect_backoff_sec: float = DEFAULT_RECONNECT_BACKOFF_SEC
+        self._segment_epoch: int = 0
 
     @property
     def input_device(self) -> str | int | None:
@@ -174,6 +182,11 @@ class STTRecorder:
         self._stop_level = self._normalize_level(TTSUtils.db_to_linear(applied_stop))
 
     def set_mute(self, *, mute: bool) -> None:
+        if mute and not self._muted:
+            # Drop partial captures and queued segments so unmuting never replays stale audio.
+            self._segment_epoch += 1
+            self._reset_segmentation_state()
+            self._schedule_segment_queue_purge()
         self._muted = mute
 
     async def start_input_monitoring(self, on_level_event: LevelEventCallback | None = None) -> None:
@@ -192,6 +205,7 @@ class STTRecorder:
         self._loop = asyncio.get_running_loop()
         self._on_level_event = on_level_event
         self._level_dispatch_task = asyncio.create_task(self._dispatch_level_events(), name="stt_level_dispatch_task")
+        self._last_audio_callback_monotonic = time.monotonic()
 
         try:
             await asyncio.to_thread(self._open_input_stream)
@@ -204,6 +218,7 @@ class STTRecorder:
             raise
 
         self._monitoring = True
+        self._input_watchdog_task = asyncio.create_task(self._watch_input_health(), name="stt_input_watchdog_task")
         logger.info(
             "STT input monitoring started (device=%s, sample_rate=%d, channels=%d)",
             self._input_device,
@@ -230,6 +245,12 @@ class STTRecorder:
             with contextlib.suppress(asyncio.CancelledError):
                 await self._level_dispatch_task
             self._level_dispatch_task = None
+
+        if self._input_watchdog_task is not None:
+            self._input_watchdog_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await self._input_watchdog_task
+            self._input_watchdog_task = None
 
         self._loop = None
         self._clear_level_queue()
@@ -288,19 +309,64 @@ class STTRecorder:
 
     def _open_input_stream(self) -> None:
         resolved_device: str | int | None = self._resolve_input_device(self._input_device)
-        try:
-            self._stream = sd.InputStream(
-                samplerate=self._sample_rate,
-                channels=self._channels,
-                dtype="int16",
-                device=resolved_device,
-                callback=self._audio_callback,
-            )
-            self._stream.start()
-        except Exception as err:  # noqa: BLE001
+        candidates: list[str | int | None] = self._build_input_device_candidates(resolved_device)
+        last_error: Exception | None = None
+
+        for candidate in candidates:
+            try:
+                self._open_input_stream_with_device(candidate)
+                if candidate != resolved_device:
+                    logger.warning(
+                        "STT input stream fallback selected device=%s (configured=%s)",
+                        candidate,
+                        self._input_device,
+                    )
+                break
+            except Exception as err:  # noqa: BLE001
+                last_error = err
+                self._close_input_stream()
+        else:
             self._log_available_input_devices()
-            msg = f"Failed to start STT input stream: {err}"
-            raise RuntimeError(msg) from err
+            err_text: str = str(last_error) if last_error is not None else "unknown error"
+            msg = f"Failed to start STT input stream: {err_text}"
+            raise RuntimeError(msg) from last_error
+
+    def _open_input_stream_with_device(self, device: str | int | None) -> None:
+        self._stream = sd.InputStream(
+            samplerate=self._sample_rate,
+            channels=self._channels,
+            dtype="int16",
+            device=device,
+            callback=self._audio_callback,
+        )
+        self._stream.start()
+
+    def _build_input_device_candidates(self, resolved_device: str | int | None) -> list[str | int | None]:
+        if resolved_device is not None:
+            return [resolved_device]
+
+        candidates: list[str | int | None] = [None]
+        candidates.extend(self._list_available_input_device_indices())
+
+        unique_candidates: list[str | int | None] = []
+        for candidate in candidates:
+            if candidate in unique_candidates:
+                continue
+            unique_candidates.append(candidate)
+        return unique_candidates
+
+    def _list_available_input_device_indices(self) -> list[int]:
+        try:
+            devices: list[dict[str, Any]] = list(sd.query_devices())
+        except (sd.PortAudioError, OSError, ValueError, RuntimeError):
+            return []
+
+        indices: list[int] = []
+        for index, device in enumerate(devices):
+            max_input_channels = int(device.get("max_input_channels", 0))
+            if max_input_channels > 0:
+                indices.append(index)
+        return indices
 
     def _log_available_input_devices(self) -> None:
         try:
@@ -367,8 +433,9 @@ class STTRecorder:
 
     def _audio_callback(self, indata: np.ndarray, frames: int, time_info: Any, status: sd.CallbackFlags) -> None:
         _ = frames, time_info
+        self._last_audio_callback_monotonic = time.monotonic()
         if status:
-            logger.debug("STT input callback status: %s", status)
+            logger.warning("STT input callback status: %s", status)
 
         event: STTLevelEvent = self._build_level_event(indata)
         self._current_level = event.rms
@@ -453,10 +520,10 @@ class STTRecorder:
             duration_sec=duration_sec,
             created_at=time.time(),
         )
-        self._schedule_segment_enqueue(segment)
+        self._schedule_segment_enqueue(segment, segment_epoch=self._segment_epoch)
         self._reset_segmentation_state()
 
-    def _schedule_segment_enqueue(self, segment: STTSegment) -> None:
+    def _schedule_segment_enqueue(self, segment: STTSegment, *, segment_epoch: int) -> None:
         loop: asyncio.AbstractEventLoop | None = self._loop
         if loop is None:
             logger.warning("STT event loop unavailable; dropping segment path=%s", segment.audio_path)
@@ -464,27 +531,91 @@ class STTRecorder:
                 segment.audio_path.unlink(missing_ok=True)
             return
 
-        loop.call_soon_threadsafe(self._create_segment_enqueue_task, segment)
+        loop.call_soon_threadsafe(self._create_segment_enqueue_task, segment, segment_epoch)
 
-    def _create_segment_enqueue_task(self, segment: STTSegment) -> None:
+    def _create_segment_enqueue_task(self, segment: STTSegment, segment_epoch: int) -> None:
         loop: asyncio.AbstractEventLoop | None = self._loop
         if loop is None:
             with contextlib.suppress(OSError):
                 segment.audio_path.unlink(missing_ok=True)
             return
 
-        task: asyncio.Task[None] = loop.create_task(self._enqueue_segment(segment), name="stt_segment_queue_put")
+        task: asyncio.Task[None] = loop.create_task(
+            self._enqueue_segment(segment, segment_epoch),
+            name="stt_segment_queue_put",
+        )
         self._pending_segment_tasks.add(task)
         task.add_done_callback(self._pending_segment_tasks.discard)
 
-    async def _enqueue_segment(self, segment: STTSegment) -> None:
+    async def _enqueue_segment(self, segment: STTSegment, segment_epoch: int) -> None:
         try:
+            if segment_epoch != self._segment_epoch:
+                with contextlib.suppress(OSError):
+                    segment.audio_path.unlink(missing_ok=True)
+                return
             await self._segment_queue.put(segment)
             logger.debug("STT segment queued: path=%s duration=%.2f", segment.audio_path, segment.duration_sec)
         except asyncio.QueueShutDown:
             logger.debug("STT segment queue is shutting down; dropping segment path=%s", segment.audio_path)
             with contextlib.suppress(OSError):
                 segment.audio_path.unlink(missing_ok=True)
+
+    def _schedule_segment_queue_purge(self) -> None:
+        loop: asyncio.AbstractEventLoop | None = self._loop
+        if loop is None:
+            return
+        loop.call_soon_threadsafe(self._create_queue_purge_task)
+
+    def _create_queue_purge_task(self) -> None:
+        loop: asyncio.AbstractEventLoop | None = self._loop
+        if loop is None:
+            return
+        task: asyncio.Task[None] = loop.create_task(self._purge_segment_queue(), name="stt_segment_queue_purge")
+        self._pending_segment_tasks.add(task)
+        task.add_done_callback(self._pending_segment_tasks.discard)
+
+    async def _purge_segment_queue(self) -> None:
+        while True:
+            try:
+                segment: STTSegment = self._segment_queue.get_nowait()
+            except asyncio.QueueEmpty:
+                break
+
+            with contextlib.suppress(OSError):
+                segment.audio_path.unlink(missing_ok=True)
+
+    async def _watch_input_health(self) -> None:
+        while True:
+            await asyncio.sleep(1.0)
+            if not self._monitoring:
+                continue
+
+            elapsed_sec: float = time.monotonic() - self._last_audio_callback_monotonic
+            if self._stream is not None and elapsed_sec < self._input_stall_timeout_sec:
+                continue
+
+            now: float = time.monotonic()
+            if now - self._last_reconnect_attempt_monotonic < self._reconnect_backoff_sec:
+                continue
+
+            self._last_reconnect_attempt_monotonic = now
+            if self._stream is None:
+                logger.warning("STT input stream is unavailable; attempting input stream reconnect")
+            else:
+                logger.warning(
+                    "STT input callback stalled for %.2fs; attempting input stream reconnect",
+                    elapsed_sec,
+                )
+            try:
+                await asyncio.to_thread(self._restart_input_stream)
+                self._last_audio_callback_monotonic = time.monotonic()
+                logger.info("STT input stream reconnect succeeded")
+            except Exception as err:  # noqa: BLE001
+                logger.warning("STT input stream reconnect failed: %s", err)
+
+    def _restart_input_stream(self) -> None:
+        self._close_input_stream()
+        self._open_input_stream()
 
     def _push_pre_buffer(self, chunk: np.ndarray, frames: int) -> None:
         self._pre_buffer_chunks.append(chunk)
