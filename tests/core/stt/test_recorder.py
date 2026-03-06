@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import TYPE_CHECKING
+import time
+from typing import TYPE_CHECKING, Any, cast
 
 import numpy as np
 import pytest
@@ -263,3 +264,218 @@ async def test_start_input_monitoring_logs_available_input_devices_on_open_failu
 
     assert "Available STT input devices (configured=Mic Device Name, unique=1)" in caplog.text
     assert "[1,2] Microphone (USB) (in=2)" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_set_mute_drops_queued_segments(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    queue: asyncio.Queue[STTSegment] = asyncio.Queue()
+    recorder = STTRecorder(
+        segment_queue=queue,
+        tmp_directory=tmp_path,
+        sample_rate=16000,
+        channels=1,
+        input_device="default",
+        level_interval_ms=10,
+    )
+
+    def fake_input_stream(**kwargs) -> _FakeInputStream:
+        return _FakeInputStream(**kwargs)
+
+    monkeypatch.setattr("core.stt.recorder.sd.InputStream", fake_input_stream)
+
+    await recorder.start_input_monitoring()
+    segment = await recorder.record_mock_segment(duration_sec=0.1)
+    assert segment is not None
+    assert queue.qsize() == 1
+    assert segment.audio_path.exists()
+
+    recorder.set_mute(mute=True)
+    for _ in range(20):
+        if queue.empty():
+            break
+        await asyncio.sleep(0.01)
+
+    assert queue.empty() is True
+    assert segment.audio_path.exists() is False
+    await recorder.close()
+
+
+@pytest.mark.asyncio
+async def test_set_mute_resets_active_segmentation(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    queue: asyncio.Queue[STTSegment] = asyncio.Queue()
+    recorder = STTRecorder(
+        segment_queue=queue,
+        tmp_directory=tmp_path,
+        sample_rate=16000,
+        channels=1,
+        input_device="default",
+        level_interval_ms=10,
+        start_level_db=-34.0,
+        stop_level_db=-40.0,
+        pre_buffer_ms=100,
+        post_buffer_ms=20,
+        max_segment_sec=10,
+    )
+
+    created_streams: list[_FakeInputStream] = []
+
+    def fake_input_stream(**kwargs) -> _FakeInputStream:
+        stream = _FakeInputStream(**kwargs)
+        created_streams.append(stream)
+        return stream
+
+    monkeypatch.setattr("core.stt.recorder.sd.InputStream", fake_input_stream)
+
+    await recorder.start_input_monitoring()
+    stream = created_streams[0]
+
+    speech = np.full((160, 1), 2000, dtype=np.int16)
+    stream.callback(speech, len(speech), None, 0)
+    recorder.set_mute(mute=True)
+    recorder.set_mute(mute=False)
+
+    silence = np.zeros((400, 1), dtype=np.int16)
+    stream.callback(silence, len(silence), None, 0)
+
+    with pytest.raises(asyncio.TimeoutError):
+        await asyncio.wait_for(queue.get(), timeout=0.1)
+
+    await recorder.close()
+
+
+@pytest.mark.asyncio
+async def test_watch_input_health_attempts_reconnect_when_stalled(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    queue: asyncio.Queue[STTSegment] = asyncio.Queue()
+    recorder = STTRecorder(
+        segment_queue=queue,
+        tmp_directory=tmp_path,
+        sample_rate=16000,
+        channels=1,
+        input_device="default",
+        level_interval_ms=10,
+    )
+
+    recorder._monitoring = True
+    recorder._stream = cast(
+        "Any",
+        _FakeInputStream(
+            samplerate=16000,
+            channels=1,
+            dtype="int16",
+            device=None,
+            callback=lambda *_: None,
+        ),
+    )
+    recorder._input_stall_timeout_sec = 0.0
+    recorder._reconnect_backoff_sec = 0.0
+    recorder._last_audio_callback_monotonic = time.monotonic() - 1.0
+
+    reconnect_called = asyncio.Event()
+
+    async def fake_to_thread(func, /, *args, **kwargs):
+        _ = args, kwargs
+        func()
+        reconnect_called.set()
+
+    sleep_call_count = 0
+
+    async def fake_sleep(_delay: float) -> None:
+        nonlocal sleep_call_count
+        sleep_call_count += 1
+        if sleep_call_count >= 2:
+            raise asyncio.CancelledError
+
+    monkeypatch.setattr(recorder, "_restart_input_stream", lambda: None)
+    monkeypatch.setattr("core.stt.recorder.asyncio.to_thread", fake_to_thread)
+    monkeypatch.setattr("core.stt.recorder.asyncio.sleep", fake_sleep)
+
+    with pytest.raises(asyncio.CancelledError):
+        await recorder._watch_input_health()
+
+    assert reconnect_called.is_set()
+
+
+def test_open_input_stream_fallback_from_default_to_available_index(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    queue: asyncio.Queue[STTSegment] = asyncio.Queue()
+    recorder = STTRecorder(
+        segment_queue=queue,
+        tmp_directory=tmp_path,
+        sample_rate=16000,
+        channels=1,
+        input_device="default",
+        level_interval_ms=10,
+    )
+
+    created_streams: list[_FakeInputStream] = []
+
+    def fake_input_stream(**kwargs) -> _FakeInputStream:
+        device = kwargs.get("device")
+        if device is None:
+            msg = "default device failed"
+            raise ValueError(msg)
+
+        stream = _FakeInputStream(**kwargs)
+        created_streams.append(stream)
+        return stream
+
+    monkeypatch.setattr(
+        "core.stt.recorder.sd.query_devices",
+        lambda: [{"max_input_channels": 0}, {"max_input_channels": 1}],
+    )
+    monkeypatch.setattr("core.stt.recorder.sd.InputStream", fake_input_stream)
+
+    recorder._open_input_stream()
+
+    assert recorder._stream is not None
+    assert created_streams
+    assert created_streams[0].device == 1
+    assert created_streams[0].started is True
+
+
+@pytest.mark.asyncio
+async def test_watch_input_health_attempts_reconnect_when_stream_unavailable(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    queue: asyncio.Queue[STTSegment] = asyncio.Queue()
+    recorder = STTRecorder(
+        segment_queue=queue,
+        tmp_directory=tmp_path,
+        sample_rate=16000,
+        channels=1,
+        input_device="default",
+        level_interval_ms=10,
+    )
+
+    recorder._monitoring = True
+    recorder._stream = None
+    recorder._input_stall_timeout_sec = 999.0
+    recorder._reconnect_backoff_sec = 0.0
+    recorder._last_audio_callback_monotonic = time.monotonic()
+
+    reconnect_called = asyncio.Event()
+
+    async def fake_to_thread(func, /, *args, **kwargs):
+        _ = args, kwargs
+        func()
+        reconnect_called.set()
+
+    sleep_call_count = 0
+
+    async def fake_sleep(_delay: float) -> None:
+        nonlocal sleep_call_count
+        sleep_call_count += 1
+        if sleep_call_count >= 2:
+            raise asyncio.CancelledError
+
+    monkeypatch.setattr(recorder, "_restart_input_stream", lambda: None)
+    monkeypatch.setattr("core.stt.recorder.asyncio.to_thread", fake_to_thread)
+    monkeypatch.setattr("core.stt.recorder.asyncio.sleep", fake_sleep)
+
+    with pytest.raises(asyncio.CancelledError):
+        await recorder._watch_input_health()
+
+    assert reconnect_called.is_set()
