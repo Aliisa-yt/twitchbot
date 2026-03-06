@@ -73,7 +73,7 @@ skip-magic-trailing-comma = false
 line-ending = "lf"
 docstring-code-format = true
 
-[tool.ruff.pydocstyle]
+[tool.ruff.lint.pydocstyle]
 convention = "google"
 
 [tool.mypy]
