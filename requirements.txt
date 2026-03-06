@@ -17,3 +17,4 @@ google-cloud-speech
 types-pywin32
 types-dataclasses-json
 coverage
+ruff
