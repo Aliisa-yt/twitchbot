@@ -258,6 +258,11 @@ class GoogleCloudSpeechToTextV2(STTInterface):
 
     @staticmethod
     def _import_speech_module() -> ModuleType:
+        """Import the Google Cloud Speech client module.
+
+        Returns:
+            Imported ``google.cloud.speech_v2`` module.
+        """
         return import_module("google.cloud.speech_v2")
 
     def _create_client(self, speech_module: ModuleType) -> Any:
@@ -341,8 +346,8 @@ class GoogleCloudSpeechToTextV2(STTInterface):
         """Resolve the recognizer ID, either from configuration or by generating a default one."""
         recognizer_id: str = self._recognizer
         if recognizer_id:
-            # グローバル指定方法を検索すると、recognizerに"-"を指定している例が散見されるため、
-            # 互換性のために"-"を"_"に置き換える。
+            # Some guides for global recognition still show recognizer="-".
+            # Keep compatibility by translating "-" to the current default recognizer id "_".
             if recognizer_id == "-":
                 recognizer_id = "_"
                 logger.warning(
@@ -377,11 +382,13 @@ class GoogleCloudSpeechToTextV2(STTInterface):
             else:
                 client.get_recognizer(name=recognizer_name)
         except Exception as err:  # noqa: BLE001
-            if self._recognizer and self._is_not_found_error(err):
+            is_not_found: bool = self._is_not_found_error(err)
+
+            if self._recognizer and is_not_found:
                 msg = f"Configured recognizer was not found: {recognizer_name}"
                 raise STTNotAvailableError(msg) from err
 
-            if self._recognizer and not self._is_not_found_error(err):
+            if self._recognizer and not is_not_found:
                 raise
 
             return False
@@ -410,8 +417,9 @@ class GoogleCloudSpeechToTextV2(STTInterface):
                 default_recognition_config=recognition_config_cls(
                     language_codes=[self._language],
                     model=self._model,
-                    # TODO: V2の新機能であるノイズ抑制や音声感度の設定。
-                    # 効果確認中だが、誤認識は大して変わらない気がする。
+                    # TODO: Evaluate V2-only features such as noise suppression and audio sensitivity.
+                    # These settings are still under verification.
+                    # So far, they did not significantly reduce misrecognition.
                     # denoiser_config=speech_types.DenoiserConfig(
                     #     denoise_audio=True,
                     #     snr_threshold=50.0,
@@ -466,9 +474,8 @@ class GoogleCloudSpeechToTextV2(STTInterface):
         recognizer_id: str = self._resolve_recognizer_id()
         recognizer_name: str = f"projects/{self._project_id}/locations/{self._location}/recognizers/{recognizer_id}"
 
-        # recognizer_idが "_" の場合はシステム内部で自動的にデフォルト設定を使用するため、
-        # 存在チェックをスキップしてそのまま使用する。
-        # チェックを行うと例外が発生する。
+        # For recognizer_id="_", the backend automatically uses the built-in default recognizer.
+        # Skip existence checks for this id because get_recognizer can fail for this special value.
         if recognizer_id == "_" or self._try_get_recognizer(
             client=client, speech_types=speech_types, recognizer_name=recognizer_name
         ):
@@ -523,7 +530,7 @@ class GoogleCloudSpeechToTextV2(STTInterface):
             if self._is_non_retriable_google_error(err):
                 msg = f"Google Cloud STT V2 non-retriable request error: {type(err).__name__}: {err}"
                 raise STTNonRetriableError(msg) from err
-            msg: str = f"Google Cloud STT V2 request failed: {err}"
+            msg = f"Google Cloud STT V2 request failed: {err}"
             raise STTExceptionError(msg) from err
 
     @staticmethod
