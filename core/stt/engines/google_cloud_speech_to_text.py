@@ -22,6 +22,7 @@ from utils.logger_utils import LoggerUtils
 
 if TYPE_CHECKING:
     import logging
+    from types import ModuleType
 
     from config.loader import Config
 
@@ -42,14 +43,22 @@ NON_RETRIABLE_GOOGLE_ERROR_NAMES: frozenset[str] = frozenset(
 
 
 class GoogleCloudSpeechToText(STTInterface):
-    """Google Cloud Speech-to-Text engine."""
+    """Google Cloud Speech-to-Text engine.
+
+    This engine supports two authentication modes:
+    - Service account credentials via ``GOOGLE_APPLICATION_CREDENTIALS``.
+    - API key text via ``GOOGLE_CLOUD_API_OAUTH``.
+
+    When service account credentials are available, the official client library is used.
+    Otherwise, when an API key is configured, the REST API endpoint is used.
+    """
 
     def __init__(self) -> None:
         self._available: bool = False
         self._auth_source: str | None = None
         self._api_key: str | None = None
         self._client: Any | None = None
-        self._speech_module: Any | None = None
+        self._speech_module: ModuleType | None = None
 
     @property
     def is_available(self) -> bool:
@@ -60,6 +69,19 @@ class GoogleCloudSpeechToText(STTInterface):
         return "google_cloud_stt"
 
     def initialize(self, config: Config) -> None:
+        """Initialize Google Cloud STT authentication and runtime mode.
+
+        Args:
+            config: Loaded application config. This engine currently relies on environment variables,
+                but the argument is kept for interface compatibility.
+
+        Notes:
+            Authentication priority is:
+            1. ``GOOGLE_APPLICATION_CREDENTIALS`` (service account).
+            2. ``GOOGLE_CLOUD_API_OAUTH`` (API key text).
+
+            If neither is configured, the engine remains unavailable.
+        """
         _ = config
         self._available = False
         self._auth_source = None
@@ -89,12 +111,26 @@ class GoogleCloudSpeechToText(STTInterface):
             return
 
     def transcribe(self, stt_input: STTInput) -> STTResult:
+        """Transcribe audio using Google Cloud Speech-to-Text.
+
+        Args:
+            stt_input: STT input containing PCM audio file path and recognition settings.
+
+        Returns:
+            STT result with combined transcript text, optional average confidence,
+            and engine metadata.
+
+        Raises:
+            STTNotAvailableError: If the engine is not initialized or auth mode is unavailable.
+            STTExceptionError: If input audio is missing or recognition fails.
+            STTNonRetriableError: If Google Cloud returns a non-retriable request error.
+        """
         if not self._available:
             msg = "Google Cloud STT engine is not available"
             raise STTNotAvailableError(msg)
 
         if not stt_input.audio_path.is_file():
-            msg: str = f"Audio file not found: {stt_input.audio_path}"
+            msg = f"Audio file not found: {stt_input.audio_path}"
             raise STTExceptionError(msg)
 
         pcm_data: bytes = stt_input.audio_path.read_bytes()
@@ -124,16 +160,30 @@ class GoogleCloudSpeechToText(STTInterface):
         )
 
     @staticmethod
-    def _import_speech_module() -> Any:
+    def _import_speech_module() -> ModuleType:
+        """Import the Google Cloud Speech client module.
+
+        Returns:
+            Imported ``google.cloud.speech`` module.
+        """
         return import_module("google.cloud.speech")
 
     @staticmethod
-    def _create_client(speech_module: Any) -> Any:
+    def _create_client(speech_module: ModuleType) -> Any:
+        """Create a SpeechClient instance.
+
+        Args:
+            speech_module: Imported ``google.cloud.speech`` module.
+
+        Returns:
+            Speech client instance created from the module.
+        """
         return speech_module.SpeechClient()
 
     def _initialize_client_mode(self) -> None:
+        """Initialize client-library mode for service-account authentication."""
         try:
-            speech_module = self._import_speech_module()
+            speech_module: ModuleType = self._import_speech_module()
             self._client = self._create_client(speech_module)
             self._speech_module = speech_module
             self._available = True
@@ -144,6 +194,19 @@ class GoogleCloudSpeechToText(STTInterface):
             logger.warning("Failed to initialize Google Cloud STT client: %s", err)
 
     def _recognize_by_client(self, stt_input: STTInput, pcm_data: bytes) -> tuple[list[str], list[float]]:
+        """Run recognition via the Google Cloud Python client.
+
+        Args:
+            stt_input: STT input containing sample rate, language, and channel count.
+            pcm_data: Raw LINEAR16 PCM audio bytes.
+
+        Returns:
+            Tuple of ``(transcripts, confidences)``.
+
+        Raises:
+            STTNonRetriableError: If Google returns a non-retriable error.
+            STTExceptionError: If the request fails for other reasons.
+        """
         speech_module = cast("Any", self._speech_module)
         client = cast("Any", self._client)
         try:
@@ -161,10 +224,23 @@ class GoogleCloudSpeechToText(STTInterface):
             if self._is_non_retriable_google_error(err):
                 msg = f"Google Cloud STT non-retriable request error: {type(err).__name__}: {err}"
                 raise STTNonRetriableError(msg) from err
-            msg: str = f"Google Cloud STT request failed: {err}"
+            msg = f"Google Cloud STT request failed: {err}"
             raise STTExceptionError(msg) from err
 
     def _recognize_by_api_key(self, stt_input: STTInput, pcm_data: bytes) -> tuple[list[str], list[float]]:
+        """Run recognition via the Google Cloud REST API using an API key.
+
+        Args:
+            stt_input: STT input containing sample rate, language, and channel count.
+            pcm_data: Raw LINEAR16 PCM audio bytes.
+
+        Returns:
+            Tuple of ``(transcripts, confidences)``.
+
+        Raises:
+            STTNonRetriableError: If Google returns a non-retriable error.
+            STTExceptionError: If the request fails for other reasons.
+        """
         payload: dict[str, Any] = {
             "config": {
                 "encoding": "LINEAR16",
@@ -187,15 +263,25 @@ class GoogleCloudSpeechToText(STTInterface):
             if self._is_non_retriable_google_error(err):
                 msg = f"Google Cloud STT REST non-retriable request error: {type(err).__name__}: {err}"
                 raise STTNonRetriableError(msg) from err
-            msg: str = f"Google Cloud STT REST request failed: {err}"
+            msg = f"Google Cloud STT REST request failed: {err}"
             raise STTExceptionError(msg) from err
 
     @staticmethod
     def _is_non_retriable_google_error(err: Exception) -> bool:
+        """Check whether an exception class maps to a non-retriable Google API error."""
         return type(err).__name__ in NON_RETRIABLE_GOOGLE_ERROR_NAMES
 
     @staticmethod
     def _extract_results(results: list[Any], *, object_mode: bool) -> tuple[list[str], list[float]]:
+        """Extract transcript and confidence values from recognition results.
+
+        Args:
+            results: API result entries from either client-library objects or REST dictionaries.
+            object_mode: ``True`` when ``results`` contains SDK objects; ``False`` for REST dicts.
+
+        Returns:
+            Tuple of ``(transcripts, confidences)`` where confidences include positive values only.
+        """
         transcripts: list[str] = []
         confidences: list[float] = []
         for result in results:
@@ -221,7 +307,20 @@ class GoogleCloudSpeechToText(STTInterface):
 
     @staticmethod
     def _post_json(*, url: str, payload: dict[str, Any]) -> dict[str, Any]:
-        parsed_url = parse.urlparse(url)
+        """POST JSON payload to the given URL and return decoded JSON object.
+
+        Args:
+            url: HTTPS endpoint URL.
+            payload: Request JSON body.
+
+        Returns:
+            Decoded JSON response as a dictionary.
+
+        Raises:
+            STTExceptionError: If URL scheme is invalid, network/HTTP errors occur,
+                or the response format is not a JSON object.
+        """
+        parsed_url: parse.ParseResult = parse.urlparse(url)
         if parsed_url.scheme != "https":
             msg = f"Unsupported URL scheme for STT request: {parsed_url.scheme}"
             raise STTExceptionError(msg)
