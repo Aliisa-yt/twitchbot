@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import sys
 from pathlib import Path
 
 __all__: list[str] = [
@@ -18,11 +19,25 @@ class FileUtils:
     """Utility class for file operations with safety checks.
 
     Provides methods to safely remove files, resolve paths, and validate file types.
+
+    Methods:
+    - check_file_status: Check the status of a file before performing operations.
+    - remove: Remove a file with safety checks.
+    - resource_path: Get the absolute path to a resource file, compatible with PyInstaller.
+    - resolve_path: Convert a user-input path to an absolute path safely.
+    - validate_file_path: Validate that a file exists and has an allowed suffix.
+
+    Attributes:
+        RESOURCE_BASE (Path):
+            Base path for resource files, set to _MEIPASS for PyInstaller or current working directory
+            for normal execution.
     """
+
+    RESOURCE_BASE = Path(getattr(sys, "_MEIPASS", Path.cwd()))
 
     @staticmethod
     def check_file_status(file_path: Path) -> None:
-        """Challenges the status of a file before performing operations.
+        """Check the status of a file before performing operations.
 
         Checks for various conditions:
         - Existence of the file
@@ -77,7 +92,22 @@ class FileUtils:
             raise FilePermissionError(msg) from err
 
     @staticmethod
-    def resolve_path(path: str | Path, *, strict: bool = False) -> Path:
+    def resource_path(path: str | Path, *, strict: bool = False) -> Path:
+        """Get the absolute path to a resource file, resolving it based on the execution context.
+
+        This method is designed to work correctly whether the application is run as a script or as a PyInstaller bundle.
+
+        Args:
+            path (str | Path): The relative path to the resource file (e.g., "data/config.yaml").
+            strict (bool): Whether to raise an exception if the resolved path does not exist. Defaults to False.
+
+        Returns:
+            Path: The resolved absolute path to the resource file.
+        """
+        return FileUtils.resolve_path(path, strict=strict, is_resource=True)
+
+    @staticmethod
+    def resolve_path(path: str | Path, *, strict: bool = False, is_resource: bool = False) -> Path:
         """Convert a user-input path to an absolute path safely.
 
         Expands environment variables (e.g., $HOME, %APPDATA%), expands ~ to the home directory,
@@ -87,20 +117,21 @@ class FileUtils:
         Args:
             path (str | Path): The input path (e.g., "~/logs/$APP_ENV/app.log").
             strict (bool): Whether to raise an exception if the path does not exist. Defaults to False.
+            is_resource (bool): Whether the path is a resource path. Defaults to False.
+                PyInstaller's _MEIPASS is used as the base for resource paths when is_resource=True.
 
         Returns:
             Path: The converted absolute `Path` object.
         """
-        path_str = str(path)
-        expanded: str = os.path.expandvars(path_str)
+        expanded: str = os.path.expandvars(str(path))
         user_expanded: Path = Path(expanded).expanduser()
 
-        resolved_path: Path
         if user_expanded.is_absolute():
-            resolved_path = user_expanded.resolve(strict=strict)
-        else:
-            resolved_path = (Path.cwd() / user_expanded).resolve(strict=strict)
-        return resolved_path
+            return user_expanded.resolve(strict=strict)
+
+        base: Path = FileUtils.RESOURCE_BASE if is_resource else Path.cwd()
+
+        return (base / user_expanded).resolve(strict=strict)
 
     @staticmethod
     def validate_file_path(file_path: Path, suffix: list[str] | str) -> None:
