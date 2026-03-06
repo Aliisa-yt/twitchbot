@@ -535,7 +535,8 @@ class GoogleCloudSpeechToTextV2(STTInterface):
 
     @staticmethod
     def _is_non_retriable_google_error(err: Exception) -> bool:
-        return type(err).__name__ in NON_RETRIABLE_GOOGLE_ERROR_NAMES
+        error_name: str = type(err).__name__
+        return any(name in error_name for name in NON_RETRIABLE_GOOGLE_ERROR_NAMES)
 
     @staticmethod
     def _extract_results(results: list[Any]) -> tuple[list[str], list[float]]:
