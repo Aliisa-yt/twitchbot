@@ -50,7 +50,8 @@ class _InvalidArgumentError(Exception):
 class _FailingClient:
     def recognize(self, *, config: Any, audio: Any) -> Any:
         _ = config, audio
-        raise _InvalidArgumentError("invalid")
+        msg = "invalid"
+        raise _InvalidArgumentError(msg)
 
 
 def test_initialize_enables_engine_with_credentials_file(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:

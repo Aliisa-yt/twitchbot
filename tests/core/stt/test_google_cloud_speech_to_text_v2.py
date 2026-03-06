@@ -93,7 +93,8 @@ class _FakeClient:
         recognizer_name = name or getattr(request, "name", "")
         if self.recognizer_exists:
             return SimpleNamespace(name=recognizer_name)
-        raise self._NotFoundError("404 recognizer not found")
+        msg = "404 recognizer not found"
+        raise self._NotFoundError(msg)
 
     def create_recognizer(
         self, *, request: Any = None, parent: str = "", recognizer_id: str = "", recognizer: Any = None
@@ -120,7 +121,8 @@ class _InvalidArgumentError(Exception):
 class _FailingClient(_FakeClient):
     def recognize(self, *, request: Any) -> Any:
         self.last_request = request
-        raise _InvalidArgumentError("invalid")
+        msg = "invalid"
+        raise _InvalidArgumentError(msg)
 
 
 def test_initialize_enables_engine_with_credentials_file(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
@@ -284,18 +286,11 @@ def test_initialize_auto_assigns_location_and_model_from_language_metadata(
 ) -> None:
     creds_file = tmp_path / "gcp.json"
     creds_file.write_text('{"project_id": "test-project"}', encoding="utf-8")
-    monkeypatch.setenv("GOOGLE_APPLICATION_CREDENTIALS", str(creds_file))
-
     metadata_file = tmp_path / "supported-languages.txt"
     metadata_file.write_text(
-        "\n".join(
-            [
-                "# test metadata",
-                "Location\tName\tBCP-47\tModel",
-                "global\t日本語（日本）\tja-JP\tlong",
-                "global\t日本語（日本）\tja-JP\tshort",
-            ]
-        ),
+        "# test metadata\nLocation\tName\tBCP-47\tModel\n"
+        "global\t日本語（日本）\tja-JP\tlong\n"
+        "global\t日本語（日本）\tja-JP\tshort",
         encoding="utf-8",
     )
 
