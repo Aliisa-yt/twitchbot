@@ -9,7 +9,15 @@ from __future__ import annotations
 import asyncio
 from typing import TYPE_CHECKING
 
-from google.api_core.exceptions import BadRequest, GoogleAPIError, TooManyRequests, Unauthorized
+from google.api_core.exceptions import (
+    BadRequest,
+    GoogleAPIError,
+    PermissionDenied,
+    ResourceExhausted,
+    TooManyRequests,
+    Unauthenticated,
+    Unauthorized,
+)
 from google.auth.credentials import AnonymousCredentials
 from google.auth.transport.requests import AuthorizedSession
 from google.cloud import translate_v2 as translate
@@ -177,7 +185,7 @@ class GoogleCloudTranslation(TransInterface):
             logger.critical("google-cloud-translate library not installed: %s", err)
             msg = "google-cloud-translate library is required. Install with: pip install google-cloud-translate"
             raise RuntimeError(msg) from err
-        except Unauthorized as err:
+        except (Unauthorized, Unauthenticated, PermissionDenied) as err:
             logger.critical("Authentication failed: %s", err)
             msg = (
                 "Authentication failed. Please set GOOGLE_APPLICATION_CREDENTIALS "
@@ -234,7 +242,7 @@ class GoogleCloudTranslation(TransInterface):
                 metadata={"engine": "google_cloud", "confidence": str(detection.get("confidence"))},
             )
 
-        except TooManyRequests as err:
+        except (TooManyRequests, ResourceExhausted) as err:
             logger.error("Google API rate limit during language detection: %s", err)
             msg: str = f"Language detection rate limited: {err}"
             raise TranslationRateLimitError(msg) from err
@@ -290,7 +298,7 @@ class GoogleCloudTranslation(TransInterface):
             logger.error("Invalid language code: %s", err)
             msg: str = f"Unsupported language pair (src: '{src_lang}', tgt: '{tgt_lang}'): {err}"
             raise NotSupportedLanguagesError(msg) from err
-        except TooManyRequests as err:
+        except (TooManyRequests, ResourceExhausted) as err:
             logger.error("Google API rate limit during translation: %s", err)
             msg: str = f"Translation rate limited: {err}"
             raise TranslationRateLimitError(msg) from err

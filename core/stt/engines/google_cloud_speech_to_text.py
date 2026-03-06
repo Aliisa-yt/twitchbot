@@ -10,7 +10,14 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 from urllib import error, parse, request
 
-from core.stt.interface import STTExceptionError, STTInput, STTInterface, STTNotAvailableError, STTResult
+from core.stt.interface import (
+    STTExceptionError,
+    STTInput,
+    STTInterface,
+    STTNonRetriableError,
+    STTNotAvailableError,
+    STTResult,
+)
 from utils.logger_utils import LoggerUtils
 
 if TYPE_CHECKING:
@@ -21,6 +28,17 @@ if TYPE_CHECKING:
 __all__: list[str] = ["GoogleCloudSpeechToText"]
 
 logger: logging.Logger = LoggerUtils.get_logger(__name__)
+
+NON_RETRIABLE_GOOGLE_ERROR_NAMES: frozenset[str] = frozenset(
+    {
+        "InvalidArgument",
+        "PermissionDenied",
+        "Unauthenticated",
+        "FailedPrecondition",
+        "OutOfRange",
+        "Unimplemented",
+    }
+)
 
 
 class GoogleCloudSpeechToText(STTInterface):
@@ -60,19 +78,10 @@ class GoogleCloudSpeechToText(STTInterface):
             self._auth_source = "GOOGLE_APPLICATION_CREDENTIALS"
             self._initialize_client_mode()
         elif api_oauth:
-            oauth_path = Path(api_oauth)
-            if oauth_path.is_file():
-                # Compatibility bridge:
-                # If GOOGLE_CLOUD_API_OAUTH stores a service-account JSON path,
-                # expose it as GOOGLE_APPLICATION_CREDENTIALS for future client usage.
-                os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = str(oauth_path)
-                self._auth_source = "GOOGLE_CLOUD_API_OAUTH(path)"
-                self._initialize_client_mode()
-            else:
-                self._api_key = api_oauth
-                self._auth_source = "GOOGLE_CLOUD_API_OAUTH(key)"
-                self._available = True
-                logger.info("Google Cloud STT initialized (auth source: %s)", self._auth_source)
+            self._api_key = api_oauth
+            self._auth_source = "GOOGLE_CLOUD_API_OAUTH"
+            self._available = True
+            logger.info("Google Cloud STT initialized (auth source: %s)", self._auth_source)
         else:
             logger.warning(
                 "Google Cloud STT auth is not configured. Set GOOGLE_CLOUD_API_OAUTH or GOOGLE_APPLICATION_CREDENTIALS"
@@ -149,6 +158,9 @@ class GoogleCloudSpeechToText(STTInterface):
             response = client.recognize(config=config, audio=audio)
             return self._extract_results(getattr(response, "results", []), object_mode=True)
         except Exception as err:  # noqa: BLE001
+            if self._is_non_retriable_google_error(err):
+                msg = f"Google Cloud STT non-retriable request error: {type(err).__name__}: {err}"
+                raise STTNonRetriableError(msg) from err
             msg: str = f"Google Cloud STT request failed: {err}"
             raise STTExceptionError(msg) from err
 
@@ -169,9 +181,18 @@ class GoogleCloudSpeechToText(STTInterface):
         try:
             response_json = self._post_json(url=url, payload=payload)
             return self._extract_results(response_json.get("results", []), object_mode=False)
+        except STTNonRetriableError:
+            raise
         except Exception as err:  # noqa: BLE001
+            if self._is_non_retriable_google_error(err):
+                msg = f"Google Cloud STT REST non-retriable request error: {type(err).__name__}: {err}"
+                raise STTNonRetriableError(msg) from err
             msg: str = f"Google Cloud STT REST request failed: {err}"
             raise STTExceptionError(msg) from err
+
+    @staticmethod
+    def _is_non_retriable_google_error(err: Exception) -> bool:
+        return type(err).__name__ in NON_RETRIABLE_GOOGLE_ERROR_NAMES
 
     @staticmethod
     def _extract_results(results: list[Any], *, object_mode: bool) -> tuple[list[str], list[float]]:

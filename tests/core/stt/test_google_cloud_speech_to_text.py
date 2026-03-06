@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, Any, cast
 import pytest
 
 from core.stt.engines.google_cloud_speech_to_text import GoogleCloudSpeechToText
-from core.stt.interface import STTInput, STTNotAvailableError
+from core.stt.interface import STTInput, STTNonRetriableError, STTNotAvailableError
 
 if TYPE_CHECKING:
     from config.loader import Config
@@ -43,6 +43,16 @@ class _FakeClient:
         return self._response
 
 
+class _InvalidArgumentError(Exception):
+    pass
+
+
+class _FailingClient:
+    def recognize(self, *, config: Any, audio: Any) -> Any:
+        _ = config, audio
+        raise _InvalidArgumentError("invalid")
+
+
 def test_initialize_enables_engine_with_credentials_file(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
     creds_file = tmp_path / "gcp.json"
     creds_file.write_text("{}", encoding="utf-8")
@@ -76,6 +86,21 @@ def test_initialize_enables_engine_with_api_key_string(monkeypatch: pytest.Monke
 
     engine = GoogleCloudSpeechToText()
 
+    engine.initialize(config=cast("Config", SimpleNamespace()))
+
+    assert engine.is_available is True
+
+
+def test_initialize_treats_google_cloud_api_oauth_as_api_key_even_if_file_path(
+    monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    fake_path = tmp_path / "looks-like-credentials.json"
+    fake_path.write_text("{}", encoding="utf-8")
+
+    monkeypatch.delenv("GOOGLE_APPLICATION_CREDENTIALS", raising=False)
+    monkeypatch.setenv("GOOGLE_CLOUD_API_OAUTH", str(fake_path))
+
+    engine = GoogleCloudSpeechToText()
     engine.initialize(config=cast("Config", SimpleNamespace()))
 
     assert engine.is_available is True
@@ -149,3 +174,20 @@ def test_transcribe_uses_rest_when_api_key_mode(monkeypatch: pytest.MonkeyPatch,
     assert "key=dummy_api_key" in captured_url["url"]
     assert result.text == "hello rest"
     assert result.confidence == pytest.approx(0.7)
+
+
+def test_transcribe_raises_non_retriable_error_for_invalid_argument(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
+    creds_file = tmp_path / "gcp.json"
+    creds_file.write_text("{}", encoding="utf-8")
+    monkeypatch.setenv("GOOGLE_APPLICATION_CREDENTIALS", str(creds_file))
+
+    engine = GoogleCloudSpeechToText()
+    monkeypatch.setattr(engine, "_import_speech_module", _fake_speech_module)
+    monkeypatch.setattr(engine, "_create_client", lambda _module: _FailingClient())
+    engine.initialize(config=cast("Config", SimpleNamespace()))
+
+    pcm_file = tmp_path / "sample.pcm"
+    pcm_file.write_bytes(b"\x00\x00\x01\x00")
+
+    with pytest.raises(STTNonRetriableError):
+        engine.transcribe(STTInput(audio_path=pcm_file, language="ja-JP", sample_rate=16000, channels=1))

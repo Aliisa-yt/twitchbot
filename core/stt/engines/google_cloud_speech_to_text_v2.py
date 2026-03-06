@@ -8,7 +8,14 @@ from importlib import import_module
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
-from core.stt.interface import STTExceptionError, STTInput, STTInterface, STTNotAvailableError, STTResult
+from core.stt.interface import (
+    STTExceptionError,
+    STTInput,
+    STTInterface,
+    STTNonRetriableError,
+    STTNotAvailableError,
+    STTResult,
+)
 from core.stt.stt_location_model_loader import (
     STABLE_LOCATIONS,
     STTLanguageInfo,
@@ -27,6 +34,17 @@ __all__: list[str] = ["GoogleCloudSpeechToTextV2"]
 
 logger: logging.Logger = LoggerUtils.get_logger(__name__)
 
+NON_RETRIABLE_GOOGLE_ERROR_NAMES: frozenset[str] = frozenset(
+    {
+        "InvalidArgument",
+        "PermissionDenied",
+        "Unauthenticated",
+        "FailedPrecondition",
+        "OutOfRange",
+        "Unimplemented",
+    }
+)
+
 STT_V2_SUPPORTED_LANGUAGES_FILE: Path = (
     Path(__file__).resolve().parents[3] / "data" / "stt" / "google-cloud-stt-v2_supported-languages.txt"
 )
@@ -41,8 +59,8 @@ class GoogleCloudSpeechToTextV2(STTInterface):
 
     Authentication:
     - Requires service account credentials with appropriate permissions (e.g., speech.recognizers.create).
-    - Credentials can be provided via GOOGLE_APPLICATION_CREDENTIALS or GOOGLE_CLOUD_API_OAUTH
-      (path to service account JSON).
+        - Credentials are resolved from GOOGLE_APPLICATION_CREDENTIALS.
+        - GOOGLE_CLOUD_API_OAUTH is treated as API key text and is not used by this engine.
 
     Configuration:
     - GOOGLE_CLOUD_STT_V2_LOCATION: API location (default: "global")
@@ -112,26 +130,13 @@ class GoogleCloudSpeechToTextV2(STTInterface):
             return
 
         if api_oauth:
-            oauth_path = Path(api_oauth)
-            if oauth_path.is_file():
-                # Compatibility bridge:
-                # If GOOGLE_CLOUD_API_OAUTH stores a service-account JSON path,
-                # expose it as GOOGLE_APPLICATION_CREDENTIALS for V2 client usage.
-                os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = str(oauth_path)
-                self._auth_source = "GOOGLE_CLOUD_API_OAUTH(path)"
-                self._project_id = self._resolve_project_id(oauth_path)
-                self._initialize_client_mode()
-                return
-
             logger.warning(
-                "GOOGLE_CLOUD_API_OAUTH appears to be an API key, but V2 engine requires service-account auth"
+                "GOOGLE_CLOUD_API_OAUTH is configured, but STT V2 requires service-account auth via "
+                "GOOGLE_APPLICATION_CREDENTIALS"
             )
             return
 
-        logger.warning(
-            "Google Cloud STT V2 auth is not configured. Set GOOGLE_APPLICATION_CREDENTIALS "
-            "or GOOGLE_CLOUD_API_OAUTH(path)"
-        )
+        logger.warning("Google Cloud STT V2 auth is not configured. Set GOOGLE_APPLICATION_CREDENTIALS")
 
     def _resolve_location_model(self, *, language: str, location: str, model: str) -> tuple[str, str]:
         """Resolve STT V2 location/model from config and language metadata."""
@@ -515,8 +520,15 @@ class GoogleCloudSpeechToTextV2(STTInterface):
             response = client.recognize(request=request)
             return self._extract_results(getattr(response, "results", []))
         except Exception as err:  # noqa: BLE001
+            if self._is_non_retriable_google_error(err):
+                msg = f"Google Cloud STT V2 non-retriable request error: {type(err).__name__}: {err}"
+                raise STTNonRetriableError(msg) from err
             msg: str = f"Google Cloud STT V2 request failed: {err}"
             raise STTExceptionError(msg) from err
+
+    @staticmethod
+    def _is_non_retriable_google_error(err: Exception) -> bool:
+        return type(err).__name__ in NON_RETRIABLE_GOOGLE_ERROR_NAMES
 
     @staticmethod
     def _extract_results(results: list[Any]) -> tuple[list[str], list[float]]:

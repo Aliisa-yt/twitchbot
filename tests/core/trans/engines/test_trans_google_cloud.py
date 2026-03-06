@@ -113,6 +113,20 @@ async def test_detect_language_rate_limit_raises(monkeypatch: pytest.MonkeyPatch
 
 
 @pytest.mark.asyncio
+async def test_detect_language_resource_exhausted_raises(monkeypatch: pytest.MonkeyPatch, config: Any) -> None:
+    async def fake_to_thread(func, *args, **kwargs):
+        return func(*args, **kwargs)
+
+    monkeypatch.setattr(trans_google_cloud_module.asyncio, "to_thread", fake_to_thread)
+    DummyClient.detect_error = trans_google_cloud_module.ResourceExhausted("quota")
+    engine = trans_google_cloud_module.GoogleCloudTranslation()
+    engine.initialize(config)
+
+    with pytest.raises(TranslationRateLimitError):
+        await engine.detect_language("hello", tgt_lang="ja")
+
+
+@pytest.mark.asyncio
 async def test_detect_language_google_error_raises(monkeypatch: pytest.MonkeyPatch, config: Any) -> None:
     async def fake_to_thread(func, *args, **kwargs):
         return func(*args, **kwargs)
@@ -163,6 +177,20 @@ async def test_translation_rate_limit_raises(monkeypatch: pytest.MonkeyPatch, co
 
     monkeypatch.setattr(trans_google_cloud_module.asyncio, "to_thread", fake_to_thread)
     DummyClient.translate_error = trans_google_cloud_module.TooManyRequests("limit")
+    engine = trans_google_cloud_module.GoogleCloudTranslation()
+    engine.initialize(config)
+
+    with pytest.raises(TranslationRateLimitError):
+        await engine.translation("hello", tgt_lang="ja", src_lang="en")
+
+
+@pytest.mark.asyncio
+async def test_translation_resource_exhausted_raises(monkeypatch: pytest.MonkeyPatch, config: Any) -> None:
+    async def fake_to_thread(func, *args, **kwargs):
+        return func(*args, **kwargs)
+
+    monkeypatch.setattr(trans_google_cloud_module.asyncio, "to_thread", fake_to_thread)
+    DummyClient.translate_error = trans_google_cloud_module.ResourceExhausted("quota")
     engine = trans_google_cloud_module.GoogleCloudTranslation()
     engine.initialize(config)
 

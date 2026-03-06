@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, Any, cast
 import pytest
 
 from core.stt.engines.google_cloud_speech_to_text_v2 import GoogleCloudSpeechToTextV2
-from core.stt.interface import STTInput, STTNotAvailableError
+from core.stt.interface import STTInput, STTNonRetriableError, STTNotAvailableError
 
 if TYPE_CHECKING:
     from config.loader import Config
@@ -113,6 +113,16 @@ class _FakeClient:
         return self._response
 
 
+class _InvalidArgumentError(Exception):
+    pass
+
+
+class _FailingClient(_FakeClient):
+    def recognize(self, *, request: Any) -> Any:
+        self.last_request = request
+        raise _InvalidArgumentError("invalid")
+
+
 def test_initialize_enables_engine_with_credentials_file(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
     creds_file = tmp_path / "gcp.json"
     creds_file.write_text('{"project_id": "test-project"}', encoding="utf-8")
@@ -136,6 +146,22 @@ def test_initialize_keeps_engine_disabled_when_project_id_missing(monkeypatch: p
     creds_file.write_text("{}", encoding="utf-8")
 
     monkeypatch.setenv("GOOGLE_APPLICATION_CREDENTIALS", str(creds_file))
+    engine = GoogleCloudSpeechToTextV2()
+    monkeypatch.setattr(engine, "_import_speech_module", _fake_speech_module)
+    monkeypatch.setattr(engine, "_create_client", lambda _module: _FakeClient(response=SimpleNamespace(results=[])))
+
+    engine.initialize(config=cast("Config", SimpleNamespace()))
+
+    assert engine.is_available is False
+
+
+def test_initialize_does_not_fallback_to_google_cloud_api_oauth(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
+    fake_path = tmp_path / "service-account.json"
+    fake_path.write_text('{"project_id": "test-project"}', encoding="utf-8")
+
+    monkeypatch.delenv("GOOGLE_APPLICATION_CREDENTIALS", raising=False)
+    monkeypatch.setenv("GOOGLE_CLOUD_API_OAUTH", str(fake_path))
+
     engine = GoogleCloudSpeechToTextV2()
     monkeypatch.setattr(engine, "_import_speech_module", _fake_speech_module)
     monkeypatch.setattr(engine, "_create_client", lambda _module: _FakeClient(response=SimpleNamespace(results=[])))
@@ -347,3 +373,29 @@ def test_initialize_shows_clear_message_when_create_permission_denied(
     engine.initialize(config=cast("Config", config))
 
     assert engine.is_available is False
+
+
+def test_transcribe_raises_non_retriable_error_for_invalid_argument(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
+    creds_file = tmp_path / "gcp.json"
+    creds_file.write_text('{"project_id": "test-project"}', encoding="utf-8")
+    monkeypatch.setenv("GOOGLE_APPLICATION_CREDENTIALS", str(creds_file))
+
+    fake_client = _FailingClient(response=SimpleNamespace(results=[]), recognizer_exists=True)
+    engine = GoogleCloudSpeechToTextV2()
+    monkeypatch.setattr(engine, "_import_speech_module", _fake_speech_module)
+    monkeypatch.setattr(engine, "_create_client", lambda _module: fake_client)
+
+    config = SimpleNamespace(
+        STT=SimpleNamespace(
+            GOOGLE_CLOUD_STT_V2_LOCATION="global",
+            GOOGLE_CLOUD_STT_V2_MODEL="latest_short",
+            GOOGLE_CLOUD_STT_V2_RECOGNIZER="existing-recognizer",
+        )
+    )
+    engine.initialize(config=cast("Config", config))
+
+    pcm_file = tmp_path / "sample.pcm"
+    pcm_file.write_bytes(b"\x00\x00\x01\x00")
+
+    with pytest.raises(STTNonRetriableError):
+        engine.transcribe(STTInput(audio_path=pcm_file, language="ja-JP", sample_rate=16000, channels=1))
