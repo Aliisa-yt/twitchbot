@@ -12,7 +12,7 @@ import re
 from configparser import ConfigParser
 from dataclasses import fields
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 from models.config_models import Config
 from models.voice_models import TTSInfo, TTSInfoPerLanguage, UserTypeInfo, Voice
@@ -22,8 +22,8 @@ if TYPE_CHECKING:
     import logging
     from collections.abc import Callable
     from dataclasses import Field as DataclassField
-else:
-    from dataclasses import Field as DataclassField
+
+    from _typeshed import DataclassInstance
 
 __all__: list[str] = [
     "ConfigFileNotFoundError",
@@ -166,7 +166,7 @@ class ConfigLoader:
             ConfigFormatError: If a value cannot be parsed or coerced to the expected type.
         """
         formatter = _ConfigFormatter(self.config, parser)
-        for section in fields(self.config):
+        for section in fields(cast("DataclassInstance", self.config)):
             # VOICE_PARAMETERS is a parameter that will be automatically generated later.
             # Skip it now as it has no content.
             if section.name == "VOICE_PARAMETERS":
