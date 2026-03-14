@@ -32,6 +32,8 @@ tmp_*/
 .env
 .ipynb_checkpoints/
 .pytest_cache/
+.mypy_cache/
+.ruff_cache/
 .tio.tokens.json
 tokens.json
 
