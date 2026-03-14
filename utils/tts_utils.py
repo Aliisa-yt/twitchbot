@@ -78,7 +78,7 @@ class TTSUtils:
         raise TypeError(msg)
 
     @staticmethod
-    def linear_to_db(value: float, *, floor_db: float = -60.0) -> float:
+    def linear_to_log(value: float, *, floor_db: float = -60.0) -> float:
         """Convert a linear scale value to decibels (dB).
 
         Args:
@@ -93,7 +93,7 @@ class TTSUtils:
         return 20.0 * math.log10(value)
 
     @staticmethod
-    def db_to_linear(value: float) -> float:
+    def log_to_linear(value: float) -> float:
         """Convert a decibel (dB) value to linear scale.
 
         Args:

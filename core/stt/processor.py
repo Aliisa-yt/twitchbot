@@ -6,7 +6,14 @@ import asyncio
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from core.stt.interface import STTInput, STTInterface, STTNonRetriableError, STTResult
+from core.stt.interface import (
+    STTExceptionError,
+    STTInput,
+    STTInterface,
+    STTNonRetriableError,
+    STTNotAvailableError,
+    STTResult,
+)
 from utils.file_utils import FileUtils, FileUtilsError
 from utils.logger_utils import LoggerUtils
 
@@ -104,8 +111,15 @@ class STTProcessor:
                     err,
                 )
                 return None
-            except Exception as err:  # noqa: BLE001
-                # Retry all transcription failures because recoverability is engine-specific.
+            except STTNotAvailableError as err:
+                logger.warning(
+                    "STT engine became unavailable during transcribe (language=%s): %s",
+                    stt_input.language,
+                    err,
+                )
+                break
+            except STTExceptionError as err:
+                # Retry only STT-domain failures that are not explicitly marked as non-retriable.
                 logger.warning(
                     "STT transcribe failed (attempt=%d/%d, language=%s): %s",
                     attempt,
@@ -119,6 +133,12 @@ class STTProcessor:
 
                 backoff_sec: float = (self._options.retry_backoff_ms / 1000) * (2 ** (attempt - 1))
                 await asyncio.sleep(backoff_sec)
+            except Exception:  # noqa: BLE001
+                logger.exception(
+                    "Unexpected non-STT exception during transcribe; no retry (language=%s)",
+                    stt_input.language,
+                )
+                break
 
         return None
 

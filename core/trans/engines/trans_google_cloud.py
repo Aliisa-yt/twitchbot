@@ -250,10 +250,9 @@ class GoogleCloudTranslation(TransInterface):
             logger.error("Google API error during language detection: %s", err)
             msg: str = f"Language detection failed: {err}"
             raise TranslateExceptionError(msg) from err
-        except Exception as err:
-            logger.error("Unexpected error during language detection: %s", err)
-            msg: str = f"Language detection failed: {err}"
-            raise TranslateExceptionError(msg) from err
+        except Exception:
+            logger.exception("Unexpected non-Google error during language detection: %s", content[:50])
+            raise
         else:
             logger.debug("Detected language: '%s' with confidence: %s", detected_lang, detection.get("confidence"))
             return result
@@ -306,10 +305,9 @@ class GoogleCloudTranslation(TransInterface):
             logger.error("Google API error during translation: %s", err)
             msg: str = f"Translation failed: {err}"
             raise TranslateExceptionError(msg) from err
-        except Exception as err:
-            logger.error("Unexpected error during translation: %s", err)
-            msg: str = f"Translation failed: {err}"
-            raise TranslateExceptionError(msg) from err
+        except Exception:
+            logger.exception("Unexpected non-Google error during translation: %s", content[:50])
+            raise
         else:
             logger.info("translation completed (%s > %s)", src_lang or detected_lang, tgt_lang)
             logger.debug("'return': '%s'", result)

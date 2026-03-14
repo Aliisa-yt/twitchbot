@@ -62,4 +62,4 @@ async def test_skip_does_nothing_when_not_playing(tts_bundle: SimpleNamespace) -
     await tts_bundle.component.skip.callback(tts_bundle.component, context)
 
     tts_bundle.playback_manager.cancel_playback.assert_not_called()
-    context.send.assert_not_called()
+    context.send.assert_called_once_with("No active playback to skip.")

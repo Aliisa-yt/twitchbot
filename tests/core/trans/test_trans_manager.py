@@ -212,7 +212,7 @@ async def test_detect_language_und_sets_no_translation(config: Config) -> None:
 
     assert result is False
     assert trans_info.src_lang == "en"
-    assert trans_info.tgt_lang == "en"
+    assert trans_info.tgt_lang == ""
     assert trans_info.translated_text == "test.py"
     assert trans_info.is_translate is False
 

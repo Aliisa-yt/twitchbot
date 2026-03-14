@@ -14,27 +14,29 @@ if TYPE_CHECKING:
     from pathlib import Path
 
 __all__: list[str] = [
+    "GUI",
     "STT",
-    # "TTS",
-    # "Bot",
-    # "Cast",
+    "TTS",
+    "Bot",
+    "Cache",
+    "Cast",
     "Config",
-    # "Dictionary",
-    # "General",
+    "Dictionary",
+    "General",
     "TTSEngine",
-    # "TTSFormat",
-    # "TimeSignal",
-    # "Translation",
-    # "Twitch",
+    "TTSFormat",
+    "TimeSignal",
+    "Translation",
+    "Twitch",
 ]
 
 
 @dataclass
 class General:
     DEBUG: bool = False
-    VERSION: str = ""
-    TMP_DIR: Path | None = None
-    SCRIPT_NAME: str = ""
+    VERSION: str = ""  # Hidden settings that are not published in the INI file.
+    TMP_DIR: Path | None = None  # Hidden settings that are not published in the INI file.
+    SCRIPT_NAME: str = ""  # Hidden settings that are not published in the INI file.
 
 
 @dataclass
@@ -79,10 +81,10 @@ class TTS:
     ENABLED_LANGUAGES: list[str] = field(default_factory=list)
     KATAKANAISE: bool = False
     EMOTE_TEXT: bool = False
-    MENTION: bool = False
-    REPLYING_USERNAME: bool = False
-    USERNAME: bool = False
-    EMOJI_TEXT: bool = False
+    MENTION: bool = False  # Unused configuration items.
+    REPLYING_USERNAME: bool = False  # Unused configuration items.
+    USERNAME: bool = False  # Unused configuration items.
+    EMOJI_TEXT: bool = False  # Unused configuration items.
     LIMIT_SAME_EMOTE: int = 0
     LIMIT_TOTAL_EMOTES: int = 0
     LIMIT_CHARACTERS: int = 0
@@ -112,11 +114,11 @@ class Cast:
 
 @dataclass
 class TTSEngine:
-    SERVER: str = ""
-    TIMEOUT: float = 10.0
+    SERVER: str = ""  # Not used in CEVIO_CS7/AI
+    TIMEOUT: float = 10.0  # Not used in CEVIO_CS7/AI
     EARLY_SPEECH: bool = False
     AUTO_STARTUP: bool = False
-    EXECUTE_PATH: str = ""
+    EXECUTE_PATH: str = ""  # Not used in CEVIO_CS7/AI
 
 
 @dataclass
@@ -129,12 +131,21 @@ class TimeSignal:
 
 
 @dataclass
+class Cache:
+    TTL_TRANSLATION_DAYS: int = 7
+    TTL_LANGUAGE_DETECTION_DAYS: int = 30
+    MAX_ENTRIES_PER_ENGINE: int = 200
+    EXPORT_PATH: str = ""
+
+
+@dataclass
 class STT:
+    DEBUG: bool = False  # Hidden settings that are not published in the INI file.
     ENABLED: bool = False
     ENGINE: str = "google_cloud_stt"
     INPUT_DEVICE: str = "default"
-    SAMPLE_RATE: int = 16000
-    CHANNELS: int = 1
+    SAMPLE_RATE: int = 16000  # Unused configuration items.
+    CHANNELS: int = 1  # Unused configuration items.
     START_LEVEL: float = -20.0
     STOP_LEVEL: float = -40.0
     PRE_BUFFER_MS: int = 300
@@ -142,13 +153,14 @@ class STT:
     MAX_SEGMENT_SEC: int = 20
     MUTE: bool = False
     LANGUAGE: str = "ja-JP"
-    INTERIM_RESULT: bool = False
+    INTERIM_RESULT: bool = False  # Unused configuration items.
     FORWARD_TO_TTS: bool | None = None
     RETRY_MAX: int = 3
     RETRY_BACKOFF_MS: int = 500
     GOOGLE_CLOUD_STT_V2_LOCATION: str = ""
     GOOGLE_CLOUD_STT_V2_MODEL: str = ""
     GOOGLE_CLOUD_STT_V2_RECOGNIZER: str = ""
+    CONFIDENCE_THRESHOLD: float | None = None
 
 
 @dataclass
@@ -173,6 +185,7 @@ class Config:
     COEIROINK: TTSEngine = field(default_factory=TTSEngine)
     COEIROINK2: TTSEngine = field(default_factory=TTSEngine)
     TIME_SIGNAL: TimeSignal = field(default_factory=TimeSignal)
+    CACHE: Cache = field(default_factory=Cache)
     STT: STT = field(default_factory=STT)
     GUI: GUI = field(default_factory=GUI)
     VOICE_PARAMETERS: UserTypeInfo = field(default_factory=UserTypeInfo)

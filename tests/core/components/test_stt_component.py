@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 from typing import TYPE_CHECKING
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -31,6 +31,8 @@ def stt_bundle() -> SimpleNamespace:
     shared.config = MagicMock()
     shared.config.STT = MagicMock()
     shared.config.STT.ENABLED = False
+    shared.config.STT.DEBUG = False
+    shared.config.STT.CONFIDENCE_THRESHOLD = None
     shared.config.STT.FORWARD_TO_TTS = False
     shared.config.TWITCH = MagicMock()
     shared.config.TWITCH.OWNER_NAME = "owner_name"
@@ -52,6 +54,8 @@ def stt_bundle() -> SimpleNamespace:
 
     component = STTServiceComponent(bot)
     component._stt_result_ignore_words = []
+    component._debug_mode = False
+    component._confidence_threshold = None
 
     return SimpleNamespace(
         component=component,
@@ -108,8 +112,7 @@ async def test_on_stt_result_prints_console_when_chat_disabled(stt_bundle: Simpl
     stt_bundle.component.print_console_message = MagicMock()
     stt_bundle.component._forward_stt_result_to_chat_events = AsyncMock()
 
-    with patch("core.components.stt_component.STT_CHAT_SEND_ENABLED", True):
-        await stt_bundle.component._on_stt_result(STTResult(text=" recognized text ", language="ja-JP"))
+    await stt_bundle.component._on_stt_result(STTResult(text=" recognized text ", language="ja-JP"))
 
     stt_bundle.component.send_chat_message.assert_awaited_once_with("recognized text", sender="owner")
     stt_bundle.component.print_console_message.assert_not_called()
@@ -122,8 +125,7 @@ async def test_on_stt_result_sends_chat_when_enabled(stt_bundle: SimpleNamespace
     stt_bundle.component.print_console_message = MagicMock()
     stt_bundle.component._forward_stt_result_to_chat_events = AsyncMock()
 
-    with patch("core.components.stt_component.STT_CHAT_SEND_ENABLED", True):
-        await stt_bundle.component._on_stt_result(STTResult(text="recognized text", language="ja-JP"))
+    await stt_bundle.component._on_stt_result(STTResult(text="recognized text", language="ja-JP"))
 
     stt_bundle.component.send_chat_message.assert_awaited_once_with("recognized text", sender="owner")
     stt_bundle.component.print_console_message.assert_not_called()
@@ -171,8 +173,7 @@ async def test_on_stt_result_does_not_enqueue_when_forward_disabled(stt_bundle: 
     stt_bundle.component.send_chat_message = AsyncMock()
     stt_bundle.component.print_console_message = MagicMock()
 
-    with patch("core.components.stt_component.STT_CHAT_SEND_ENABLED", True):
-        await stt_bundle.component._on_stt_result(STTResult(text="recognized text", language="ja-JP"))
+    await stt_bundle.component._on_stt_result(STTResult(text="recognized text", language="ja-JP"))
 
     stt_bundle.component.send_chat_message.assert_awaited_once_with("recognized text", sender="owner")
     stt_bundle.component.print_console_message.assert_not_called()
@@ -185,8 +186,7 @@ async def test_on_stt_result_enqueues_when_forward_enabled(stt_bundle: SimpleNam
     stt_bundle.component.send_chat_message = AsyncMock()
     stt_bundle.component.print_console_message = MagicMock()
 
-    with patch("core.components.stt_component.STT_CHAT_SEND_ENABLED", True):
-        await stt_bundle.component._on_stt_result(STTResult(text="recognized text", language="ja-JP"))
+    await stt_bundle.component._on_stt_result(STTResult(text="recognized text", language="ja-JP"))
 
     stt_bundle.component.send_chat_message.assert_awaited_once_with("recognized text", sender="owner")
     stt_bundle.component.print_console_message.assert_not_called()
@@ -209,9 +209,9 @@ async def test_on_stt_result_ignores_by_confidence_threshold(stt_bundle: SimpleN
     stt_bundle.component.send_chat_message = AsyncMock()
     stt_bundle.component.print_console_message = MagicMock()
     stt_bundle.component._forward_stt_result_to_chat_events = AsyncMock()
+    stt_bundle.component._confidence_threshold = 0.9
 
-    with patch("core.components.stt_component.STT_CONFIDENCE_THRESHOLD", 0.9):
-        await stt_bundle.component._on_stt_result(STTResult(text="recognized text", language="ja-JP", confidence=0.5))
+    await stt_bundle.component._on_stt_result(STTResult(text="recognized text", language="ja-JP", confidence=0.5))
 
     stt_bundle.component.send_chat_message.assert_not_called()
     stt_bundle.component.print_console_message.assert_not_called()

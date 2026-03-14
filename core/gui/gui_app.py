@@ -355,13 +355,13 @@ class GUIApp:
         Other modules and tests access these attributes directly, so this method
         keeps backward compatibility while allowing internal STT encapsulation.
         """
-        self.stt_level_meter = widgets.level_meter
-        self.stt_start_scale = widgets.start_scale
-        self.stt_start_value_label = widgets.start_value_label
-        self.stt_stop_scale = widgets.stop_scale
-        self.stt_stop_value_label = widgets.stop_value_label
-        self.stt_mute_button = widgets.mute_button
-        self.stt_state_label = widgets.state_label
+        self.stt_level_meter: tk.Canvas = widgets.level_meter
+        self.stt_start_scale: ttk.Scale = widgets.start_scale
+        self.stt_start_value_label: ttk.Label = widgets.start_value_label
+        self.stt_stop_scale: ttk.Scale = widgets.stop_scale
+        self.stt_stop_value_label: ttk.Label = widgets.stop_value_label
+        self.stt_mute_button: ttk.Button = widgets.mute_button
+        self.stt_state_label: ttk.Label = widgets.state_label
 
     def _require_stt_widgets(self) -> STTSectionWidgets:
         """Return STT widgets container.
@@ -579,7 +579,7 @@ class GUIApp:
             raw_data=rms_raw,
             ema_alpha=self.ema_alpha,
         )
-        rms_db: float = TTSUtils.linear_to_db(self._stt_smoothed_rms, floor_db=STT_FLOOR_LEVEL_DB)
+        rms_db: float = TTSUtils.linear_to_log(self._stt_smoothed_rms, floor_db=STT_FLOOR_LEVEL_DB)
 
         peak_raw: float = self._clamp_percent(peak)
         # Drop peak hold more slowly than attack to keep transients visible.
@@ -588,7 +588,7 @@ class GUIApp:
             raw_data=peak_raw,
             ema_alpha=self.ema_alpha * 0.5,
         )
-        peak_db: float = TTSUtils.linear_to_db(self._stt_smoothed_peak, floor_db=STT_FLOOR_LEVEL_DB)
+        peak_db: float = TTSUtils.linear_to_log(self._stt_smoothed_peak, floor_db=STT_FLOOR_LEVEL_DB)
 
         fill_width: float = self._scale_db_to_meter_position(rms_db, meter_length)
         peak_x: float = self._scale_db_to_meter_position(peak_db, meter_length)
@@ -794,7 +794,7 @@ class GUIApp:
         """
         messagebox.showinfo(title, message, parent=self.root)
 
-    async def run_with_bot(self, bot_coro: Awaitable) -> None:
+    async def run_with_bot(self, bot_coro: Awaitable) -> None:  # noqa: C901
         """Run the GUI application with the bot.
 
         Args:
@@ -846,5 +846,9 @@ class GUIApp:
         finally:
             self.running = False
             self.remove_logging_handler()
-            with contextlib.suppress(Exception):
+            try:
                 self.root.destroy()
+            except (tk.TclError, RuntimeError) as err:
+                logger.debug("GUI root destroy skipped during shutdown: %s", err)
+            except Exception as err:  # noqa: BLE001
+                logger.warning("Unexpected error while destroying GUI root: %s", err)

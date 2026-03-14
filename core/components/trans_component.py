@@ -14,9 +14,6 @@ if TYPE_CHECKING:
 
     from models.translation_models import CharacterQuota
 
-if TYPE_CHECKING:
-    import logging
-
 __all__: list[str] = ["TranslationServiceComponent"]
 
 logger: logging.Logger = LoggerUtils.get_logger(__name__)
@@ -65,7 +62,10 @@ class TranslationServiceComponent(ComponentBase):
             return f"Usage: !te [{'|'.join(available_translation_engines)}]"
 
         if not args or len(args) == 0:  # Redundant due to linter countermeasures
-            await context.send(f"The current translation engine is '{available_translation_engines[0]}'.")
+            if available_translation_engines:
+                await context.send(f"The current translation engine is '{available_translation_engines[0]}'.")
+            else:
+                await context.send("No translation engines are currently available.")
             return
 
         if len(args) > 1:
@@ -79,9 +79,9 @@ class TranslationServiceComponent(ComponentBase):
                 available_translation_engines.remove(selected_engine)
                 available_translation_engines.insert(0, selected_engine)
             except ValueError:
+                logger.debug("Selected translation engine '%s' is not in the available engines list", selected_engine)
+                await context.send("Selected translation engine is not available.")
                 await context.send(usage_message())
-            except IndexError as err:
-                logger.error("Error changing translation engine: %s", err)
             else:
                 TransManager.update_engine_names(available_translation_engines)
                 await context.send(f"Translation engine switched to '{selected_engine}'.")

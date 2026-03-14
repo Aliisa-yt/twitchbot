@@ -8,7 +8,6 @@ from __future__ import annotations
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import TYPE_CHECKING
-from unittest.mock import MagicMock
 
 import pytest
 
@@ -26,13 +25,13 @@ if TYPE_CHECKING:
 
 
 @pytest.fixture
-def mock_config() -> MagicMock:
-    """Create a mock Config object."""
-    return MagicMock(spec=Config)
+def mock_config() -> Config:
+    """Create a Config object for cache manager tests."""
+    return Config()
 
 
 @pytest.fixture
-async def cache_manager(mock_config: MagicMock, tmp_path: Path) -> AsyncGenerator[TranslationCacheManager]:
+async def cache_manager(mock_config: Config, tmp_path: Path) -> AsyncGenerator[TranslationCacheManager]:
     """Create a TranslationCacheManager instance with temporary database."""
     manager = TranslationCacheManager(mock_config)
     manager._db_path = tmp_path / "test_cache.db"
@@ -46,6 +45,25 @@ async def test_cache_initialization(cache_manager: TranslationCacheManager) -> N
     """Test cache manager initialization."""
     assert cache_manager._is_initialized is True
     assert cache_manager._db_conn is not None
+
+
+@pytest.mark.asyncio
+async def test_cache_config_override_values_are_applied(tmp_path: Path) -> None:
+    """Test CACHE section values override manager defaults."""
+    config = Config()
+    config.CACHE.TTL_TRANSLATION_DAYS = 3
+    config.CACHE.TTL_LANGUAGE_DETECTION_DAYS = 9
+    config.CACHE.MAX_ENTRIES_PER_ENGINE = 11
+
+    manager = TranslationCacheManager(config)
+    manager._db_path = tmp_path / "test_cache_override.db"
+    await manager.component_load()
+
+    assert manager._ttl_translation_days == 3
+    assert manager._ttl_language_detection_days == 9
+    assert manager._max_entries_per_engine == 11
+
+    await manager.component_teardown()
 
 
 @pytest.mark.asyncio
@@ -149,8 +167,7 @@ async def test_cache_export(cache_manager: TranslationCacheManager, tmp_path: Pa
 @pytest.mark.asyncio
 async def test_capacity_limit_enforcement(cache_manager: TranslationCacheManager) -> None:
     """Test capacity limit enforcement per engine."""
-    original_limit: int = TranslationCacheManager.MAX_ENTRIES_PER_ENGINE
-    TranslationCacheManager.MAX_ENTRIES_PER_ENGINE = 5
+    cache_manager._max_entries_per_engine = 5
 
     for i in range(10):
         await cache_manager.register_translation_cache(
@@ -163,8 +180,6 @@ async def test_capacity_limit_enforcement(cache_manager: TranslationCacheManager
 
     stats: CacheStatistics = await cache_manager.get_cache_statistics()
     assert stats.engine_distribution["DeepL"] <= 5
-
-    TranslationCacheManager.MAX_ENTRIES_PER_ENGINE = original_limit
 
 
 @pytest.mark.asyncio
@@ -211,7 +226,7 @@ async def test_expired_translation_entry_is_deleted_on_lookup(cache_manager: Tra
     assert cache_manager._db_conn is not None
 
     expired_epoch = int(
-        (datetime.now().astimezone() - timedelta(days=cache_manager.TTL_TRANSLATION_DAYS + 1)).timestamp()
+        (datetime.now().astimezone() - timedelta(days=cache_manager._ttl_translation_days + 1)).timestamp()
     )
     cache_manager._db_conn.execute(
         "UPDATE translation_cache SET last_used_at = ? WHERE cache_key = ?",
@@ -244,7 +259,7 @@ async def test_expired_language_detection_entry_is_deleted_on_lookup(cache_manag
     assert cache_manager._db_conn is not None
 
     expired_epoch = int(
-        (datetime.now().astimezone() - timedelta(days=cache_manager.TTL_LANGUAGE_DETECTION_DAYS + 1)).timestamp()
+        (datetime.now().astimezone() - timedelta(days=cache_manager._ttl_language_detection_days + 1)).timestamp()
     )
     cache_manager._db_conn.execute(
         "UPDATE language_detection_cache SET last_used_at = ? WHERE normalized_source = ?",

@@ -4,26 +4,28 @@ from __future__ import annotations
 
 import asyncio
 from datetime import timedelta
-from pathlib import Path
 from typing import TYPE_CHECKING, ClassVar, Final
 
 from twitchio.ext import commands, routines
 
 from core.components.base import ComponentBase
+from utils.file_utils import FileUtils
 from utils.logger_utils import LoggerUtils
 
 if TYPE_CHECKING:
     import logging
+    from pathlib import Path
 
     from core.cache.manager import TranslationCacheManager
     from models.cache_models import CacheStatistics
+    from models.config_models import Cache
 
 __all__: list[str] = ["CacheServiceComponent"]
 
 logger: logging.Logger = LoggerUtils.get_logger(__name__)
 
 # Setting the file extension to .log excludes it from Git management.
-CACHE_EXPORT_PATH: Final[Path] = Path("cache_export.log")
+CACHE_EXPORT_PATH: Final[str] = "cache_export.log"
 
 CACHE_MAINTENANCE_INTERVAL: Final[float] = 2.0  # hours
 DELAYED_START_TIME: Final[float] = 20.0  # seconds
@@ -56,6 +58,8 @@ class CacheServiceComponent(ComponentBase):
                 logger.debug("Cache maintenance performed")
             else:
                 logger.debug("Cache maintenance skipped: Cache manager not initialized")
+        except asyncio.CancelledError:
+            logger.debug("Cache maintenance routine cancelled")
         except Exception as err:  # noqa: BLE001
             logger.error("Error during cache maintenance: %s", err)
 
@@ -132,7 +136,28 @@ class CacheServiceComponent(ComponentBase):
             self.print_console_message("Translation cache is not initialized.")
             return
 
-        output_path: Path = CACHE_EXPORT_PATH
+        cfg_cache: Cache | None = getattr(self.config, "CACHE", None)
+        if cfg_cache is None:
+            logger.warning("Cache configuration section is missing. Using default export path.")
+            export_path = CACHE_EXPORT_PATH
+
+        export_path: str | None = getattr(cfg_cache, "EXPORT_PATH", None)
+        if export_path is None or export_path.strip() == "":
+            logger.warning("Cache export path is not set. Using default export path.")
+            export_path = CACHE_EXPORT_PATH
+
+        try:
+            output_path: Path = FileUtils.resolve_path(export_path)
+        # This exception will not be raised because `strict` is set to False.
+        # except FileNotFoundError:
+        #     msg: str = f"Invalid export path: {export_path}"
+        #     logger.error(msg)
+        #     return
+        except RuntimeError as err:
+            msg: str = f"Error resolving export path: {export_path} - {err}"
+            logger.error(msg)
+            return
+
         success: bool = await cache_manager.export_cache_detailed(output_path)
 
         if success:

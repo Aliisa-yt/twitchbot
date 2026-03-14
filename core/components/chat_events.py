@@ -43,6 +43,16 @@ class ChatEventsManager(ComponentBase):
 
     This cog listens for incoming Twitch chat messages and processes them for translation and TTS.
     It filters messages, detects language, translates content, and queues audio for playback.
+
+    Attributes:
+        depends (ClassVar[list[str]]): List of component dependencies.
+
+    Internal Attributes:
+        _message_queue (ExcludableQueue[ChatMessageDTO]): Queue for incoming chat messages to be processed.
+        _message_worker_task (asyncio.Task[None] | None): Background task for processing messages from the queue.
+        _spawned_tasks (set[asyncio.Task[None]]): Set of currently active tasks spawned for message processing.
+        _concurrency_sem (asyncio.Semaphore | None): Semaphore to limit concurrent message processing tasks.
+        _is_available (bool): Flag indicating whether the component is available for processing messages.
     """
 
     depends: ClassVar[list[str]] = []
@@ -55,6 +65,7 @@ class ChatEventsManager(ComponentBase):
         self._spawned_tasks: set[asyncio.Task[None]] = set()
         # concurrency limiter (Semaphore) will be initialized in component_load
         self._concurrency_sem: asyncio.Semaphore | None = None
+        self._is_available: bool = False
 
     async def component_load(self) -> None:
         """Load the component. No setup required for this component."""
@@ -65,15 +76,12 @@ class ChatEventsManager(ComponentBase):
         except (ValueError, TypeError):
             max_concurrent = MESSAGE_CONCURRENCY_DEFAULT
         self._concurrency_sem = asyncio.Semaphore(max_concurrent)
-
-        if self._message_worker_task is None:
-            self._message_worker_task = asyncio.create_task(
-                self._message_worker_loop(), name="ChatEventsManagerMessageWorker"
-            )
+        self._is_available = True
         logger.debug("'%s' component loaded", self.__class__.__name__)
 
     async def component_teardown(self) -> None:
         """Teardown the component. No teardown required for this component."""
+        self._is_available = False
         await self._message_queue.clear()
         if self._message_worker_task is not None:
             self._message_worker_task.cancel()
@@ -178,6 +186,11 @@ class ChatEventsManager(ComponentBase):
         Args:
             dto (ChatMessageDTO): The chat message data transfer object.
         """
+        if not self._is_available:
+            # TwitchIO events may arrive before component_load completes or after teardown starts.
+            # Events in this transient state are non-critical, so log at debug and drop them.
+            logger.debug("ChatEventsManager is not available. Cannot enqueue message id '%s'.", dto.message_id)
+            return
         if self._message_queue.full():
             logger.warning("Message queue full. Dropping message id '%s'.", dto.message_id)
             return
@@ -187,7 +200,42 @@ class ChatEventsManager(ComponentBase):
             usage: float = projected_size / maxsize
             if usage >= MESSAGE_QUEUE_USAGE_DEBUG_THRESHOLD:
                 logger.debug("Message queue usage %.0f%% (%d/%d)", usage * 100, projected_size, maxsize)
+        if not self._ensure_message_worker_running():
+            return
         await self._message_queue.put(dto)
+
+    def _ensure_message_worker_running(self) -> bool:
+        """Ensure the message worker task is running to process messages from the queue.
+
+        Returns:
+            bool: True if the worker is running or was successfully started, False if the component is unavailable.
+        """
+
+        if not self._is_available:
+            logger.warning("ChatEventsManager is not available. Cannot enqueue message.")
+            return False
+        task: asyncio.Task[None] | None = self._message_worker_task
+        if task is None or task.done():
+            if task is not None and not task.cancelled():
+                try:
+                    exc: BaseException | None = task.exception()
+                    if exc is not None:
+                        logger.error("Message worker exited with exception: %s", exc)
+                except asyncio.CancelledError:
+                    pass
+                except Exception as err:  # noqa: BLE001
+                    logger.warning("Message worker task ended unexpectedly: %s", err)
+
+            try:
+                self._message_worker_task = asyncio.create_task(
+                    self._message_worker_loop(),
+                    name="ChatEventsManagerMessageWorker",
+                )
+            except RuntimeError as err:
+                logger.error("Failed to start message worker task: %s", err)
+                self._message_worker_task = None
+                return False
+        return True
 
     async def _message_worker_loop(self) -> None:
         """Worker loop to process messages from the queue.
@@ -205,8 +253,7 @@ class ChatEventsManager(ComponentBase):
 
     async def _handle_message_task(self, dto: ChatMessageDTO) -> None:
         """Wrapper that enforces concurrency via semaphore and ensures task_done() is called."""
-        sem: asyncio.Semaphore = self._concurrency_sem or asyncio.Semaphore(MESSAGE_CONCURRENCY_DEFAULT)
-        async with sem:
+        async with self._concurrency_sem or asyncio.Semaphore(MESSAGE_CONCURRENCY_DEFAULT):
             try:
                 await self._handle_message(dto)
             except asyncio.CancelledError:
@@ -274,6 +321,9 @@ class ChatEventsManager(ComponentBase):
         await self._process_original_tts(message, trans_info)
 
         if not self.trans_manager.determine_target_language(trans_info):
+            logger.debug(
+                "No valid target language determined for message id '%s'. Skipping translation.", dto.message_id
+            )
             return
 
         if not await self.trans_manager.perform_translation(trans_info):

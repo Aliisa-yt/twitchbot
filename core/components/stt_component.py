@@ -22,17 +22,15 @@ __all__: list[str] = ["STTServiceComponent"]
 
 logger: logging.Logger = LoggerUtils.get_logger(__name__)
 
-STT_CHAT_SEND_ENABLED: bool = False  # For debugging. Always True
 STT_CONSOLE_PREFIX: str = "[STT] "
-STT_CONFIDENCE_THRESHOLD: float | None = None
 STT_RESULT_IGNORE_WORDS_DIC_FILENAME: str = "stt_result_ignore_words.dic"
 
 
 class STTServiceComponent(ComponentBase):
     """STT service component for Twitch bot.
 
-    Manages STT functionalities including initialization and teardown of STT services,
-    as well as providing commands for playback management.
+    This component manages the initialization and teardown of the STT service, processes STT results,
+    and forwards valid transcriptions to the chat events manager for further handling (e.g., TTS processing).
     """
 
     depends: ClassVar[list[str]] = ["ChatEventsManager", "TTSServiceComponent", "TranslationServiceComponent"]
@@ -40,7 +38,18 @@ class STTServiceComponent(ComponentBase):
     async def component_load(self) -> None:
         """Load the component and initialize STT services."""
         self._stt_result_ignore_words: list[str] = self._load_stt_result_ignore_words()
+
         try:
+            self._confidence_threshold: float | None = None
+            confidence_threshold: float | None = getattr(self.config.STT, "CONFIDENCE_THRESHOLD", None)
+            if confidence_threshold is not None:
+                try:
+                    self._confidence_threshold = float(confidence_threshold)
+                except (ValueError, TypeError) as err:
+                    logger.warning("Invalid STT confidence threshold in configuration: %s", err)
+                    self._confidence_threshold = None
+
+            self._debug_mode: bool = getattr(self.config.STT, "DEBUG", False)
             stt_enabled: bool = self.config.STT.ENABLED
             if isinstance(stt_enabled, bool) and stt_enabled:
                 await self.stt_manager.async_init(on_result=self._on_stt_result)
@@ -62,9 +71,18 @@ class STTServiceComponent(ComponentBase):
     async def _on_stt_result(self, result: STTResult) -> None:
         """Handle STT result forwarding.
 
-        Chat forwarding is intentionally gated by a module constant to avoid accidental
-        high-frequency posting during early-stage validation.
+        self._debug_mode is intended for development and testing purposes,
+        allowing STT results to be printed in the console instead of being forwarded to chat events.
+        This can help with verifying the STT integration and tuning confidence thresholds.
+
+        Args:
+            result (STTResult): The result from the STT service, containing the transcribed text and confidence score.
         """
+        # Although `result.text` is guaranteed to be of type `str`, we will check it just to be on the safe side.
+        if not isinstance(result.text, str):
+            logger.warning("Received STT result with non-string text: %s", result.text)
+            return
+
         text: str = result.text.strip()
         if not text:
             return
@@ -77,13 +95,13 @@ class STTServiceComponent(ComponentBase):
         if self._contains_ignored_phrase(text):
             return
 
-        if STT_CHAT_SEND_ENABLED:
-            await self.send_chat_message(text, sender=self.bot.owner_id)
-            await self._forward_stt_result_to_chat_events(text=text)
-        else:
+        if self._debug_mode:
             # For debugging
             self.print_console_message(text, header=STT_CONSOLE_PREFIX)
             self.print_console_message(str(result.confidence), header=STT_CONSOLE_PREFIX)
+        else:
+            await self.send_chat_message(text, sender=self.bot.owner_id)
+            await self._forward_stt_result_to_chat_events(text=text)
 
     def _load_stt_result_ignore_words(self) -> list[str]:
         """Load STT misrecognition phrases from dictionary file."""
@@ -112,14 +130,14 @@ class STTServiceComponent(ComponentBase):
 
     def _should_discard_by_confidence(self, confidence: float | None) -> bool:
         """Check whether STT result should be discarded by confidence score."""
-        if confidence is None or STT_CONFIDENCE_THRESHOLD is None:
+        if confidence is None or self._confidence_threshold is None:
             return False
 
-        if confidence < STT_CONFIDENCE_THRESHOLD:
+        if confidence < self._confidence_threshold:
             logger.warning(
                 "STT result discarded by confidence threshold: confidence=%s threshold=%s",
                 confidence,
-                STT_CONFIDENCE_THRESHOLD,
+                self._confidence_threshold,
             )
             return True
         return False

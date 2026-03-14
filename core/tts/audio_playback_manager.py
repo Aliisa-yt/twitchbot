@@ -8,7 +8,6 @@ It uses sounddevice for audio output and soundfile for reading audio files.
 from __future__ import annotations
 
 import asyncio
-import contextlib
 from enum import IntEnum
 from typing import TYPE_CHECKING, Final
 
@@ -247,7 +246,7 @@ class AudioPlaybackManager:
 
         def callback_fn(outdata: NDArray[Any], frames: int, time_info, status) -> None:
             _ = time_info, status
-            action = _stream_callback_logic(
+            action: _CallbackAction = _stream_callback_logic(
                 outdata,
                 frames,
                 sf=sf,
@@ -288,6 +287,22 @@ class AudioPlaybackManager:
             return False
 
         return True
+
+    def _stop_stream_safely(self, stream: sounddevice.OutputStream) -> None:
+        try:
+            stream.stop()
+        except (sounddevice.PortAudioError, OSError, RuntimeError) as err:
+            logger.debug("Ignoring audio stream stop error during cleanup: %s", err)
+        except Exception as err:  # noqa: BLE001
+            logger.warning("Unexpected error while stopping audio stream: %s", err)
+
+    def _close_stream_safely(self, stream: sounddevice.OutputStream) -> None:
+        try:
+            stream.close()
+        except (sounddevice.PortAudioError, OSError, RuntimeError) as err:
+            logger.debug("Ignoring audio stream close error during cleanup: %s", err)
+        except Exception as err:  # noqa: BLE001
+            logger.warning("Unexpected error while closing audio stream: %s", err)
 
     async def _play_sounddevice(self, file_path: Path, task_terminate_event: asyncio.Event) -> None:
         """Plays a WAV file using sounddevice.
@@ -344,10 +359,8 @@ class AudioPlaybackManager:
             self.file_manager.enqueue_file_deletion(file_path)
             # Ensure stream is closed if an error occured earlier
             if self.stream is not None:
-                with contextlib.suppress(Exception):
-                    self.stream.stop()
-                with contextlib.suppress(Exception):
-                    self.stream.close()
+                self._stop_stream_safely(self.stream)
+                self._close_stream_safely(self.stream)
                 self.stream = None
 
     @property
@@ -364,9 +377,7 @@ class AudioPlaybackManager:
     def release_audio_resources(self) -> None:
         """Releases the audio stream resources."""
         if self.stream is not None:
-            with contextlib.suppress(Exception):
-                self.stream.stop()
-            with contextlib.suppress(Exception):
-                self.stream.close()
+            self._stop_stream_safely(self.stream)
+            self._close_stream_safely(self.stream)
             self.stream = None
             logger.info("Audio stream resources released")

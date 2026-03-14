@@ -43,16 +43,16 @@ class TranslationCacheManager:
     and capacity-based LRU cleanup.
 
     Attributes:
-        TTL_TRANSLATION_DAYS (ClassVar[int]): TTL for translation cache entries.
-        TTL_LANGUAGE_DETECTION_DAYS (ClassVar[int]): TTL for language detection cache entries.
-        MAX_ENTRIES_PER_ENGINE (ClassVar[int]): Maximum cache entries per engine.
+        TTL_TRANSLATION_DAYS_DEFAULT (ClassVar[int]): Default TTL for translation cache entries.
+        TTL_LANGUAGE_DETECTION_DAYS_DEFAULT (ClassVar[int]): Default TTL for language detection cache entries.
+        MAX_ENTRIES_PER_ENGINE_DEFAULT (ClassVar[int]): Default maximum cache entries per engine.
         INFLIGHT_TIMEOUT_SEC (ClassVar[float]): In-flight request timeout in seconds.
         DB_SCHEMA_VERSION (ClassVar[int]): Cache database schema version.
     """
 
-    TTL_TRANSLATION_DAYS: ClassVar[int] = 7
-    TTL_LANGUAGE_DETECTION_DAYS: ClassVar[int] = 30
-    MAX_ENTRIES_PER_ENGINE: ClassVar[int] = 200
+    TTL_TRANSLATION_DAYS_DEFAULT: ClassVar[int] = 7
+    TTL_LANGUAGE_DETECTION_DAYS_DEFAULT: ClassVar[int] = 30
+    MAX_ENTRIES_PER_ENGINE_DEFAULT: ClassVar[int] = 200
     DB_SCHEMA_VERSION: ClassVar[int] = 1
 
     def __init__(self, config: Config) -> None:
@@ -66,7 +66,36 @@ class TranslationCacheManager:
         self._db_conn: sqlite3.Connection | None = None
         self._is_initialized: bool = False
         self._lock: asyncio.Lock = asyncio.Lock()
+
+        self._ttl_translation_days: int = self._get_cache_config_value(
+            "TTL_TRANSLATION_DAYS", self.TTL_TRANSLATION_DAYS_DEFAULT
+        )
+        self._ttl_language_detection_days: int = self._get_cache_config_value(
+            "TTL_LANGUAGE_DETECTION_DAYS", self.TTL_LANGUAGE_DETECTION_DAYS_DEFAULT
+        )
+        self._max_entries_per_engine: int = self._get_cache_config_value(
+            "MAX_ENTRIES_PER_ENGINE", self.MAX_ENTRIES_PER_ENGINE_DEFAULT
+        )
+
         logger.debug("TranslationCacheManager instance created")
+
+    def _get_cache_config_value(self, name: str, default: int) -> int:
+        """Get cache configuration value from config with validation.
+
+        Args:
+            name (str): Configuration field name.
+            default (int): Default value if config is missing or invalid.
+
+        Returns:
+            int: Configuration value from config or default.
+        """
+        section = getattr(self.config, "CACHE", None)
+        if section is not None:
+            value = getattr(section, name, default)
+            if isinstance(value, int) and value > 0:
+                return value
+        logger.warning("Invalid or missing cache config for %s, using default: %d", name, default)
+        return default
 
     @property
     def is_initialized(self) -> bool:
@@ -86,8 +115,11 @@ class TranslationCacheManager:
             # await self.cleanup_expired_entries()
             self._is_initialized = True
             logger.info("TranslationCacheManager initialized successfully")
-        except Exception as err:
+        except RuntimeError as err:
             logger.critical("Failed to initialize TranslationCacheManager: %s", err)
+            self._is_initialized = False
+        except Exception:
+            logger.exception("Unexpected error during TranslationCacheManager initialization")
             self._is_initialized = False
 
     async def component_teardown(self) -> None:
@@ -183,8 +215,8 @@ class TranslationCacheManager:
 
         try:
             async with self._lock:
-                cutoff_translation_epoch: int = TimeUtils.cutoff_epoch(self.TTL_TRANSLATION_DAYS)
-                cutoff_language_detection_epoch: int = TimeUtils.cutoff_epoch(self.TTL_LANGUAGE_DETECTION_DAYS)
+                cutoff_translation_epoch: int = TimeUtils.cutoff_epoch(self._ttl_translation_days)
+                cutoff_language_detection_epoch: int = TimeUtils.cutoff_epoch(self._ttl_language_detection_days)
 
                 cursor: sqlite3.Cursor = self._db_conn.execute(
                     "DELETE FROM translation_cache WHERE CAST(last_used_at AS INTEGER) < ?",
@@ -307,7 +339,7 @@ class TranslationCacheManager:
                     hit_count=row[9],
                 )
 
-                cutoff_epoch: int = TimeUtils.cutoff_epoch(self.TTL_TRANSLATION_DAYS)
+                cutoff_epoch: int = TimeUtils.cutoff_epoch(self._ttl_translation_days)
                 last_used_epoch: int = int(row[8])
                 if last_used_epoch < cutoff_epoch:
                     self._db_conn.execute("DELETE FROM translation_cache WHERE cache_key = ?", (cache_key,))
@@ -419,8 +451,8 @@ class TranslationCacheManager:
                 )
                 count: int = cursor.fetchone()[0]
 
-                if count > self.MAX_ENTRIES_PER_ENGINE:
-                    to_delete: int = count - self.MAX_ENTRIES_PER_ENGINE
+                if count > self._max_entries_per_engine:
+                    to_delete: int = count - self._max_entries_per_engine
                     self._db_conn.execute(
                         """
                         DELETE FROM translation_cache
@@ -480,7 +512,7 @@ class TranslationCacheManager:
                     last_used_at=TimeUtils.epoch_to_datetime(row[4]),
                 )
 
-                cutoff_epoch: int = TimeUtils.cutoff_epoch(self.TTL_LANGUAGE_DETECTION_DAYS)
+                cutoff_epoch: int = TimeUtils.cutoff_epoch(self._ttl_language_detection_days)
                 last_used_epoch: int = int(row[4])
                 if last_used_epoch < cutoff_epoch:
                     self._db_conn.execute(

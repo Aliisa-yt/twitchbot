@@ -117,8 +117,8 @@ class STTRecorder:
         normalized_start, normalized_stop = self._normalize_threshold_pair(start_level_db, stop_level_db)
         self._start_level_db: float = normalized_start
         self._stop_level_db: float = normalized_stop
-        self._start_level: float = self._normalize_level(TTSUtils.db_to_linear(normalized_start))
-        self._stop_level: float = self._normalize_level(TTSUtils.db_to_linear(normalized_stop))
+        self._start_level: float = self._normalize_level(TTSUtils.log_to_linear(normalized_start))
+        self._stop_level: float = self._normalize_level(TTSUtils.log_to_linear(normalized_stop))
         self._pre_buffer_ms: int = max(0, int(pre_buffer_ms))
         self._post_buffer_ms: int = max(0, int(post_buffer_ms))
         self._max_segment_sec: int = max(1, int(max_segment_sec))
@@ -178,8 +178,8 @@ class STTRecorder:
         applied_start, applied_stop = self._normalize_threshold_pair(start_level_db, stop_level_db)
         self._start_level_db = applied_start
         self._stop_level_db = applied_stop
-        self._start_level = self._normalize_level(TTSUtils.db_to_linear(applied_start))
-        self._stop_level = self._normalize_level(TTSUtils.db_to_linear(applied_stop))
+        self._start_level = self._normalize_level(TTSUtils.log_to_linear(applied_start))
+        self._stop_level = self._normalize_level(TTSUtils.log_to_linear(applied_stop))
 
     def set_mute(self, *, mute: bool) -> None:
         if mute and not self._muted:
@@ -399,7 +399,7 @@ class STTRecorder:
             index_label = ",".join(str(value) for value in indices)
             formatted_inputs.append(f"  - [{index_label}] {device_name} (in={max_input_channels})")
 
-        joined_devices = "\n".join(formatted_inputs)
+        joined_devices: str = "\n".join(formatted_inputs)
         logger.warning(
             "Available STT input devices (configured=%s, unique=%d):\n%s",
             configured_device,
@@ -408,14 +408,23 @@ class STTRecorder:
         )
 
     def _close_input_stream(self) -> None:
-        stream = self._stream
+        stream: sd.InputStream | None = self._stream
         self._stream = None
         if stream is None:
             return
-        with contextlib.suppress(Exception):  # noqa: BLE001
+        try:
             stream.stop()
-        with contextlib.suppress(Exception):  # noqa: BLE001
+        except (sd.PortAudioError, OSError) as err:
+            logger.debug("Ignoring STT input stream stop error during shutdown: %s", err)
+        except Exception as err:  # noqa: BLE001
+            logger.warning("Unexpected error while stopping STT input stream: %s", err)
+
+        try:
             stream.close()
+        except (sd.PortAudioError, OSError) as err:
+            logger.debug("Ignoring STT input stream close error during shutdown: %s", err)
+        except Exception as err:  # noqa: BLE001
+            logger.warning("Unexpected error while closing STT input stream: %s", err)
 
     @staticmethod
     def _resolve_input_device(input_device: str | int | None) -> str | int | None:
@@ -644,8 +653,8 @@ class STTRecorder:
 
     @classmethod
     def _normalize_threshold_pair(cls, start_level_db: float, stop_level_db: float) -> tuple[float, float]:
-        start = cls._clamp_level_db(start_level_db)
-        stop = cls._clamp_level_db(stop_level_db)
+        start: float = cls._clamp_level_db(start_level_db)
+        stop: float = cls._clamp_level_db(stop_level_db)
         if start < stop:
             return stop, start
         return start, stop

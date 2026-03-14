@@ -55,6 +55,7 @@ async def test_component_load_initializes_worker_and_semaphore() -> None:
 
     with patch("core.components.chat_events.asyncio.create_task", return_value=fake_task) as mocked_create_task:
         await bundle.cog.component_load()
+        bundle.cog._ensure_message_worker_running()
 
     assert bundle.cog._message_worker_task is fake_task
     assert bundle.cog._concurrency_sem is not None
@@ -177,9 +178,11 @@ async def test_message_worker_loop_spawns_task_for_each_dto() -> None:
 
     bundle.cog._message_queue.get = AsyncMock(side_effect=[dto, asyncio.CancelledError()])
 
-    with patch("core.components.chat_events.asyncio.create_task", return_value=fake_task) as mocked_create_task:
-        with pytest.raises(asyncio.CancelledError):
-            await bundle.cog._message_worker_loop()
+    with (
+        patch("core.components.chat_events.asyncio.create_task", return_value=fake_task) as mocked_create_task,
+        pytest.raises(asyncio.CancelledError),
+    ):
+        await bundle.cog._message_worker_loop()
 
     mocked_create_task.assert_called_once()
     assert fake_task in bundle.cog._spawned_tasks
@@ -224,6 +227,7 @@ async def test_event_chat_clear_skips_cancel_when_not_playing() -> None:
 async def test_enqueue_message_drops_newest_on_overflow() -> None:
     bundle: SimpleNamespace = _make_cog_bundle()
     bundle.cog._message_queue = ExcludableQueue(maxsize=2)
+    await bundle.cog.component_load()
 
     await bundle.cog._enqueue_message(ChatMessageDTO(message_id="1"))
     await bundle.cog._enqueue_message(ChatMessageDTO(message_id="2"))

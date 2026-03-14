@@ -26,8 +26,11 @@
 |:---:| --- |
 | str | 文字列。必ず `""` で囲み、大文字小文字を区別します。 |
 | int | 整数値。数値のみ記述します。 |
+| float | 浮動小数点数です。 |
 | bool | 真偽値。`True` または `False` のいずれかを指定します。 |
 | list[str] | 文字列の配列。例: 空は `[]`、2 個なら `["foo", "bar"]` のように記述します。 |
+| dict[str:str] | キーと値が文字列の辞書です。 |
+| list[dict[str:str]] | 音声・話者設定で使う辞書配列です。 |
 
 ---
 
@@ -93,8 +96,48 @@
 | LIMIT_SAME_EMOTE | int | 同一エモートの読み上げ上限数。0 で無制限です。 |
 | LIMIT_TOTAL_EMOTES | int | エモートの読み上げ上限数。0 で無制限です。 |
 | LIMIT_CHARACTERS | int | 読み上げる文字数上限。0 で無制限です。 |
-| LIMIT_TIME | int | 読み上げる時間（秒）上限。0 で無制限です。 |
+| LIMIT_TIME | float | 読み上げる時間（秒）上限。`0` で無制限です。 |
 | ALLOW_TTS_TWEAK | bool | `True`: 音声パラメータ一時変更コマンドを許可します。<br>`False`: 許可しません。 |
+
+### [STT]
+
+| 項目 | 型 | 説明 |
+| --- |:---:| --- |
+| DEBUG | bool | `True`: STT のデバッグログを増やします。<br>`False`: 通常ログで動作します。 |
+| ENABLED | bool | `True`: STT パイプラインを有効化します。<br>`False`: 無効化します。 |
+| ENGINE | str | STT エンジン名（例: `google_cloud_stt`）。 |
+| INPUT_DEVICE | str | 入力デバイス名/ID（`default` はシステム既定デバイス）。 |
+| SAMPLE_RATE | int | 入力サンプルレート（Hz）。 |
+| CHANNELS | int | 入力チャンネル数。 |
+| START_LEVEL | float | 音声セグメント開始判定しきい値（dBFS）。 |
+| STOP_LEVEL | float | 音声セグメント終了判定しきい値（dBFS）。 |
+| PRE_BUFFER_MS | int | 発話開始前に保持するバッファ長（ミリ秒）。 |
+| POST_BUFFER_MS | int | 発話終了後に保持するバッファ長（ミリ秒）。 |
+| MAX_SEGMENT_SEC | int | 音声セグメント最大長（秒）。 |
+| MUTE | bool | `True`: 対応範囲で検知処理を維持しつつ STT 入力をミュートします。<br>`False`: 通常キャプチャします。 |
+| LANGUAGE | str | STT 言語ロケール（例: `ja-JP`）。 |
+| INTERIM_RESULT | bool | `True`: 対応エンジンで中間認識結果を利用します。<br>`False`: 最終結果のみ利用します。 |
+| FORWARD_TO_TTS | bool / None | STT 結果を TTS へ転送するかを制御します。`None` は内部既定動作を使います。 |
+| RETRY_MAX | int | STT 初期化/再接続時の最大再試行回数。 |
+| RETRY_BACKOFF_MS | int | 再試行間隔のバックオフ時間（ミリ秒）。 |
+| GOOGLE_CLOUD_STT_V2_LOCATION | str | Google Cloud STT v2 のロケーション（例: `global`）。 |
+| GOOGLE_CLOUD_STT_V2_MODEL | str | Google Cloud STT v2 の認識モデル名。 |
+| GOOGLE_CLOUD_STT_V2_RECOGNIZER | str | Google Cloud STT v2 の recognizer 指定用ショートカット。 |
+| CONFIDENCE_THRESHOLD | float / None | 認識結果を採用する最小信頼度。`None` は信頼度しきい値フィルタを無効化します。 |
+
+### [CACHE]
+
+| 項目 | 型 | 説明 |
+| --- |:---:| --- |
+| TTL_TRANSLATION_DAYS | int | 翻訳キャッシュの保持日数です。 |
+| TTL_LANGUAGE_DETECTION_DAYS | int | 言語判定キャッシュの保持日数です。 |
+| MAX_ENTRIES_PER_ENGINE | int | 翻訳エンジンごとのキャッシュ最大件数です。 |
+
+### [GUI]
+
+| 項目 | 型 | 説明 |
+| --- |:---:| --- |
+| LEVEL_METER_REFRESH_RATE | int | レベルメーターの更新レート（fps）です。 |
 
 ### [TTS_FORMAT]
 

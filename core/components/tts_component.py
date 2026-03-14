@@ -1,3 +1,9 @@
+"""TTS service component for Twitch bot.
+
+Manages TTS functionalities including initialization and teardown of TTS services,
+as well as providing commands for playback management.
+"""
+
 from __future__ import annotations
 
 from contextlib import suppress
@@ -50,10 +56,10 @@ class TTSServiceComponent(ComponentBase):
         """
         logger.debug("Command 'skip' invoked by user: %s", context.author.name)
 
-        if self.shared is None:
-            return
-
         if self.tts_manager.playback_manager.is_playing:
             await self.tts_manager.playback_manager.cancel_playback()
             logger.debug("Current playback cancelled.")
             await context.send("Current playback cancelled.")
+        else:
+            logger.debug("No active playback to skip.")
+            await context.send("No active playback to skip.")

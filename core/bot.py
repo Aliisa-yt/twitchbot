@@ -265,8 +265,8 @@ class Bot(commands.Bot):
             await self.remove_component(component.__class__.__name__)
         except ValueError as err:
             logger.error("Failed to detach component %s: %s", component.__class__.__name__, err)
-        except Exception as err:  # noqa: BLE001
-            logger.error("Unexpected error while detaching component %s: %s", component.__class__.__name__, err)
+        except Exception:  # noqa: BLE001
+            logger.exception("Unexpected error while detaching component %s", component.__class__.__name__)
         else:
             logger.debug("Successfully detached component: %s", component.__class__.__name__)
         finally:
@@ -298,8 +298,8 @@ class Bot(commands.Bot):
 
             if not self.config.BOT.DONT_LOGIN_MESSAGE:
                 await self.send_chat_message(self.config.BOT.LOGIN_MESSAGE, header="/me ")
-        except Exception:  # noqa: BLE001
-            logger.exception("Error during event_ready")
+        except twitchio.HTTPException as err:
+            logger.error("TwitchIO HTTP error during event_ready: %s", err)
 
     async def _subscribe_to_chat_events(self) -> None:
         """Subscribe to chat messages and events for the bot's owner.

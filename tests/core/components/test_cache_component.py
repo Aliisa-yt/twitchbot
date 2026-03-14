@@ -99,9 +99,8 @@ async def test_cache_export_prints_success_message(cache_bundle: SimpleNamespace
 
     await cache_bundle.component.cache_export.callback(cache_bundle.component, context)
 
-    cache_bundle.bot.print_console_message.assert_called_once_with(
-        "Cache data exported to: cache_export.log", header=None, footer=None
-    )
+    sent_lines: list[str] = [call.args[0] for call in cache_bundle.bot.print_console_message.call_args_list]
+    assert any("Cache data exported to: " in line for line in sent_lines)
 
 
 @pytest.mark.asyncio

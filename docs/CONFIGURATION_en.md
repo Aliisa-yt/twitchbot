@@ -26,8 +26,11 @@ Section names and keys are recommended to be uppercase. Lines starting with `#` 
 |:---:| --- |
 | str | String. Must be enclosed in `""` and is case-sensitive. |
 | int | Integer. Only numeric values. |
+| float | Floating-point number. |
 | bool | Boolean. Either `True` or `False`. |
 | list[str] | Array of strings. Example: empty is `[]`, two items: `["foo", "bar"]`. |
+| dict[str:str] | String-key and string-value dictionary. |
+| list[dict[str:str]] | Array of dictionaries used for voice/cast settings. |
 
 ---
 
@@ -93,8 +96,48 @@ Section names and keys are recommended to be uppercase. Lines starting with `#` 
 | LIMIT_SAME_EMOTE | int | Maximum number of same emote reads. 0 means unlimited. |
 | LIMIT_TOTAL_EMOTES | int | Maximum number of total emote reads. 0 means unlimited. |
 | LIMIT_CHARACTERS | int | Maximum character count for TTS. 0 means unlimited. |
-| LIMIT_TIME | int | Maximum time (seconds) for TTS. 0 means unlimited. |
+| LIMIT_TIME | float | Maximum time (seconds) for TTS. `0` means unlimited. |
 | ALLOW_TTS_TWEAK | bool | `True`: Allows voice parameter temporary modification commands.<br>`False`: Does not allow. |
+
+### [STT]
+
+| Item | Type | Description |
+| --- |:---:| --- |
+| DEBUG | bool | `True`: Enables additional STT debug logs.<br>`False`: Uses normal logging. |
+| ENABLED | bool | `True`: Enables STT pipeline.<br>`False`: Disables STT. |
+| ENGINE | str | STT engine name (for example `google_cloud_stt`). |
+| INPUT_DEVICE | str | Input device name/id (`default` uses system default input device). |
+| SAMPLE_RATE | int | Input sample rate in Hz. |
+| CHANNELS | int | Input channel count. |
+| START_LEVEL | float | Start threshold (dBFS) to begin a speech segment. |
+| STOP_LEVEL | float | Stop threshold (dBFS) to close a speech segment. |
+| PRE_BUFFER_MS | int | Pre-buffer size (ms) kept before speech start. |
+| POST_BUFFER_MS | int | Post-buffer size (ms) kept after speech end. |
+| MAX_SEGMENT_SEC | int | Maximum speech segment length in seconds. |
+| MUTE | bool | `True`: Mutes STT source while keeping detection pipeline active where supported.<br>`False`: Normal capture. |
+| LANGUAGE | str | STT language locale (for example `ja-JP`). |
+| INTERIM_RESULT | bool | `True`: Uses interim/partial recognition results where supported.<br>`False`: Final results only. |
+| FORWARD_TO_TTS | bool / None | Controls whether STT results are forwarded to TTS. `None` uses internal default behavior. |
+| RETRY_MAX | int | Maximum retry attempts for STT initialization/reconnect flow. |
+| RETRY_BACKOFF_MS | int | Backoff time (ms) between retries. |
+| GOOGLE_CLOUD_STT_V2_LOCATION | str | Google Cloud STT v2 location (for example `global`). |
+| GOOGLE_CLOUD_STT_V2_MODEL | str | Google Cloud STT v2 recognition model. |
+| GOOGLE_CLOUD_STT_V2_RECOGNIZER | str | Google Cloud STT v2 recognizer resource shortcut. |
+| CONFIDENCE_THRESHOLD | float / None | Minimum confidence required to accept a recognition result. `None` disables threshold filtering. |
+
+### [CACHE]
+
+| Item | Type | Description |
+| --- |:---:| --- |
+| TTL_TRANSLATION_DAYS | int | Translation cache TTL in days. |
+| TTL_LANGUAGE_DETECTION_DAYS | int | Language detection cache TTL in days. |
+| MAX_ENTRIES_PER_ENGINE | int | Maximum cached entries per translation engine. |
+
+### [GUI]
+
+| Item | Type | Description |
+| --- |:---:| --- |
+| LEVEL_METER_REFRESH_RATE | int | Level meter refresh rate (fps). |
 
 ### [TTS_FORMAT]
 

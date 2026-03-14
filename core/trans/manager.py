@@ -276,7 +276,7 @@ class TransManager:
                 # so we assign "en" as the language code and skip translation.
                 logger.info("Unverifiable content. Assigned language: 'en'.")
                 trans_info.src_lang = "en"
-                trans_info.tgt_lang = "en"
+                trans_info.tgt_lang = ""  # No translation target since we treat it as non-translatable.
                 trans_info.translated_text = trans_info.content
                 trans_info.is_translate = False
             elif src_lang is None:
