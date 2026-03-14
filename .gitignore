@@ -8,6 +8,9 @@ __pycache__/
 # User Configuration (keep example files)
 twitchbot.ini
 
+# Temporary Documentation
+docs/_*/
+
 # VSCode
 .vscode/
 *.code-workspace
@@ -38,6 +41,7 @@ tmp_*/
 tokens.json
 
 # Virtual Environments
+.venv/
 venv/
 __pypackages__/
 
