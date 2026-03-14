@@ -63,6 +63,10 @@ class STTManager:
         on_level_event: LevelEventCallback | None = None,
     ) -> None:
         """Initialize STT manager and start background processor task."""
+        if self._enabled:
+            logger.warning("STT manager is already initialized")
+            return
+
         if on_level_event is not None:
             self._on_level_event = on_level_event
 
@@ -187,6 +191,7 @@ class STTManager:
 
     async def close(self) -> None:
         """Gracefully terminate STT background tasks."""
+        self._enabled = False
         self._terminate_event.set()
         self._segment_queue.shutdown()
 
@@ -214,6 +219,9 @@ class STTManager:
 
         _ = done_tasks
         self._background_tasks.clear()
+        self._processor = None
+        self._recorder = None
+        self._engine = None
 
     async def enqueue_silence_segment_for_test(self, duration_sec: float = 1.0) -> None:
         """Enqueue silence segment for pipeline tests without microphone input."""
