@@ -60,6 +60,14 @@ RETRY_BACKOFF_MS = 500
 GOOGLE_CLOUD_STT_V2_LOCATION = "global"
 GOOGLE_CLOUD_STT_V2_MODEL = "latest_short"
 GOOGLE_CLOUD_STT_V2_RECOGNIZER = "_"
+CONFIDENCE_THRESHOLD = 0.0
+
+# ==================== Cache settings ====================
+[CACHE]
+TTL_TRANSLATION_DAYS = 7
+TTL_LANGUAGE_DETECTION_DAYS = 30
+MAX_ENTRIES_PER_ENGINE = 200
+EXPORT_PATH = "cache_export.log"
 
 # ==================== GUI settings ====================
 
