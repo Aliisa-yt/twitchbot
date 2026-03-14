@@ -39,40 +39,35 @@ class TTSManager:
         """
         logger.debug("Initializing TTSManager with config")
         self.config: Config = config
+        self.parameter_manager = ParameterManager(config)
+        self._reset_runtime_managers()
 
-        # Initialize queues for TTS synthesis and playback
+        # Set to keep track of background tasks
+        # This set is used to manage and monitor the background tasks that are running.
+        self.background_tasks: set[asyncio.Task[None]] = set()
+
+        # Interface.configure_audio_save_path(config.GENERAL.TMP_DIR)
+        Interface.audio_save_directory = config.GENERAL.TMP_DIR
+        logger.debug("Registered TTS classes: %s", Interface.get_registered())
+
+    def _reset_runtime_managers(self) -> None:
+        """Recreate runtime primitives and managers used by background tasks."""
         # `ExcludableQueue` is used to allow for safe concurrent access
         # and to prevent deadlocks when multiple tasks are trying to access the queue.
         self.synthesis_queue: ExcludableQueue[TTSParam] = ExcludableQueue()
         self.playback_queue: ExcludableQueue[TTSParam] = ExcludableQueue()
         self.deletion_queue: asyncio.Queue[Path] = asyncio.Queue()
 
-        # Event to signal task termination
         # This event is used to gracefully shut down the TTS processing tasks.
         # When set, it will allow the tasks to exit their loops and clean up resources.
         self.task_terminate_event: asyncio.Event = asyncio.Event()
 
-        # Initialize managers for TTS parameters, synthesis, and playback
-        # These managers handle the respective functionalities of the TTS system.
-        # `ParameterManager` manages voice parameters and user types.
-        # `SynthesisManager` handles the TTS synthesis process.
-        # `AudioPlaybackManager` manages the playback of synthesized audio.
         self.file_manager = TTSFileManager(self.deletion_queue)
-        self.parameter_manager = ParameterManager(config)
-        self.synthesis_manager = SynthesisManager(config, self.synthesis_queue, self.playback_queue)
+        self.synthesis_manager = SynthesisManager(self.config, self.synthesis_queue, self.playback_queue)
         self.playback_manager = AudioPlaybackManager(
-            config, self.file_manager, self.playback_queue, self.task_terminate_event
+            self.config, self.file_manager, self.playback_queue, self.task_terminate_event
         )
-
-        # Set to keep track of background tasks
-        # This set is used to manage and monitor the background tasks that are running.
-        self.background_tasks: set[asyncio.Task[None]] = set()
-
-        # Register TTS classes and set up the interface
         Interface.play_callback = self.synthesis_manager.add_to_playback_queue
-        # Interface.configure_audio_save_path(config.GENERAL.TMP_DIR)
-        Interface.audio_save_directory = config.GENERAL.TMP_DIR
-        logger.debug("Registered TTS classes: %s", Interface.get_registered())
 
     async def initialize(self) -> None:
         """Initialize the TTSManager and start background tasks."""
@@ -82,6 +77,11 @@ class TTSManager:
         if self.background_tasks:
             logger.warning("TTSManager is already initialized")
             return
+
+        # Recreate runtime primitives when reopening after close().
+        if self.task_terminate_event.is_set():
+            logger.debug("Recreating TTS runtime managers after previous shutdown")
+            self._reset_runtime_managers()
 
         tasks: list[asyncio.Task[None]] = [
             asyncio.create_task(
@@ -123,6 +123,9 @@ class TTSManager:
                 logger.debug("Task '%s' completed successfully", task.get_name())
         if remaining_tasks:
             logger.warning("Some tasks are still pending: %s", [task.get_name() for task in remaining_tasks])
+            for task in remaining_tasks:
+                task.cancel()
+            await asyncio.gather(*remaining_tasks, return_exceptions=True)
 
         # Clean up the background tasks
         # This will remove completed tasks from the set and cancel any pending tasks.
