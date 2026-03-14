@@ -302,19 +302,19 @@ class ConfigLoader:
         def check_param_sub(param: str) -> tuple[str, int]:
             param = param.strip().lower()
             if len(param) < 2:
-                msg: str = f"Invalid parameter format: '{param}'"
+                msg = f"Invalid parameter format: '{param}'"
                 raise ConfigValueError(msg)
 
             _typ, _val = param[0], param[1:]
             if _typ not in ("a", "i", "s", "t", "v"):
-                msg: str = f"Unknown parameter type: '{_typ}' in '{param}'"
+                msg = f"Unknown parameter type: '{_typ}' in '{param}'"
                 raise ConfigValueError(msg)
 
             try:
                 num_val: int = int(_val) if _val.isdigit() else int(float(_val) * 100)
             except ValueError as err:
                 logger.error("Failed to parse parameter value: %s.", err)
-                msg: str = f"Invalid parameter value: {err}"
+                msg = f"Invalid parameter value: {err}"
                 raise ConfigValueError(msg) from None
             else:
                 return _typ, num_val
