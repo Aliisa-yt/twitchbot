@@ -146,8 +146,8 @@ class TransManager:
             error_message = "No translation engines currently available"
             raise TranslateExceptionError(error_message) from err
         except KeyError as err:
-            logger.debug("Invalid translation engine key: %s", err)
-            error_message: str = f"Invalid translation engine key: {err}"
+            logger.debug("Invalid translation engine name: %s", err)
+            error_message: str = f"Invalid translation engine name: {err}"
             raise TranslateExceptionError(error_message) from err
 
     def refresh_active_engine_list(self) -> None:
@@ -373,6 +373,8 @@ class TransManager:
             return False
         except TranslateExceptionError as err:
             return self._handle_translation_failure(trans_info, err, context="In-flight translation")
+        except Exception as err:  # noqa: BLE001
+            return self._handle_translation_failure(trans_info, err, context="In-flight translation")
 
         if started is None:
             return None
@@ -467,6 +469,9 @@ class TransManager:
             await self.write_translation_cache(trans_info)
             await self._store_inflight_result(hash_key, result)
         except TranslateExceptionError as err:
+            await self._store_inflight_exception(hash_key, err)
+            return self._handle_translation_failure(trans_info, err, context="Translation")
+        except Exception as err:  # noqa: BLE001
             await self._store_inflight_exception(hash_key, err)
             return self._handle_translation_failure(trans_info, err, context="Translation")
         else:
