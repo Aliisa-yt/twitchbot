@@ -140,11 +140,12 @@ async def test_handle_message_task_calls_task_done_on_handler_error() -> None:
     bundle: SimpleNamespace = _make_cog_bundle()
     dto = ChatMessageDTO(message_id="msg-2")
 
-    bundle.cog._concurrency_sem = asyncio.Semaphore(1)
+    semaphore = asyncio.Semaphore(1)
+    await semaphore.acquire()
     bundle.cog._handle_message = AsyncMock(side_effect=RuntimeError("boom"))
     bundle.cog._message_queue.task_done = MagicMock()
 
-    await bundle.cog._handle_message_task(dto)
+    await bundle.cog._handle_message_task(dto, semaphore)
 
     bundle.cog._message_queue.task_done.assert_called_once()
 
@@ -176,6 +177,7 @@ async def test_message_worker_loop_spawns_task_for_each_dto() -> None:
     dto = ChatMessageDTO(message_id="msg-3")
     fake_task = MagicMock(spec=asyncio.Task)
 
+    bundle.cog._concurrency_sem = asyncio.Semaphore(1)
     bundle.cog._message_queue.get = AsyncMock(side_effect=[dto, asyncio.CancelledError()])
 
     with (
@@ -187,6 +189,41 @@ async def test_message_worker_loop_spawns_task_for_each_dto() -> None:
     mocked_create_task.assert_called_once()
     assert fake_task in bundle.cog._spawned_tasks
     fake_task.add_done_callback.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_enqueue_message_drops_when_component_unavailable() -> None:
+    bundle: SimpleNamespace = _make_cog_bundle()
+    dto = ChatMessageDTO(message_id="msg-unavailable")
+
+    bundle.cog._is_available = False
+    bundle.cog._ensure_message_worker_running = MagicMock(return_value=True)
+
+    await bundle.cog._enqueue_message(dto)
+
+    assert bundle.cog._message_queue.empty()
+    bundle.cog._ensure_message_worker_running.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_message_worker_loop_drops_message_when_semaphore_not_initialized() -> None:
+    bundle: SimpleNamespace = _make_cog_bundle()
+    dto = ChatMessageDTO(message_id="msg-no-semaphore")
+
+    bundle.cog._concurrency_sem = None
+    bundle.cog._message_queue.get = AsyncMock(side_effect=[dto, asyncio.CancelledError()])
+    bundle.cog._message_queue.task_done = MagicMock()
+
+    with (
+        patch("core.components.chat_events.asyncio.create_task") as mocked_create_task,
+        patch("core.components.chat_events.logger.error") as mocked_logger,
+        pytest.raises(asyncio.CancelledError),
+    ):
+        await bundle.cog._message_worker_loop()
+
+    mocked_create_task.assert_not_called()
+    bundle.cog._message_queue.task_done.assert_called_once()
+    mocked_logger.assert_called_once()
 
 
 @pytest.mark.asyncio
