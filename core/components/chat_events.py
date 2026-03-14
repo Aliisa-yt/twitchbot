@@ -74,6 +74,17 @@ class ChatEventsManager(ComponentBase):
         try:
             max_concurrent = int(max_concurrent)
         except (ValueError, TypeError):
+            logger.warning(
+                "Invalid MAX_CONCURRENT_MESSAGES value '%s'. Falling back to default: %d",
+                max_concurrent,
+                MESSAGE_CONCURRENCY_DEFAULT,
+            )
+            max_concurrent = MESSAGE_CONCURRENCY_DEFAULT
+        if max_concurrent < 1:
+            logger.warning(
+                "MAX_CONCURRENT_MESSAGES must be >= 1. Falling back to default: %d",
+                MESSAGE_CONCURRENCY_DEFAULT,
+            )
             max_concurrent = MESSAGE_CONCURRENCY_DEFAULT
         self._concurrency_sem = asyncio.Semaphore(max_concurrent)
         self._is_available = True
@@ -244,27 +255,36 @@ class ChatEventsManager(ComponentBase):
         """
         while True:
             dto: ChatMessageDTO = await self._message_queue.get()
+            semaphore: asyncio.Semaphore | None = self._concurrency_sem
+            if semaphore is None:
+                logger.error("Concurrency semaphore is not initialized. Dropping message id '%s'.", dto.message_id)
+                with contextlib.suppress(ValueError, RuntimeError):
+                    self._message_queue.task_done()
+                continue
+
+            await semaphore.acquire()
             # spawn a background task per message; concurrency is limited by semaphore
             task: asyncio.Task[None] = asyncio.create_task(
-                self._handle_message_task(dto), name=f"ChatEventsManagerMessageTask-{dto.message_id}"
+                self._handle_message_task(dto, semaphore),
+                name=f"ChatEventsManagerMessageTask-{dto.message_id}",
             )
             self._spawned_tasks.add(task)
             task.add_done_callback(self._task_done_callback)
 
-    async def _handle_message_task(self, dto: ChatMessageDTO) -> None:
+    async def _handle_message_task(self, dto: ChatMessageDTO, semaphore: asyncio.Semaphore) -> None:
         """Wrapper that enforces concurrency via semaphore and ensures task_done() is called."""
-        async with self._concurrency_sem or asyncio.Semaphore(MESSAGE_CONCURRENCY_DEFAULT):
-            try:
-                await self._handle_message(dto)
-            except asyncio.CancelledError:
-                raise
-            except Exception as err:  # noqa: BLE001 - isolate handler failures
-                logger.error("Message handler task error: %s", err)
-            finally:
-                # mark queue item as processed when the background task finishes
-                # suppress ValueError (double task_done) and RuntimeError (queue edge cases)
-                with contextlib.suppress(ValueError, RuntimeError):
-                    self._message_queue.task_done()
+        try:
+            await self._handle_message(dto)
+        except asyncio.CancelledError:
+            raise
+        except Exception as err:  # noqa: BLE001 - isolate handler failures
+            logger.error("Message handler task error: %s", err)
+        finally:
+            semaphore.release()
+            # mark queue item as processed when the background task finishes
+            # suppress ValueError (double task_done) and RuntimeError (queue edge cases)
+            with contextlib.suppress(ValueError, RuntimeError):
+                self._message_queue.task_done()
 
     def _task_done_callback(self, task: asyncio.Task[None]) -> None:
         """Callback for spawned tasks to remove them from tracking and log exceptions."""
