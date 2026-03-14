@@ -2,7 +2,14 @@
 
 # Twitchbot
 
-Translation + TTS bot for Twitch chat. It subscribes to chat events, translates messages, and can read them aloud using the configured TTS engines. The entry point is `twitchbot.py`, which wires config, OAuth, translation, TTS, and bot components.
+Modular Twitch chat bot with translation, TTS, STT, cache, and GUI support. It subscribes to chat events, translates messages, optionally reads them aloud, and can forward speech recognition results into the TTS pipeline. The entry point is `twitchbot.py`, which wires config, OAuth, and all feature components.
+
+## Feature Modules
+- Translation module: Multi-engine translation (`google`, `deepl`, `google_cloud`) with language detection flow.
+- TTS module: Role-based cast settings (`CAST`) and per-engine runtime settings (`CEVIO_AI`, `VOICEVOX`, etc.).
+- STT module: Optional speech-to-text input pipeline (`STT`) with retry/backoff and confidence filtering.
+- Cache module: Translation and language-detection cache controls (`CACHE`) for TTL and entry limits.
+- GUI module: Optional desktop status/level meter (`GUI`) with configurable refresh rate.
 
 ## Setup
 - Python 3.13+
@@ -45,11 +52,16 @@ The output executable will be in the `dist/twitchbot/` directory.
 
 For detailed configuration options, refer to [CONFIGURATION_en.md](docs/CONFIGURATION_en.md).
 
-Key configuration areas:
-- **Translation engines**: Google, DeepL, Google Cloud
-- **TTS parameters**: Voice selection, speed, tone, volume
-- **Chat formatting**: Display name, language codes, emotes
-- **Time signals**: Scheduled announcements
+Key configuration sections in `twitchbot.ini`:
+- **[GENERAL], [TWITCH], [BOT]**: Debug behavior, owner/bot identity, and chat output behavior.
+- **[TRANSLATION]**: Engine priority and language pair settings.
+- **[DICTIONARY]**: Katakana/romaji conversion dictionaries used by text normalization.
+- **[TTS], [TTS_FORMAT], [CAST]**: TTS enablement, formatting templates, and role-based voice assignment.
+- **[STT]**: Speech-to-text engine, input thresholds/buffers, retry policy, and forwarding behavior to TTS.
+- **[CACHE]**: Cache TTL and maximum entry limits per engine.
+- **[GUI]**: GUI meter update rate.
+- **[CEVIO_AI], [CEVIO_CS7], [BOUYOMICHAN], [VOICEVOX], [COEIROINK], [COEIROINK2]**: Per-engine connection/startup options.
+- **[TIME_SIGNAL]**: Scheduled time announcements.
 
 ## Development
 
