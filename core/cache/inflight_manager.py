@@ -26,6 +26,7 @@ class InFlightManager:
         INFLIGHT_TIMEOUT_SEC (float): Timeout duration in seconds for waiting on in-flight translations.
     """
 
+    # Set it to a time that is slightly longer than 90% of translation API response times.
     INFLIGHT_TIMEOUT_SEC: ClassVar[float] = 2.0
 
     def __init__(self) -> None:
@@ -111,9 +112,6 @@ class InFlightManager:
             cache_key (str | None): Cache key for the translation request.
             result (Result): The translation result to store.
         """
-        # if not self._is_initialized:
-        #     return
-
         if not cache_key:
             logger.warning("Attempted to store in-flight result with empty cache key")
             return
@@ -135,9 +133,6 @@ class InFlightManager:
             cache_key (str | None): Cache key for the translation request.
             exc (Exception): The exception to store.
         """
-        # if not self._is_initialized:
-        #     return
-
         if not cache_key:
             logger.warning("Attempted to store in-flight exception with empty cache key")
             return
