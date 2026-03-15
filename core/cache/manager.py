@@ -53,6 +53,9 @@ class TranslationCacheManager:
     TTL_TRANSLATION_DAYS_DEFAULT: ClassVar[int] = 7
     TTL_LANGUAGE_DETECTION_DAYS_DEFAULT: ClassVar[int] = 30
     MAX_ENTRIES_PER_ENGINE_DEFAULT: ClassVar[int] = 200
+
+    # NOTE: When the database structure is changed, update the version number and
+    #       add migration functionality to maintain compatibility.
     DB_SCHEMA_VERSION: ClassVar[int] = 1
 
     def __init__(self, config: Config) -> None:
