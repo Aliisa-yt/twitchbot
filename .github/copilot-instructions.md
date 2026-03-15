@@ -2,9 +2,9 @@
 
 ## 基本方針
 - このファイルは **プロジェクト全体で共通のルールのみ** を記載する。
-- コンポーネント別・ドメイン別の詳細仕様は、各 `.github/skills/*/SKILL.md` を正とする。
+- コンポーネント別・ドメイン別の詳細仕様は、各 `.github/skills/*/SKILL.md` を一次情報とする。
 - 共通ルールと SKILL が競合する場合、**SKILL を優先** する。
-- SKILL 同士が競合する場合は、以下の優先順位で判断する。
+- SKILL 同士が競合する場合は、次の優先順位を上から順に適用する。
   1. 変更対象に最も近いドメイン SKILL（例: `tts-engine-spec`）
   2. 横断 SKILL（例: `manager-common`, `interface-spec`）
   3. 本ファイル（`copilot-instructions.md`）
@@ -17,27 +17,29 @@
 
 ## SKILL 参照先
 - チャットイベントフロー: [.github/skills/chat-events-flow/SKILL.md](skills/chat-events-flow/SKILL.md)
+- レビュー: [.github/skills/code-review/SKILL.md](skills/code-review/SKILL.md)
 - 翻訳マネージャー: [.github/skills/translation-manager/SKILL.md](skills/translation-manager/SKILL.md)
 - 翻訳エンジン仕様: [.github/skills/translation-engine-spec/SKILL.md](skills/translation-engine-spec/SKILL.md)
 - TTS マネージャー: [.github/skills/tts-manager/SKILL.md](skills/tts-manager/SKILL.md)
 - TTS エンジン仕様: [.github/skills/tts-engine-spec/SKILL.md](skills/tts-engine-spec/SKILL.md)
 - STT サービス: [.github/skills/stt-service/SKILL.md](skills/stt-service/SKILL.md)
+- 設定ローダー仕様: [.github/skills/config-loader-spec/SKILL.md](skills/config-loader-spec/SKILL.md)
 - キャッシュ / in-flight: [.github/skills/cache-inflight/SKILL.md](skills/cache-inflight/SKILL.md)
 - コンポーネント仕様: [.github/skills/component-spec/SKILL.md](skills/component-spec/SKILL.md)
-- interface 仕様: [.github/skills/interface-spec/SKILL.md](skills/interface-spec/SKILL.md)
+- インターフェース仕様: [.github/skills/interface-spec/SKILL.md](skills/interface-spec/SKILL.md)
 - マネージャー共通: [.github/skills/manager-common/SKILL.md](skills/manager-common/SKILL.md)
 - 命名規則: [.github/skills/naming-rules/SKILL.md](skills/naming-rules/SKILL.md)
 - 単体テスト規約: [.github/skills/unit-test/SKILL.md](skills/unit-test/SKILL.md)
 - Google Cloud 認証: [.github/skills/google-cloud-api-auth/SKILL.md](skills/google-cloud-api-auth/SKILL.md)
 - Google Cloud 例外処理: [.github/skills/google-cloud-api-exception/SKILL.md](skills/google-cloud-api-exception/SKILL.md)
 - GUI デザイン: [.github/skills/gui-design/SKILL.md](skills/gui-design/SKILL.md)
-- Windows実行フロー: [.github/skills/windows-workflow/SKILL.md](skills/windows-workflow/SKILL.md)
+- Windows 実行フロー: [.github/skills/windows-workflow/SKILL.md](skills/windows-workflow/SKILL.md)
 
 ## 作業開始時の必須手順
 - 変更対象に対応する SKILL を最初に読む。
 - 複数ドメインへ跨る変更では、関連 SKILL をすべて確認してから実装する。
 - Windows でコマンドを手動実行する場合は、最初に `& .\.venv\Scripts\Activate.ps1` を実行する。
-- Windows の詳細コマンド手順は `windows-workflow` SKILL を参照する。
+- Windows の詳細なコマンド手順は `windows-workflow` SKILL を参照する。
 
 ## プロジェクト規約
 - **Python 3.13 のみ**: 各モジュールの先頭に常に `from __future__ import annotations` を配置する。
@@ -49,18 +51,32 @@
 - **未使用引数**: Lint 抑制のため、docstring 直後に `_ = arg1, arg2` を置く。
 - **Docstring**: Google スタイルを使用し、モジュール docstring → `from __future__ import annotations` → import の順序を守る。
 - **Docstring/コメント保持**: 互換性情報やバグ回避策に関する記述は削除しない。簡潔化は許可されるが保持が必須。
-- **コメント**: コメント（docstring・インラインコメント含む）は英語のみで記述する。機能要件上必要な場合（辞書エントリ、かな変換表、ユーザー向け日本語文言、I/O サンプルなど）を除き、日本語コメントは禁止。
 - **インラインコメント**: 非自明またはバグを生みやすいロジックに限定し、自明なコードへのコメントは避ける。
 - **型ヒント**: すべての関数・メソッドには可能な限り完全な型ヒントを付与する。未使用引数は `_` で始める。
   - **例外**: 非常に複雑な表記になる場合や、テストコードについては省略してもよい。
 - **非同期コード**: `asyncio.create_task` で作成するタスクには、可能な限り `name` を付与し、タスク例外をログで可視化する。
 - **安全停止**: 例外・ログ・非同期終了処理は失敗系を先に考慮し、異常時でも安全停止できる状態を維持する。
 - **機密情報保護**: APIキー、トークン、認証情報、秘密鍵はログや例外文字列に出力しない。
-- **実行環境**: Windows 10/11 + Python 3.13 を前提とし、Windows固有実装はその旨をコメントで明示する。
+- **実行環境**: Windows 10/11 + Python 3.13 を前提とし、Windows 固有実装はその旨をコメントで明示する。
 - **配布前提**: PyInstaller 実行を前提に、ファイルパスと外部依存の扱いを明示する。
+
+## 使用言語ルール
+- コメント（docstring・インラインコメント含む）は英語のみで記述する。
+  - 機能要件上必要な場合（辞書エントリ、かな変換表、ユーザー向け日本語文言、I/O サンプルなど）を除き、日本語コメントは禁止。
+  - `NOTE:` や `TODO:` で始まるコメントは使用言語を問わない。（他の言語に翻訳しない。簡潔化は可）
+- ドキュメントは原則として日本語で記載し、必要に応じて英語での記述も許可する（例: ユーザー向け文言、外部仕様の引用、コードサンプルなど）。
+- チャットは原則として日本語で行い、必要に応じて英語での記述も許可する（例: ユーザー向け文言、外部仕様の引用、コードサンプルなど）。
+- コミットメッセージは英語で、且つ簡潔に記述する。
+- 言語指定の優先順位は、チャットによる指定 → 個別 SKILL による指定 → 本ファイルの指定の順とする。
 
 ## 変更時の共通ルール
 - 変更は最小差分で行い、無関係なリファクタや整形を混在させない。
+  ただし、以下の場合は同一変更内でリファクタや整形を許可する。大規模な変更が見込まれる場合は、事前にユーザー確認を行い、許可を得た場合に限る。
+  - 機能に影響の無い整形のみの場合。(例: 文字列の結合方法の統一、インポート順の整理、空行の追加/削除など)
+  - 変更前後でコードの動作や仕様が大きく変わる場合。
+  - 変更内容の理解にリファクタリングや整形が必要な場合。
+  - 変更前後でコードの可読性が大きく変わる場合。
+  - 変更量が多くなりすぎる場合。(例: 100行以上の変更が見込まれる場合)
 - 互換性情報・バグ回避策に関する既存記述は削除しない（簡潔化は可）。
 - 仕様変更時は、まず該当 SKILL を更新し、その後コードへ反映する。
 - 振る舞い変更時は、実装・テスト・ドキュメント（SKILL/`docs/`）を同一変更で整合させる。
@@ -68,7 +84,7 @@
 - 命名規約、マネージャー実装、インターフェース契約、各ドメイン仕様は該当 SKILL を参照する。
 
 ## 変更完了時チェック（共通）
-- 変更したファイルに対して `ruff check .` / `mypy .` の影響を確認する。
+- 変更したファイルに対して `ruff check .` / `mypy .` の影響範囲を確認する。
 - 影響範囲に応じて `pytest tests/` もしくは対象テストを実行する。
 - ドキュメント変更を伴う場合は、関連する SKILL / `docs/` の記述整合を確認する。
 - Windows 実行手順に関わる変更では、`windows-workflow` SKILL との矛盾がないことを確認する。
@@ -76,10 +92,10 @@
 
 ## ドキュメント配置
 - ドキュメントは、プロジェクト全体で共通のルールや方針を記載する `copilot-instructions.md` と、ドメイン別の詳細仕様を記載する SKILL に分けて管理する。
-- ドキュメントは指示がない限りは日本語で記載するが、必要に応じて英語での記述も許可される（例: ユーザー向け文言、外部仕様の引用、コードサンプルなど）。
+- ドキュメントは原則として日本語で記載し、必要に応じて英語での記述も許可する（例: ユーザー向け文言、外部仕様の引用、コードサンプルなど）。
 - ドキュメントは Markdown 形式で作成し、必要に応じて画像やコードサンプルを含める。
 - 分析・設計ドキュメントは [docs/](../docs/) に配置するが、必要に応じてサブディレクトリを作成して整理する。ルート直下の例外は `README.md` と `LICENSE`。
-  - レビュー用ドキュメントは `docs/_review/` に配置し、レビュー完了後は削除する。
+  - レビュー用ドキュメントは `docs/_review/` に配置し、レビュー完了後はユーザーが手動で削除する。
   - 新機能や大規模変更の設計ドキュメントは、実装前に `docs/_planning/` に配置してレビューを受けることが推奨される。
 - SKILL は `.github/skills/` に配置する。SKILL はドキュメントと同様に、必要に応じてサブディレクトリを作成して整理する。
 
