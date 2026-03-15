@@ -416,13 +416,14 @@ class GoogleCloudSpeechToTextV2(STTInterface):
                 default_recognition_config=recognition_config_cls(
                     language_codes=[self._language],
                     model=self._model,
-                    # TODO: Evaluate V2-only features such as noise suppression and audio sensitivity.
+                    denoiser_config=speech_types.DenoiserConfig(
+                        # Do-nothing setting to disable the denoiser while keeping it in the config for future use.
+                        denoise_audio=False,
+                        snr_threshold=0.0,
+                    ),
+                    # NOTE: Evaluate V2-only features such as noise suppression and audio sensitivity.
                     # These settings are still under verification.
                     # So far, they did not significantly reduce misrecognition.
-                    # denoiser_config=speech_types.DenoiserConfig(
-                    #     denoise_audio=True,
-                    #     snr_threshold=50.0,
-                    # ),
                     # If misinterpretations occur in the absence of speech, specifying noise suppression may improve
                     # the situation. However, this requires a louder audio input.
                     # Audio sensitivity

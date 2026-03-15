@@ -54,16 +54,23 @@ class _FakeCloudSpeechModule:
             language_codes: list[str] | None = None,
             model: str = "",
             features: Any | None = None,
+            denoiser_config: _FakeCloudSpeechModule.DenoiserConfig | None = None,
         ) -> None:
             _ = explicit_decoding_config, features
-            self.language_codes = language_codes or []
-            self.model = model
+            self.language_codes: list[str] = language_codes or []
+            self.model: str = model
+            self.denoiser_config: _FakeCloudSpeechModule.DenoiserConfig | None = denoiser_config
 
     class RecognizeRequest:
         def __init__(self, *, recognizer: str, config: Any, content: bytes) -> None:
             self.recognizer = recognizer
             self.config = config
             self.content = content
+
+    class DenoiserConfig:
+        def __init__(self, *, denoise_audio: bool = False, snr_threshold: float = 0.0) -> None:
+            self.denoise_audio: bool = denoise_audio
+            self.snr_threshold: float = snr_threshold
 
 
 class _FakeSpeechModule:
