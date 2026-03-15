@@ -1,6 +1,8 @@
+---
 name: windows-workflow
 description: Windows 環境での開発用ツール実行手順と、venv 有効化忘れを防ぐ運用ルール
-keywords: windows, powershell, venv, activate, pytest, coverage, pyinstaller, ruff, mypy
+keywords: [windows, powershell, venv, activate, pytest, coverage, pyinstaller, ruff, mypy]
+---
 
 共通規約は [.github/copilot-instructions.md](../../copilot-instructions.md) を参照してください。
 
@@ -88,3 +90,15 @@ Get-Command python
 2. Windows PowerShell 構文（`$env:` など）で統一されているか。
 3. `copilot-instructions.md` と本 SKILL の手順に矛盾がないか。
 4. 新しい実行コマンドを追加した場合、ここにも追記したか。
+
+## 10. ツールの使用可否リスト
+- ツールを使用する際は、Windows 環境での動作確認がされているかを基準にする。
+- 新しいツールを使う前に、まずこのリストを確認する。
+- 使用可にあるツールは、用途が適切であれば優先して使用する。
+- リストにないツールを試す場合は、Windows で 1 回は動作確認し、結果に応じてこのリストを更新する。
+- 使用できなかったツールは、以下のリストに追加すること。使用可能なツールは、Windows での実行手順に含めること。
+- ツール実行に失敗した場合は、原因を簡単に切り分けたうえで代替手段へ切り替え、再発防止のために使用可否をこのリストへ反映する。
+- 使用不可にリストされているツールは、ツールの動作内容により追加インストールし、使用可能にする可能性があります。
+
+- **使用可**: PowerShell、venv、pytest、coverage、PyInstaller、ruff、mypy
+- **使用不可**: WSL、Conda、Docker
