@@ -50,11 +50,11 @@ def normalize_bcp47(code: str) -> str:
     Returns:
         Normalized BCP-47 string.
     """
-    raw = code.strip()
+    raw: str = code.strip()
     if not raw:
         return raw
 
-    parts = raw.split("-")
+    parts: list[str] = raw.split("-")
     normalized: list[str] = []
 
     for index, part in enumerate(parts):
@@ -100,11 +100,11 @@ def load_stt_language_index(
         msg = f"STT metadata file was not found: {source_path}"
         raise FileNotFoundError(msg)
 
-    temp_index = _build_temp_index(source_path, allowed_locations)
+    temp_index: dict[str, _MutableLanguageInfo] = _build_temp_index(source_path, allowed_locations)
 
     final_index: dict[str, STTLanguageInfo] = {}
     for key, info in temp_index.items():
-        selected_location = _select_location(info.location_to_models, preferred_locations)
+        selected_location: str | None = _select_location(info.location_to_models, preferred_locations)
         if selected_location is None:
             continue
 
@@ -132,7 +132,7 @@ def _build_temp_index(source_path: Path, allowed_locations: frozenset[str] | Non
             if _is_skippable_line(line):
                 continue
 
-            columns = _split_table_line(line)
+            columns: tuple[str, str, str, str] | None = _split_table_line(line)
             if columns is None:
                 msg = f"Could not parse line {line_number}: {raw_line.rstrip()}"
                 raise ValueError(msg)
@@ -141,9 +141,9 @@ def _build_temp_index(source_path: Path, allowed_locations: frozenset[str] | Non
             if allowed_locations is not None and location not in allowed_locations:
                 continue
 
-            key = normalize_bcp47(bcp47_code)
-            info = temp_index.setdefault(key, _MutableLanguageInfo())
-            models = info.location_to_models.setdefault(location, [])
+            key: str = normalize_bcp47(bcp47_code)
+            info: _MutableLanguageInfo = temp_index.setdefault(key, _MutableLanguageInfo())
+            models: list[str] = info.location_to_models.setdefault(location, [])
             if model not in models:
                 models.append(model)
 
@@ -167,7 +167,7 @@ def get_stt_language_info(index: Mapping[str, STTLanguageInfo], bcp47_code: str)
     Returns:
         Metadata dictionary, or None when not found.
     """
-    key = normalize_bcp47(bcp47_code)
+    key: str = normalize_bcp47(bcp47_code)
     return index.get(key)
 
 
@@ -180,19 +180,19 @@ def _split_table_line(line: str) -> tuple[str, str, str, str] | None:
     Returns:
         (location, name, bcp47, model) or None when parsing fails.
     """
-    tab_parts = [part.strip() for part in line.split("\t") if part.strip()]
+    tab_parts: list[str] = [part.strip() for part in line.split("\t") if part.strip()]
     if len(tab_parts) >= 4:
         return tab_parts[0], tab_parts[1], tab_parts[2], tab_parts[3]
 
-    normalized = " ".join(line.split())
-    parts = normalized.split(" ")
+    normalized: str = " ".join(line.split())
+    parts: list[str] = normalized.split(" ")
     if len(parts) < 4:
         return None
 
-    location = parts[0]
-    model = parts[-1]
-    bcp47_code = parts[-2]
-    name = " ".join(parts[1:-2])
+    location: str = parts[0]
+    model: str = parts[-1]
+    bcp47_code: str = parts[-2]
+    name: str = " ".join(parts[1:-2])
     if not name:
         return None
 
