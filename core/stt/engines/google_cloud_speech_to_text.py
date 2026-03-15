@@ -326,7 +326,7 @@ class GoogleCloudSpeechToText(STTInterface):
             msg = f"Unsupported URL scheme for STT request: {parsed_url.scheme}"
             raise STTExceptionError(msg)
 
-        request_data = json.dumps(payload).encode("utf-8")
+        request_data: bytes = json.dumps(payload).encode("utf-8")
         http_request = request.Request(url=url, data=request_data, headers={"Content-Type": "application/json"})  # noqa: S310
         try:
             with request.urlopen(http_request, timeout=30) as response:  # noqa: S310
