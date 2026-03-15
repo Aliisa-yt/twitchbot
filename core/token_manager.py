@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import os
 import time
 import urllib.parse
@@ -8,6 +9,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Final, Self
 
 import aiohttp
+from aiohttp import web
 from twitchio import Client, Scopes
 
 from core.token_storage import TokenStorage
@@ -182,7 +184,18 @@ class TokenManager:
     # OAuth Authorization Code Flow
     # -----------------------------------
     def _get_authorization_code_via_browser(self) -> str:
-        """Open a web browser to get the authorization code."""
+        """Open a web browser and prompt the user to paste the redirect URL manually.
+
+        Fallback method used when the local callback server is unavailable
+        (e.g., port conflict or timeout).  Opens the Twitch authorization URL in the
+        default browser and waits for the user to paste back the full redirect URL.
+
+        Returns:
+            str: The authorization code extracted from the pasted redirect URL.
+
+        Raises:
+            RuntimeError: If input is unavailable or the redirect URL contains no code.
+        """
         # Build OAuth authorization parameters
         params: dict[str, str] = {
             "client_id": self.client_id,
@@ -214,6 +227,67 @@ class TokenManager:
             raise RuntimeError(msg)
         return code
 
+    async def _get_authorization_code_via_local_server(self, timeout: float = 60.0) -> str:  # noqa: ASYNC109
+        """Start a temporary local HTTP server to receive the OAuth callback automatically.
+
+        Opens the Twitch authorization URL in the default browser, waits for the redirect
+        containing ``?code=...``, then shuts down the server.  Accepts exactly one request.
+
+        Args:
+            timeout (float): Maximum seconds to wait before raising ``TimeoutError``.
+
+        Returns:
+            str: The authorization code extracted from the redirect callback.
+
+        Raises:
+            TimeoutError: If no callback is received within *timeout* seconds.
+            RuntimeError: If the callback contains no ``code`` (e.g. user denied access).
+            OSError: If the server cannot bind to the port derived from ``REDIRECT_URI``.
+        """
+        parsed: urllib.parse.ParseResult = urllib.parse.urlparse(REDIRECT_URI)
+        host: str = parsed.hostname or "localhost"
+        port: int = parsed.port or (443 if parsed.scheme == "https" else 80)
+        path: str = parsed.path or "/"
+
+        code_future: asyncio.Future[str] = asyncio.get_running_loop().create_future()
+
+        async def _handle(request: web.Request) -> web.Response:
+            query: dict[str, str] = dict(request.rel_url.query)
+            code: str | None = query.get("code")
+            if not code_future.done():
+                if code:
+                    code_future.set_result(code)
+                    return web.Response(text="Authorization successful. You can close this tab.")
+                error: str = query.get("error", "unknown error")
+                msg: str = f"Authorization denied: {error}"
+                code_future.set_exception(RuntimeError(msg))
+            return web.Response(text="Authorization failed. Please check the bot logs.", status=400)
+
+        app: web.Application = web.Application()
+        app.router.add_get(path, _handle)
+        runner: web.AppRunner = web.AppRunner(app)
+        await runner.setup()
+        try:
+            site: web.TCPSite = web.TCPSite(runner, host, port)
+            await site.start()
+            logger.debug("Local OAuth callback server started on %s:%d%s", host, port, path)
+            params: dict[str, str] = {
+                "client_id": self.client_id,
+                "redirect_uri": REDIRECT_URI,
+                "response_type": "code",
+                "scope": " ".join(ACCESS_SCOPES.selected),
+            }
+            url: str = f"https://id.twitch.tv/oauth2/authorize?{urllib.parse.urlencode(params)}"
+            print("Opening browser to get authorization code...")
+            if not webbrowser.open(url):
+                logger.warning("Failed to open web browser automatically.")
+                print(f"Please open the following URL in your browser:\n{url}")
+            async with asyncio.timeout(timeout):
+                return await code_future
+        finally:
+            await runner.cleanup()
+            logger.debug("Local OAuth callback server stopped.")
+
     async def _exchange_code_for_tokens(self, code: str) -> dict[str, Any]:
         """Exchange the authorization code for access and refresh tokens."""
         url: str = "https://id.twitch.tv/oauth2/token"
@@ -230,7 +304,7 @@ class TokenManager:
             async with session.post(url, data=params) as resp:
                 data = await resp.json()
             if "access_token" not in data:
-                msg: str = f"Token exchange failed: {data}"
+                msg: str = "Token exchange failed: API did not return access_token."
                 raise RuntimeError(msg)
             data["obtained_at"] = time.time()
             return data
@@ -250,7 +324,7 @@ class TokenManager:
             async with session.post(url, data=params) as resp:
                 data = await resp.json()
             if "access_token" not in data:
-                msg: str = f"Token refresh failed: {data}"
+                msg: str = "Token refresh failed: API did not return access_token."
                 raise RuntimeError(msg)
             data["obtained_at"] = time.time()
             return data
@@ -328,19 +402,32 @@ class TokenManager:
         tokens: dict[str, Any] = self._load_tokens()
         if not tokens:
             logger.info("No tokens found, starting authorization flow.")
-            code: str = self._get_authorization_code_via_browser()
+            try:
+                code: str = await self._get_authorization_code_via_local_server()
+            except (TimeoutError, OSError) as exc:
+                logger.warning("Local server callback unavailable (%s); falling back to manual input.", exc)
+                code = self._get_authorization_code_via_browser()
             tokens = await self._exchange_code_for_tokens(code)
             self._save_tokens(tokens)
         elif self._is_expired(tokens):
             logger.info("Access token expired, refreshing tokens.")
-            tokens = await self._refresh_access_token(tokens["refresh_token"])
+            refresh_token: str | None = tokens.get("refresh_token")
+            if not refresh_token:
+                msg: str = "Refresh token is missing. Please reauthorize."
+                raise RuntimeError(msg)
+            tokens = await self._refresh_access_token(refresh_token)
             self._save_tokens(tokens)
         else:
             logger.info("Using cached tokens.")
 
         # Set the instance variables with the tokens
-        self.user_access_token = tokens["access_token"]
-        self.refresh_token = tokens["refresh_token"]
+        access_token: str | None = tokens.get("access_token")
+        refresh_token: str | None = tokens.get("refresh_token")
+        if not access_token or not refresh_token:
+            msg: str = "Access token or refresh token is missing. Please reauthorize."
+            raise RuntimeError(msg)
+        self.user_access_token = access_token
+        self.refresh_token = refresh_token
 
         logger.info("Retrieving bot and owner IDs.")
         user_id: UserIDs = await self._get_id_by_name(owner_name, bot_name)
