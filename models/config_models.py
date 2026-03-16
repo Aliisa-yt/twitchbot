@@ -128,10 +128,14 @@ class TimeSignal:
     TEXT: bool = False
     VOICE: bool = False
     CLOCK12: bool = True
+    EARLY_MORNING: str = ""
     MORNING: str = ""
+    LATE_MORNING: str = ""
     AFTERNOON: str = ""
+    LATE_AFTERNOON: str = ""
     EVENING: str = ""
     NIGHT: str = ""
+    LATE_NIGHT: str = ""
     TIME_ANNOUNCEMENT: str = ""
 
 

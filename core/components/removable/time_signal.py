@@ -90,19 +90,53 @@ class TimeSignalManager(ComponentBase):
             logger.warning("Invalid CLOCK12 value in TIME_SIGNAL config; defaulting to True")
             self._clock12 = True
 
+        # Although defining 24 slots per time period would allow for greater flexibility, we have determined
+        # that the current eight-slot system is sufficient.
+        self._early_morning: str = ""
         self._morning: str = ""
+        self._late_morning: str = ""
         self._afternoon: str = ""
+        self._late_afternoon: str = ""
         self._evening: str = ""
         self._night: str = ""
+        self._late_night: str = ""
+
         self._time_announcement: str = ""
+        self._time_slots: list[tuple[int, int, str, int]] = []
 
         if self._clock12:
+            self._early_morning = self._get_attribute("EARLY_MORNING")
             self._morning = self._get_attribute("MORNING")
+            self._late_morning = self._get_attribute("LATE_MORNING")
             self._afternoon = self._get_attribute("AFTERNOON")
+            self._late_afternoon = self._get_attribute("LATE_AFTERNOON")
             self._evening = self._get_attribute("EVENING")
             self._night = self._get_attribute("NIGHT")
-            if "" in (self._morning, self._afternoon, self._evening, self._night):
+            self._late_night = self._get_attribute("LATE_NIGHT")
+            if "" in (
+                self._early_morning,
+                self._morning,
+                self._late_morning,
+                self._afternoon,
+                self._late_afternoon,
+                self._evening,
+                self._night,
+                self._late_night,
+            ):
                 return False
+
+            # Although defining 24 slots per time period would allow for greater flexibility, we have determined
+            # that the current eight-slot system is sufficient.
+            self._time_slots = [
+                (0, 4, self._late_night, 0),
+                (4, 6, self._early_morning, 0),
+                (6, 10, self._morning, 0),
+                (10, 12, self._late_morning, 0),
+                (12, 15, self._afternoon, -12),
+                (15, 18, self._late_afternoon, -12),
+                (18, 20, self._evening, -12),
+                (20, 24, self._night, -12),
+            ]
         else:
             self._time_announcement = self._get_attribute("TIME_ANNOUNCEMENT")
             if self._time_announcement == "":
@@ -151,25 +185,19 @@ class TimeSignalManager(ComponentBase):
         _time_word: str = ""
         if _minute == 0:
             if self._clock12:
-                # The time slots have been adjusted so that they can also be used to distinguish between morning and
-                # afternoon in Japan.
-                # Although defining 24 slots per time period would allow for greater flexibility, we have determined
-                # that the current four-slot system is sufficient.
-                # 6-12: morning, 12-18: afternoon, 18-24: evening, 0-6: night
-                if 6 <= _hour < 12:
-                    _time_word = self._morning
-                elif 12 <= _hour < 18:
-                    _time_word = self._afternoon
-                    _hour = _hour - 12
-                elif 18 <= _hour < 24:
-                    _time_word = self._evening
-                    _hour = _hour - 12
+                for start, end, msg, hour_adj in self._time_slots:
+                    if start <= _hour < end:
+                        _time_word = msg
+                        if hour_adj != 0:
+                            _hour += hour_adj
+                        break
                 else:
-                    _time_word = self._night
-                    # In Japan, the expression ‘AM0時’ is commonly used to refer to midnight,
-                    # so we will not convert 0 to 12.
-                    if self._language not in ("ja"):
-                        _hour = _hour + 12 if _hour == 0 else _hour
+                    logger.warning("Current hour %d does not fit into any defined time slot.", _hour)
+                    return
+                # In Japan, the expressions `午後0時` and `午前0時` are used to refer to `noon` and `midnight`,
+                # so the number 0 is not converted to 12.
+                if self._language != "ja" and _hour == 0:
+                    _hour = 12
             else:
                 # No distinction is made when using the 24-hour clock.
                 _time_word = self._time_announcement

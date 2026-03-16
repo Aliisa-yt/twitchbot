@@ -176,12 +176,16 @@ VOICE = True
 CLOCK12 = True
 
 # CLOCK12 = Trueの時に使用するフォーマット。{hour}は時間に置き換えられる。
-# MORNINGは6時から11時、AFTERNOONは12時から17時、EVENINGは18時から23時、NIGHTは0時(12時)から5時に使用される。
-# 午前/午後の区切りに合わせているため、一般的な時間帯の区切りとは異なることに注意。
+# LATE_NIGHTは0時から4時、EARLY_MORNINGは4時から6時、MORNINGは6時から10時、LATE_MORNINGは10時から12時、
+# AFTERNOONは12時から15時、LATE_AFTERNOONは15時から18時、EVENINGは18時から20時、NIGHTは20時から24時に使用される。
+LATE_NIGHT = "午前{hour}時になりました。夜更かしは体に悪いですよ"
+EARLY_MORNING = "午前{hour}時になりました。夜明け前の時間帯ですね"
 MORNING = "午前{hour}時になりました。おはようございます"
+LATE_MORNING = "午前{hour}時になりました。もうすぐお昼ですね"
 AFTERNOON = "午後{hour}時になりました。こんにちは"
+LATE_AFTERNOON = "午後{hour}時になりました。そろそろ夕方ですね"
 EVENING = "午後{hour}時になりました。こんばんは"
-NIGHT = "午前{hour}時になりました。おやすみなさい"
+NIGHT = "午後{hour}時になりました。おやすみなさい"
 
 # CLOCK12 = Falseの時に使用するフォーマット。{hour}は時間に置き換えられる。
 TIME_ANNOUNCEMENT = "{hour}時になりました。"
