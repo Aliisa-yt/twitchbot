@@ -169,8 +169,19 @@ EXECUTE_PATH = "${LOCALAPPDATA}\\Programs\\COEIROINK_WIN_GPU_v.2.12.3\\COEIROINK
 
 # ==================== Miscellaneous Settings ====================
 [TIME_SIGNAL]
+ENABLED = False
+LANGUAGE = "ja"
 TEXT = True
 VOICE = True
 CLOCK12 = True
-AM_NAME = "午前"
-PM_NAME = "午後"
+
+# CLOCK12 = Trueの時に使用するフォーマット。{hour}は時間に置き換えられる。
+# MORNINGは6時から11時、AFTERNOONは12時から17時、EVENINGは18時から23時、NIGHTは0時(12時)から5時に使用される。
+# 午前/午後の区切りに合わせているため、一般的な時間帯の区切りとは異なることに注意。
+MORNING = "午前{hour}時になりました。おはようございます"
+AFTERNOON = "午後{hour}時になりました。こんにちは"
+EVENING = "午後{hour}時になりました。こんばんは"
+NIGHT = "午前{hour}時になりました。おやすみなさい"
+
+# CLOCK12 = Falseの時に使用するフォーマット。{hour}は時間に置き換えられる。
+TIME_ANNOUNCEMENT = "{hour}時になりました。"
