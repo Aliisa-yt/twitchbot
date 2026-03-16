@@ -140,8 +140,8 @@ class TTSManager:
     def command_voiceparameters(self, message: ChatMessageHandler) -> None:
         self.parameter_manager.command_voiceparameters(message)
 
-    def get_voice_param(self, lang: str | None = None) -> TTSInfo:
-        return self.parameter_manager.get_voice_param(lang)
+    def get_voice_param(self, lang: str | None = None, *, is_system: bool = False) -> TTSInfo:
+        return self.parameter_manager.get_voice_param(lang, is_system=is_system)
 
     def prepare_tts_content(self, ttsparam: TTSParam) -> TTSParam | None:
         return self.synthesis_manager.prepare_tts_content(ttsparam)

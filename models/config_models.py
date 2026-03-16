@@ -123,11 +123,16 @@ class TTSEngine:
 
 @dataclass
 class TimeSignal:
+    ENABLED: bool = False
+    LANGUAGE: str = ""
     TEXT: bool = False
     VOICE: bool = False
-    CLOCK12: bool = False
-    AM_NAME: str = ""
-    PM_NAME: str = ""
+    CLOCK12: bool = True
+    MORNING: str = ""
+    AFTERNOON: str = ""
+    EVENING: str = ""
+    NIGHT: str = ""
+    TIME_ANNOUNCEMENT: str = ""
 
 
 @dataclass

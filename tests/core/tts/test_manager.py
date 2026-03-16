@@ -160,7 +160,7 @@ def test_forwarding_methods_call_managers() -> None:
     param_inst.command_voiceparameters.assert_called_once_with(message)
 
     manager.get_voice_param("en")
-    param_inst.get_voice_param.assert_called_once_with("en")
+    param_inst.get_voice_param.assert_called_once_with("en", is_system=False)
 
     manager.prepare_tts_content(MagicMock())
     synth_inst.prepare_tts_content.assert_called_once()

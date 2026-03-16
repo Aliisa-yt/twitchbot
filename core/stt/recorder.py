@@ -21,6 +21,7 @@ from typing import TYPE_CHECKING
 import numpy as np
 import sounddevice as sd
 
+from core.stt.vad import LevelVADProcessor, VADDecision, VADProcessorInterface
 from utils.logger_utils import LoggerUtils
 from utils.tts_utils import TTSUtils
 
@@ -126,8 +127,12 @@ class STTRecorder:
         self._pre_buffer_frames: int = 0
         self._segment_chunks: list[np.ndarray] = []
         self._segment_frames: int = 0
-        self._recording_active: bool = False
-        self._silence_duration_sec: float = 0.0
+        self._vad_processor: VADProcessorInterface = LevelVADProcessor(
+            start_level=self._start_level,
+            stop_level=self._stop_level,
+            post_buffer_ms=self._post_buffer_ms,
+            max_segment_sec=self._max_segment_sec,
+        )
         self._pending_segment_tasks: set[asyncio.Task[None]] = set()
         self._input_watchdog_task: asyncio.Task[None] | None = None
         self._last_audio_callback_monotonic: float = time.monotonic()
@@ -180,6 +185,7 @@ class STTRecorder:
         self._stop_level_db = applied_stop
         self._start_level = self._normalize_level(TTSUtils.log_to_linear(applied_start))
         self._stop_level = self._normalize_level(TTSUtils.log_to_linear(applied_stop))
+        self._vad_processor.set_thresholds(start_level=self._start_level, stop_level=self._stop_level)
 
     def set_mute(self, *, mute: bool) -> None:
         if mute and not self._muted:
@@ -474,33 +480,31 @@ class STTRecorder:
         return STTLevelEvent(rms=rms, peak=peak, muted=False, timestamp=time.time())
 
     def _process_segmenting(self, indata: np.ndarray, frames: int, rms: float) -> None:
-        if frames <= 0:
-            return
-
         chunk = np.array(indata, dtype=np.int16, copy=True)
-        if not self._recording_active:
-            if rms >= self._start_level:
-                self._start_segment(trigger_chunk=chunk, trigger_frames=frames)
-            else:
-                self._push_pre_buffer(chunk, frames)
+        decision: VADDecision = self._vad_processor.process_chunk(
+            chunk=chunk,
+            frames=frames,
+            sample_rate=self._sample_rate,
+            rms=rms,
+            current_segment_frames=self._segment_frames,
+        )
+
+        if decision.push_pre_buffer:
+            self._push_pre_buffer(chunk, frames)
             return
 
-        self._segment_chunks.append(chunk)
-        self._segment_frames += frames
+        if decision.start_segment:
+            self._start_segment(trigger_chunk=chunk, trigger_frames=frames)
+            return
 
-        if rms <= self._stop_level:
-            self._silence_duration_sec += frames / self._sample_rate
-        else:
-            self._silence_duration_sec = 0.0
+        if decision.append_to_segment:
+            self._segment_chunks.append(chunk)
+            self._segment_frames += frames
 
-        should_stop_by_silence: bool = self._silence_duration_sec >= (self._post_buffer_ms / 1000)
-        should_stop_by_max_len: bool = self._segment_frames >= int(self._max_segment_sec * self._sample_rate)
-        if should_stop_by_silence or should_stop_by_max_len:
+        if decision.flush_segment:
             self._flush_active_segment()
 
     def _start_segment(self, *, trigger_chunk: np.ndarray, trigger_frames: int) -> None:
-        self._recording_active = True
-        self._silence_duration_sec = 0.0
         self._segment_chunks = list(self._pre_buffer_chunks)
         self._segment_frames = self._pre_buffer_frames
         self._segment_chunks.append(trigger_chunk)
@@ -509,7 +513,7 @@ class STTRecorder:
         self._pre_buffer_frames = 0
 
     def _flush_active_segment(self) -> None:
-        if not self._recording_active or self._segment_frames <= 0 or not self._segment_chunks:
+        if self._segment_frames <= 0 or not self._segment_chunks:
             self._reset_segmentation_state()
             return
 
@@ -636,8 +640,7 @@ class STTRecorder:
             self._pre_buffer_frames -= int(removed.shape[0])
 
     def _reset_segmentation_state(self) -> None:
-        self._recording_active = False
-        self._silence_duration_sec = 0.0
+        self._vad_processor.reset()
         self._segment_chunks.clear()
         self._segment_frames = 0
         self._pre_buffer_chunks.clear()

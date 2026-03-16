@@ -31,17 +31,31 @@ class ParameterManager:
         self._onetime_voiceparameters = Voice()
         self._usertype_voiceparameters.clear()
 
-    def get_voice_param(self, lang: str | None = None) -> TTSInfo:
+    def get_voice_param(self, lang: str | None = None, *, is_system: bool = False) -> TTSInfo:
         """Retrieve the audio parameters for the specified language.
 
         Args:
             lang (str, optional): Language to speak. Defaults to config.TRANSLATION.NATIVE_LANGUAGE
+            is_system (bool, optional): Whether to retrieve system voice parameters. Defaults to False.
+
         Raises:
             KeyError: If the corresponding parameters are not found
+
         Returns:
             TTSInfo: Audio parameters for the specified language
         """
         lang = lang or self.config.TRANSLATION.NATIVE_LANGUAGE
+
+        if is_system:
+            system_voice: TTSInfo | None = self.voice_parameters.system.get(lang) or self.voice_parameters.system.get(
+                "all"
+            )
+            if system_voice is None:
+                error_msg: str = f"System voice parameters for '{lang}' and 'all' are missing."
+                logger.error(error_msg)
+                raise KeyError(error_msg)
+            return system_voice
+
         ext_voice: TTSInfo | None = self._usertype_voiceparameters.get(lang) or self._usertype_voiceparameters.get(
             "all"
         )
