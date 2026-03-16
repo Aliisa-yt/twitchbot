@@ -166,6 +166,10 @@ class TimeSignalManager(ComponentBase):
                     _hour = _hour - 12
                 else:
                     _time_word = self._night
+                    # In Japan, the expression ‘AM0時’ is commonly used to refer to midnight,
+                    # so we will not convert 0 to 12.
+                    if self._language not in ("ja"):
+                        _hour = _hour + 12 if _hour == 0 else _hour
             else:
                 # No distinction is made when using the 24-hour clock.
                 _time_word = self._time_announcement
