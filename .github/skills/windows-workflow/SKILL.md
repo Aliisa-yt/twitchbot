@@ -60,7 +60,7 @@ coverage report
 & .\.venv\Scripts\Activate.ps1
 ruff check .
 ruff format .
-mypy .
+mypy --explicit-package-bases .
 ```
 
 ## 6. EXE ビルド（PyInstaller）

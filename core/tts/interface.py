@@ -268,11 +268,11 @@ class Interface(ABC):
     def audio_save_directory(self, path: Path | None) -> None:
         """Set the base directory for saving audio files (can only be set once)"""
         if path is None or not isinstance(path, Path):
-            msg: str = f"Expected 'path' to be of type Path, got {type(path)}"
+            msg = f"Expected 'path' to be of type Path, got {type(path)}"
             raise TypeError(msg)
 
         if not path.is_dir():
-            msg: str = f"'{path}' is not a directory"
+            msg = f"'{path}' is not a directory"
             raise ValueError(msg)
 
         if Interface._base_directory is not None:

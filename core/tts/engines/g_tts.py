@@ -40,7 +40,7 @@ def _ensure_float32_array(arr: Any, label: str = "audio data") -> np.ndarray[Any
         TypeError: If not ndarray or wrong dtype
     """
     if not isinstance(arr, np.ndarray):
-        msg: str = f"Expected ndarray for {label}, got {type(arr)}"
+        msg = f"Expected ndarray for {label}, got {type(arr)}"
         raise TypeError(msg)
     if arr.dtype != np.float32:
         msg = f"Expected float32 for {label}, got {arr.dtype}"
@@ -55,10 +55,10 @@ class _AudioData:
 
     def __post_init__(self) -> None:
         if not isinstance(self.raw_pcm, np.ndarray):
-            msg: str = f"Expected ndarray for raw_pcm, got {type(self.raw_pcm)}"
+            msg = f"Expected ndarray for raw_pcm, got {type(self.raw_pcm)}"
             raise TypeError(msg)
         if not isinstance(self.samplerate, int):
-            msg: str = f"Expected int for samplerate, got {type(self.samplerate)}"
+            msg = f"Expected int for samplerate, got {type(self.samplerate)}"
             raise TypeError(msg)
 
 

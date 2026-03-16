@@ -375,10 +375,10 @@ class TokenManager:
 
         # If either owner_id or bot_id is not found, raise an error.
         if not owner_id:
-            msg: str = f"Owner '{owner_name}' not found."
+            msg = f"Owner '{owner_name}' not found."
             raise RuntimeError(msg)
         if not bot_id:
-            msg: str = f"Bot '{bot_name}' not found."
+            msg = f"Bot '{bot_name}' not found."
             raise RuntimeError(msg)
 
         logger.debug("Owner ID: %s, Bot ID: %s", owner_id, bot_id)

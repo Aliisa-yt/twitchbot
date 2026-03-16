@@ -125,7 +125,7 @@ class TransInterface(ABC):
             return  # Allow registration of engines with empty names, but they won't be added to the registry.
 
         if cls.fetch_engine_name() in cls.registered:
-            msg: str = f"A translation engine with the name '{cls.fetch_engine_name()}' is already registered."
+            msg = f"A translation engine with the name '{cls.fetch_engine_name()}' is already registered."
             raise ValueError(msg)
 
         cls.registered[cls.fetch_engine_name()] = cls
