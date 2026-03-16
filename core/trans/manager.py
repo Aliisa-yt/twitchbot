@@ -147,7 +147,7 @@ class TransManager:
             raise TranslateExceptionError(error_message) from err
         except KeyError as err:
             logger.debug("Invalid translation engine name: %s", err)
-            error_message: str = f"Invalid translation engine name: {err}"
+            error_message = f"Invalid translation engine name: {err}"
             raise TranslateExceptionError(error_message) from err
 
     def refresh_active_engine_list(self) -> None:

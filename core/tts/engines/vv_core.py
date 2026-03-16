@@ -319,11 +319,11 @@ class VVCore(Interface):
                 return [model.from_dict(item, infer_missing=True) for item in response]
             return model.from_dict(response, infer_missing=True)
         except (ValidationError, TypeError, AttributeError) as err:
-            msg: str = f"The response data from the API is invalid: {err}"
+            msg = f"The response data from the API is invalid: {err}"
             logger.error(msg)
             raise AsyncCommError(msg) from err
         except KeyError as err:
-            msg: str = f"The response data from the API is missing expected fields: {err}"
+            msg = f"The response data from the API is missing expected fields: {err}"
             logger.error(msg)
             raise AsyncCommError(msg) from err
 

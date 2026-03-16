@@ -165,7 +165,7 @@ class _TTSConfig:
 
             if protocol_str:
                 if protocol_str not in ("http", "https"):
-                    msg: str = f"Invalid protocol '{protocol_str}'. Expected 'http' or 'https'."
+                    msg = f"Invalid protocol '{protocol_str}'. Expected 'http' or 'https'."
                     raise ValueError(msg)
             else:
                 protocol_str = DEFAULT_PROTOCOL
@@ -173,10 +173,10 @@ class _TTSConfig:
             protocol: protocol_type = cast("protocol_type", protocol_str.lower())
 
             if not (port_range[0] <= port <= port_range[1]):
-                msg: str = f"Port number must be in range {port_range}."
+                msg = f"Port number must be in range {port_range}."
                 raise ValueError(msg)
         except (ValueError, TypeError) as err:
-            msg: str = "Invalid server configuration."
+            msg = "Invalid server configuration."
             raise TTSExceptionError(msg) from err
         else:
             return protocol, host, port

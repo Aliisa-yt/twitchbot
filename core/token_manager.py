@@ -216,14 +216,14 @@ class TokenManager:
             redirected: str = input("Paste the full redirect URL here: ")
         except EOFError as err:
             # Raised when input is unavailable (e.g., non-interactive terminal, forced termination)
-            msg: str = "forced termination or input unavailable; cannot obtain authorization code."
+            msg = "forced termination or input unavailable; cannot obtain authorization code."
             raise RuntimeError(msg) from err
 
         # Extract authorization code from redirect URL query parameters
         query: str = urllib.parse.urlparse(redirected).query
         code: str | None = dict(urllib.parse.parse_qsl(query)).get("code")
         if not code:
-            msg: str = "Authorization code not found in redirect URL."
+            msg = "Authorization code not found in redirect URL."
             raise RuntimeError(msg)
         return code
 
@@ -413,7 +413,7 @@ class TokenManager:
             logger.info("Access token expired, refreshing tokens.")
             refresh_token: str | None = tokens.get("refresh_token")
             if not refresh_token:
-                msg: str = "Refresh token is missing. Please reauthorize."
+                msg = "Refresh token is missing. Please reauthorize."
                 raise RuntimeError(msg)
             tokens = await self._refresh_access_token(refresh_token)
             self._save_tokens(tokens)
@@ -424,7 +424,7 @@ class TokenManager:
         access_token: str | None = tokens.get("access_token")
         refresh_token: str | None = tokens.get("refresh_token")
         if not access_token or not refresh_token:
-            msg: str = "Access token or refresh token is missing. Please reauthorize."
+            msg = "Access token or refresh token is missing. Please reauthorize."
             raise RuntimeError(msg)
         self.user_access_token = access_token
         self.refresh_token = refresh_token

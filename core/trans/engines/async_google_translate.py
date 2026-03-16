@@ -148,7 +148,7 @@ class AsyncTranslator:
         if url_suffix not in URLS_SUFFIX:
             self.url_suffix = URL_SUFFIX_DEFAULT
         else:
-            self.url_suffix: str = url_suffix
+            self.url_suffix = url_suffix
         _url_base: str = f"https://translate.google.{self.url_suffix}"
         self.url: str = _url_base + "/_/TranslateWebserverUi/data/batchexecute"
         self.timeout: float = timeout

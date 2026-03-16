@@ -194,7 +194,7 @@ class GoogleCloudTranslation(TransInterface):
             raise TranslateExceptionError(msg) from err
         except Exception as err:
             logger.critical("Unexpected error during initialization: %s", err)
-            msg: str = f"Failed to initialize Google Cloud Translation client: {err}"
+            msg = f"Failed to initialize Google Cloud Translation client: {err}"
             raise RuntimeError(msg) from err
 
     def _create_api_key_session(self, api_key: str) -> APIKeySession:
@@ -244,11 +244,11 @@ class GoogleCloudTranslation(TransInterface):
 
         except (TooManyRequests, ResourceExhausted) as err:
             logger.error("Google API rate limit during language detection: %s", err)
-            msg: str = f"Language detection rate limited: {err}"
+            msg = f"Language detection rate limited: {err}"
             raise TranslationRateLimitError(msg) from err
         except GoogleAPIError as err:
             logger.error("Google API error during language detection: %s", err)
-            msg: str = f"Language detection failed: {err}"
+            msg = f"Language detection failed: {err}"
             raise TranslateExceptionError(msg) from err
         except Exception:
             logger.exception("Unexpected non-Google error during language detection: %s", content[:50])
@@ -295,15 +295,15 @@ class GoogleCloudTranslation(TransInterface):
 
         except BadRequest as err:
             logger.error("Invalid language code: %s", err)
-            msg: str = f"Unsupported language pair (src: '{src_lang}', tgt: '{tgt_lang}'): {err}"
+            msg = f"Unsupported language pair (src: '{src_lang}', tgt: '{tgt_lang}'): {err}"
             raise NotSupportedLanguagesError(msg) from err
         except (TooManyRequests, ResourceExhausted) as err:
             logger.error("Google API rate limit during translation: %s", err)
-            msg: str = f"Translation rate limited: {err}"
+            msg = f"Translation rate limited: {err}"
             raise TranslationRateLimitError(msg) from err
         except GoogleAPIError as err:
             logger.error("Google API error during translation: %s", err)
-            msg: str = f"Translation failed: {err}"
+            msg = f"Translation failed: {err}"
             raise TranslateExceptionError(msg) from err
         except Exception:
             logger.exception("Unexpected non-Google error during translation: %s", content[:50])

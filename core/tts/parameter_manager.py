@@ -51,7 +51,7 @@ class ParameterManager:
                 "all"
             )
             if system_voice is None:
-                error_msg: str = f"System voice parameters for '{lang}' and 'all' are missing."
+                error_msg = f"System voice parameters for '{lang}' and 'all' are missing."
                 logger.error(error_msg)
                 raise KeyError(error_msg)
             return system_voice
@@ -60,7 +60,7 @@ class ParameterManager:
             "all"
         )
         if ext_voice is None:
-            error_msg: str = f"Voice parameters for '{lang}' and 'all' are missing."
+            error_msg = f"Voice parameters for '{lang}' and 'all' are missing."
             logger.error(error_msg)
             raise KeyError(error_msg)
 

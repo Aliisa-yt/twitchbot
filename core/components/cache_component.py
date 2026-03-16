@@ -141,7 +141,7 @@ class CacheServiceComponent(ComponentBase):
             logger.warning("Cache configuration section is missing. Using default export path.")
             export_path = CACHE_EXPORT_PATH
 
-        export_path: str | None = getattr(cfg_cache, "EXPORT_PATH", None)
+        export_path = getattr(cfg_cache, "EXPORT_PATH", None)
         if export_path is None or export_path.strip() == "":
             logger.warning("Cache export path is not set. Using default export path.")
             export_path = CACHE_EXPORT_PATH
@@ -150,21 +150,21 @@ class CacheServiceComponent(ComponentBase):
             output_path: Path = FileUtils.resolve_path(export_path)
         # This exception will not be raised because `strict` is set to False.
         # except FileNotFoundError:
-        #     msg: str = f"Invalid export path: {export_path}"
+        #     msg = f"Invalid export path: {export_path}"
         #     logger.error(msg)
         #     return
         except RuntimeError as err:
-            msg: str = f"Error resolving export path: {export_path} - {err}"
+            msg = f"Error resolving export path: {export_path} - {err}"
             logger.error(msg)
             return
 
         success: bool = await cache_manager.export_cache_detailed(output_path)
 
         if success:
-            msg: str = f"Cache data exported to: {output_path}"
+            msg = f"Cache data exported to: {output_path}"
             self.print_console_message(msg)
             logger.info(msg)
         else:
-            msg: str = "Failed to export cache data."
+            msg = "Failed to export cache data."
             self.print_console_message(msg)
             logger.error(msg)

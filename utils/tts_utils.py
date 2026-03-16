@@ -74,7 +74,7 @@ class TTSUtils:
         if value is None:
             return None
 
-        msg: str = f"Expected value of type {expected_type.__name__}, got {type(value).__name__}"
+        msg = f"Expected value of type {expected_type.__name__}, got {type(value).__name__}"
         raise TypeError(msg)
 
     @staticmethod
