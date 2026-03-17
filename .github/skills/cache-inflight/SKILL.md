@@ -1,6 +1,8 @@
+---
 name: cache-inflight
 description: TranslationCacheManager と InFlightManager の TTL運用、重複抑止、競合制御の実装指針
-keywords: translation-cache, inflight, sqlite, ttl, deduplication, future-merge, concurrency
+keywords: [translation-cache, inflight, sqlite, ttl, deduplication, future-merge, concurrency]
+---
 
 共通規約は [.github/copilot-instructions.md](../../copilot-instructions.md) を参照してください。
 
@@ -21,6 +23,9 @@ keywords: translation-cache, inflight, sqlite, ttl, deduplication, future-merge,
 
 ## 3. キャッシュ検索方針
 
+- キャッシュキーは `CacheUtils.generate_translation_hash_key()` で生成する（定義: `utils/cache_utils.py`）。
+  - source_text のキャラクタ数が `HASH_TEXT_LENGTH_LIMIT`（現犰値: 50）を超える場合は `None` を返し、キャッシュ対象外となる。
+  - 空文字・短すぎるテキストもこの判定で除外される場合がある。
 - キャッシュキー生成対象外の文字列は保存・検索しない。
 - エンジン指定ありでミスした場合は共通キャッシュ（engine空）へフォールバックする。
 - 期限切れ判定は検索時にも実施し、見つかった古いデータを除去する。
@@ -28,8 +33,13 @@ keywords: translation-cache, inflight, sqlite, ttl, deduplication, future-merge,
 ## 4. DB運用上の注意
 
 - SQLite は WAL モード前提で、読み取りと書き込みの競合を緩和する。
+- DBファイルはリポジトリルート直下の `translation_cache.db`（定数: `TRANSLATION_CACHE_DB_PATH`）。
+- TTL デフォルト値（クラス定数）:
+  - 翻訳キャッシュ: `TTL_TRANSLATION_DAYS_DEFAULT = 7` 日。
+  - 言語検出キャッシュ: `TTL_LANGUAGE_DETECTION_DAYS_DEFAULT = 30` 日。
+  - エンジンごとの最大エントリ数: `MAX_ENTRIES_PER_ENGINE_DEFAULT = 200`。
 - TTLメンテナンスと通常検索が衝突しないよう、更新順序とロック範囲を固定する。
-- スキーマ更新が必要な変更では、既存DBとの後方互換性（列追加、既定値）を先に確認する。
+- スキーマ更新が必要な変更では、既存DBとの後方互換性（列追加、既定値）を先に確認する。スキーマ変更時は `DB_SCHEMA_VERSION` を更新する。
 - キャッシュ保存失敗は warning/error ログに留め、翻訳本体フローを止めない。
 
 ## 5. InFlightManager の責務

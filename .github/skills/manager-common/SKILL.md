@@ -1,6 +1,8 @@
+---
 name: manager-common
 description: マネージャー共通の責務分離、状態遷移、API契約、並行制御の実装指針
-keywords: manager, lifecycle-state, api-contract, concurrency, error-handling, logging, idempotent-close
+keywords: [manager, lifecycle-state, api-contract, concurrency, error-handling, logging, idempotent-close]
+---
 
 共通規約は [.github/copilot-instructions.md](../../copilot-instructions.md) を参照してください。
 
@@ -37,7 +39,10 @@ keywords: manager, lifecycle-state, api-contract, concurrency, error-handling, l
 - コンポーネントは「いつ初期化・終了するか」を決め、マネージャーは「どう初期化・終了するか」を実装する。
 - 設定値の最終判断（有効/無効、エンジン選択）は原則コンポーネント側で行い、マネージャー側は受け取った方針に従う。
 - マネージャーは UI/チャット入出力など上位層の副作用に直接依存しない。
-
+### 3.3 初期化/終了メソッドの命名規則
+- 初期化メソッドは非同期の場合 `async_init()`、同期の場合 `initialize()` を使用する。
+- 終了メソッドは `close()` を使用する。
+- 初期化と終了が同層（例: コンポーネントから呼び出す）で対応する形にする。
 ## 4. 公開APIの契約
 - 公開メソッドの引数・戻り値は型ヒントで明示し、`None` を許容する場合は意味を docstring に記載する。
 - 失敗時の契約（例外を投げるか、失敗値を返すか）をメソッド単位で統一する。

@@ -1,6 +1,8 @@
+---
 name: google-cloud-api-exception
 description: Google Cloud APIを使用している際に発生する例外を処理するスキル
-keywords: google cloud, api, exception, error handling, retry
+keywords: [google cloud, api, exception, error handling, retry]
+---
 
 共通規約は [.github/copilot-instructions.md](../../copilot-instructions.md) を参照してください。
 
@@ -134,7 +136,14 @@ async def call_with_retry_async(
     for attempt in range(max_retries + 1):
         try:
             return await func()
-        except (exceptions.InvalidArgument, exceptions.PermissionDenied, exceptions.Unauthenticated) as err:
+        except (
+            exceptions.InvalidArgument,
+            exceptions.PermissionDenied,
+            exceptions.Unauthenticated,
+            exceptions.FailedPrecondition,
+            exceptions.OutOfRange,
+            exceptions.Unimplemented,
+        ) as err:
             msg = f"Non-retriable Google API error: {type(err).__name__}: {err}"
             raise RuntimeError(msg) from err
         except (exceptions.TooManyRequests, exceptions.ServiceUnavailable, exceptions.DeadlineExceeded) as err:

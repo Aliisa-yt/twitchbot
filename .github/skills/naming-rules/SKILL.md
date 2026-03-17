@@ -1,6 +1,8 @@
+---
 name: naming-rules
 description: 命名規則の適用優先順位、用途別命名、禁止パターン、安全なリネーム運用ガイド
-keywords: naming-convention, pep8, consistency, api-compatibility, rename-safety, refactoring
+keywords: [naming-convention, pep8, consistency, api-compatibility, rename-safety, refactoring]
+---
 
 共通規約は [.github/copilot-instructions.md](../../copilot-instructions.md) を参照してください。
 
@@ -30,6 +32,20 @@ keywords: naming-convention, pep8, consistency, api-compatibility, rename-safety
 - 公開 API は必要最小限にし、非公開要素は `_` プレフィックスで明示する。
 - 既存コードが `snake_case` で統一されている箇所では、新規追加・修正も同じ規則に合わせる。
 - API 仕様に命名規則がある場合（JSON キー、DB カラム名など）は、そちらを優先する。
+
+### 3.1 ドメイン別クラス命名規則
+
+| 分類 | サフィックス | 例 |
+|------|----------|----|
+| コンポーネント | `Component` | `ChatEventsComponent`, `TTSServiceComponent` |
+| マネージャー | `Manager` | `TransManager`, `TTSManager`, `STTManager` |
+| インターフェース（STT/Trans） | `Interface` サフィックス | `STTInterface`, `TransInterface` |
+| インターフェース（TTS） | `Interface`（クラス名そのもの） | `Interface`（`core/tts/interface.py`） |
+| エンジン実装 | キャメルケース | `VoiceVox`, `DeeplTranslation`, `GoogleCloudSpeechToText` |
+| 例外クラス | `Error` サフィックス | `TTSExceptionError`, `TranslateExceptionError`, `STTExceptionError` |
+
+- TTSのインターフェースは歴史的経緯から `Interface` というクラス名になっており、新規エンジンはこのクラスを継承する。
+- コンポーネント名には `Component` サフィックスを付けるが、準大号コンポーネント（`SynthesisManager` など）はマネージャー内部の複数管理クラスであり `Component` サフィックスは付けない。
 
 ## 4. 動詞プレフィックスの推奨
 

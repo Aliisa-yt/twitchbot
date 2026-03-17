@@ -1,6 +1,8 @@
+---
 name: stt-service
 description: STTServiceComponent と STTManager の初期化、録音〜転送フロー、停止制御の実装指針
-keywords: stt, speech-to-text, recorder, processor, forwarding, mute, threshold, teardown
+keywords: [stt, speech-to-text, recorder, processor, forwarding, mute, threshold, teardown]
+---
 
 共通規約は [.github/copilot-instructions.md](../../copilot-instructions.md) を参照してください。
 
@@ -36,6 +38,9 @@ keywords: stt, speech-to-text, recorder, processor, forwarding, mute, threshold,
 ## 4. STTManager 側の重要点
 
 - エンジン名から `STTInterface.registered` を解決し、失敗時は `critical` ログで中断する。
+  - サポートエンジン: `google_cloud_stt` (`GoogleCloudSpeechToText`)、`google_cloud_stt_v2` (`GoogleCloudSpeechToTextV2`)。
+- 録音のサンプルレート・チャンネル数は固定値（`_FIXED_SAMPLE_RATE = 16000` Hz、`_FIXED_CHANNELS = 1`）。
+  - 設定有効時の楽曲はこの値を前提にコーディングする。
 - `STTRecorder` と `STTProcessor` を組み立て、プロセッサタスクを起動する。
 - `close()` では terminate event と queue shutdown を先に行い、残タスクを回収する。
 - マイク環境不備など `RuntimeError` は warning で扱い、Bot全体停止を避ける。

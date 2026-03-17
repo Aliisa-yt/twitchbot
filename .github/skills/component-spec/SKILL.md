@@ -1,6 +1,8 @@
+---
 name: component-spec
 description: コンポーネント登録、依存解決、ロード/ティアダウン、SharedData連携の実装仕様
-keywords: component, registry, dependency-resolution, topological-sort, lifecycle, load, teardown, shared-data
+keywords: [component, registry, dependency-resolution, topological-sort, lifecycle, load, teardown, shared-data]
+---
 
 共通規約は [.github/copilot-instructions.md](../../copilot-instructions.md) を参照してください。
 
@@ -26,10 +28,13 @@ Bot起動時にロード、Bot終了時にティアダウンします。
 
 ## 2. 登録の仕組み
 
-- コンポーネントは `ComponentBase` を継承する。
+- コンポーネントは `ComponentBase` を継承する（定義: `core/components/base.py`）。
 - サブクラス定義時に `__init_subclass__()` で `component_registry` に自動登録される。
 - 依存関係は `depends: ClassVar[list[str]]` で宣言する。
 - `depends` には **クラス名文字列**（例: `"TranslationServiceComponent"`）を指定する。
+- `component_registry` の型は `dict[str, ComponentDescriptor]`。
+  - `ComponentDescriptor` は `(component, depends, is_removable)` のNamedTuple。
+  - `is_removable=True` のコンポーネントは `core/components/removable/` 配下に定義されたコンポーネントで、Bot運転中に動的にアタッチ/デタッチできる。
 
 例:
 

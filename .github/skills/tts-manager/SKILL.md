@@ -1,6 +1,8 @@
+---
 name: tts-manager
 description: TTSManager のキュー連携、合成/再生/削除タスク、障害分離と終了処理の実装指針
-keywords: tts-manager, synthesis-queue, playback-queue, file-cleanup, background-task, cancellation, shutdown
+keywords: [tts-manager, synthesis-queue, playback-queue, file-cleanup, background-task, cancellation, shutdown]
+---
 
 共通規約は [.github/copilot-instructions.md](../../copilot-instructions.md) を参照してください。
 
@@ -10,10 +12,11 @@ keywords: tts-manager, synthesis-queue, playback-queue, file-cleanup, background
 ## 1. 構成
 
 - `synthesis_queue`: 音声合成待ちキュー。
-- `playback_queue`: 再生待ちキュー。
+- `playback_queue`: 再生待ちキュー（`ExcludableQueue` を使いチャットクリア時に特定エントリを除外できる）。
 - `deletion_queue`: 一時音声ファイル削除キュー。
-- `task_terminate_event`: 終了シグナル。
-- `background_tasks`: 合成・再生・ファイル掃除の常駐タスク集合。
+- `task_terminate_event`: 終了シグナル（`asyncio.Event`）。
+- `background_tasks`: 合成・再生・ファイル掃除の常駐タスク集合（`set[asyncio.Task[None]]`; タスク参照を強参照で保持しGCを防ぐ）。
+- `ParameterManager`: ユーザー種別（streamer/moderator/vip/subscriber/others/system）に応じてTTSパラメータ（言語・エンジン・キャスト・音量/速度/音調など）を選択する責務を担う。TTSManagerから分離されており、コンポーネント側で重複ロジックを持たない。
 
 ## 2. 初期化
 

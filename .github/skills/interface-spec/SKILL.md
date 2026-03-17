@@ -1,6 +1,8 @@
+---
 name: interface-spec
 description: STT/翻訳/TTS interface の抽象契約、自動登録規約、例外設計の横断仕様
-keywords: interface, abstract-contract, auto-registration, stt, translation, tts, exception-design
+keywords: [interface, abstract-contract, auto-registration, stt, translation, tts, exception-design]
+---
 
 共通規約は [.github/copilot-instructions.md](../../copilot-instructions.md) を参照してください。
 
@@ -55,15 +57,20 @@ interface クラス仕様を横断的に扱う実装ガイドです。
 ## 4. データモデル仕様
 
 - STT 入出力
-  - `STTInput`: `audio_path`, `language`, `sample_rate`, `channels`
+  - `STTInput`: `audio_path`（一時PCMファイルパス）, `language`, `sample_rate`, `channels`
   - `STTResult`: `text`, `language`, `confidence`, `metadata`
+  - `STTInput` / `STTResult` はどちらも frozen dataclass。
+  - `audio_path` は `Path` 型。STTManager が一時ディレクトリに生成するプロセス済みPCMファイルのパス。
 - 翻訳入出力
   - `Result`: `text`, `detected_source_lang`, `metadata`
   - `EngineAttributes`: `name`, `supports_dedicated_detection_api`, `supports_quota_api`
+  - `TranslationInfo`（`models/translation_models.py`）: `content`, `src_lang`, `tgt_lang`, `translated_text`, `is_translate`, `engine`
 
 ## 5. 例外設計の方針
 
-- STT は `STTExceptionError` を基底とし、可用性問題は `STTNotAvailableError` を使う。
+- STT は `STTExceptionError` を基底とし、以下を用途別に使い分ける。
+  - `STTNotAvailableError`: エンジン不假定/初期化失敗時の可用性問題。
+  - `STTNonRetriableError`: 再試行しても回復しないことが明確な錯誤（設定不備、未対応フォーマットなど）。
 - 翻訳は `TranslateExceptionError` を基底とし、以下を用途別に使い分ける。
   - `NotSupportedLanguagesError`
   - `TranslationQuotaExceededError`

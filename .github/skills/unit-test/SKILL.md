@@ -1,6 +1,8 @@
+---
 name: unit-test
 description: pytest/pytest-asyncio を前提とした単体テスト設計、実装、運用ルールのガイド
-keywords: unit-test, pytest, pytest-asyncio, mocking, fixture, assertion, reproducibility, test-design
+keywords: [unit-test, pytest, pytest-asyncio, mocking, fixture, assertion, reproducibility, test-design]
+---
 
 共通規約は [.github/copilot-instructions.md](../../copilot-instructions.md) を参照してください。
 
@@ -44,7 +46,9 @@ keywords: unit-test, pytest, pytest-asyncio, mocking, fixture, assertion, reprod
 ## 6. 実行環境
 - テストは `pytest` を使用して実行されるべきです。
 - テストは仮想環境内で実行されるべきです。
-- 非同期処理を含むテストは `pytest-asyncio` を使用し、`@pytest.mark.asyncio` を付与する。
+- 非同期処理を含むテストは `pytest-asyncio` を使用する。
+  - このリポジトリは `pyproject.toml` で `asyncio_mode = "auto"` を設定しているため、**`@pytest.mark.asyncio` マーカーは不要**（自動適用される）。
+  - フィクスチャのループスコープは `asyncio_default_fixture_loop_scope = "function"` のため、非同期フィクスチャは関数スコープで独立したイベントループが使われる。
 - 実行前に `venv` を有効化し、依存関係の差異による誤検知を避ける。
 
 ## 7. テストのベストプラクティス
@@ -57,8 +61,12 @@ keywords: unit-test, pytest, pytest-asyncio, mocking, fixture, assertion, reprod
 ## 8. pytest運用ルール（このリポジトリ）
 - 再利用するモックは `@pytest.fixture` で提供し、重複セットアップを減らす。
 - 複数ファイルで共有する fixture は `conftest.py` に配置する。
+  - `conftest.py` は `tests/` 直下（共通）またはサブディレクトリ直下（局所）に置いてよい。
 - 外部依存（API、I/O、バックグラウンド処理）は `AsyncMock` / `MagicMock` / `patch` で置き換える。
 - 非同期メソッドは `assert_awaited_once_with` など await 系のアサーションを優先する。
+- フィクスチャスコープの選択基準:
+  - `function`（デフォルト）: 状態を持つオブジェクト（マネージャー、モック）は原則このスコープ。
+  - `module` / `session`: 読み取り専用の高コスト初期化（設定オブジェクト、静的データ）のみに限定し、状態漏洩を防ぐ。
 
 ## 9. テストの粒度と命名
 - 1テスト1振る舞いを基本とし、失敗時に原因が1箇所へ収束するようにする。
@@ -84,6 +92,12 @@ keywords: unit-test, pytest, pytest-asyncio, mocking, fixture, assertion, reprod
 5. テスト名とfixture名が振る舞いを正確に表しているか。
 6. ローカルで対象テストを実行し、再現性があることを確認したか。
 
-## 13. テストのドキュメント
+## 13. カバレッジ運用
+- カバレッジ計測対象は `pyproject.toml` の `[tool.coverage.run] source` で定義されており、`core`, `handlers`, `utils`, `config`, `models` が対象。
+- ブランチカバレッジ（`branch = true`）を有効にしているため、条件分岐の両辺を網羅するテストが望ましい。
+- カバレッジが低い箇所を追加する際は、正常系・異常系の両面から最低限のパスを追加する。
+- `pragma: no cover` 抑制は、到達不能コードや `__repr__`/`__str__` など定型コードに限定し、テスト困難を理由に乱用しない。
+
+## 14. テストのドキュメント
 - テストコードには、テストの目的や前提条件を説明するコメントを含めるべきです。
 - コメントは英語で記述し、仕様意図の補足に限定する（自明な処理説明は避ける）。
