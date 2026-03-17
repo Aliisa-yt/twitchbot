@@ -6,10 +6,10 @@ Modular Twitch chat bot with translation, TTS, STT, cache, and GUI support. It s
 
 ## Feature Modules
 - Translation module: Multi-engine translation (`google`, `deepl`, `google_cloud`) with language detection flow.
-- TTS module: Role-based cast settings (`CAST`) and per-engine runtime settings (`CEVIO_AI`, `VOICEVOX`, etc.).
-- STT module: Optional speech-to-text input pipeline (`STT`) with retry/backoff and confidence filtering.
-- Cache module: Translation and language-detection cache controls (`CACHE`) for TTL and entry limits.
-- GUI module: Optional desktop status/level meter (`GUI`) with configurable refresh rate.
+- TTS module: Role-based cast settings (`CAST`). Supported engines: `gTTS` (free Google TTS), `Bouyomichan`, `CeVIO AI`, `CeVIO Creative Studio 7`, `VOICEVOX`, `COEIROINK` (v1/v2).
+- STT module: Optional speech-to-text input pipeline (`STT`) with retry/backoff and confidence filtering. VAD supports two modes: `level` (dBFS threshold) and `silero_onnx` (Silero ONNX Runtime).
+- Cache module: Translation and language-detection cache controls (`CACHE`) for TTL, entry limits, and optional export path.
+- GUI module: Status bar, scrolling log, and STT level meter. When STT is enabled, also shows VAD threshold sliders and a mute button.
 
 ## Setup
 - Python 3.13+
@@ -57,8 +57,11 @@ Key configuration sections in `twitchbot.ini`:
 - **[TRANSLATION]**: Engine priority and language pair settings.
 - **[DICTIONARY]**: Katakana/romaji conversion dictionaries used by text normalization.
 - **[TTS], [TTS_FORMAT], [CAST]**: TTS enablement, formatting templates, and role-based voice assignment.
-- **[STT]**: Speech-to-text engine, input thresholds/buffers, retry policy, and forwarding behavior to TTS.
-- **[CACHE]**: Cache TTL and maximum entry limits per engine.
+- **[STT]**: Speech-to-text engine (`google_cloud_stt` / `google_cloud_stt_v2`), retry/backoff policy, and forwarding behavior to TTS.
+- **[VAD]**: VAD mode (`level` / `silero_onnx`), pre/post buffer (ms), and maximum segment duration.
+- **[LEVELS_VAD]**: Start/stop thresholds (dBFS) for level-based VAD.
+- **[SILERO_VAD]**: Model path, detection threshold, and thread count for Silero ONNX VAD.
+- **[CACHE]**: Cache TTL, maximum entry limits per engine, and export path.
 - **[GUI]**: GUI meter update rate.
 - **[CEVIO_AI], [CEVIO_CS7], [BOUYOMICHAN], [VOICEVOX], [COEIROINK], [COEIROINK2]**: Per-engine connection/startup options.
 - **[TIME_SIGNAL]**: Scheduled time announcements.

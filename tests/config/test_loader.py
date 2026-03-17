@@ -213,9 +213,14 @@ def test_stt_enabled_with_invalid_thresholds_raises_config_value_error(tmp_path:
 
         [STT]
         ENABLED = True
-        ENGINE = "google_cloud_speech_to_text"
-        START_LEVEL = 0.2
-        STOP_LEVEL = 0.6
+        ENGINE = "google_cloud_stt"
+
+        [VAD]
+        MODE = "level"
+
+        [LEVELS_VAD]
+        START = 0.2
+        STOP = 0.6
         """,
     )
 
@@ -240,7 +245,12 @@ def test_stt_enabled_with_invalid_vad_onnx_threads_raises_config_value_error(tmp
         [STT]
         ENABLED = True
         ENGINE = "google_cloud_stt"
-        VAD_ONNX_THREADS = 0
+
+        [VAD]
+        MODE = "silero_onnx"
+
+        [SILERO_VAD]
+        ONNX_THREADS = 0
         """,
     )
 

@@ -4,10 +4,10 @@
 
 ## 機能モジュール
 - 翻訳モジュール: `google` / `deepl` / `google_cloud` の複数エンジンと言語判定フロー。
-- TTS モジュール: `CAST` によるロール別話者設定と、`CEVIO_AI`・`VOICEVOX` などエンジン別設定。
-- STT モジュール: `STT` セクションで有効化できる音声認識パイプライン（再試行・バックオフ・信頼度しきい値対応）。
-- キャッシュモジュール: `CACHE` セクションで翻訳・言語判定キャッシュの TTL/件数上限を制御。
-- GUI モジュール: `GUI` セクションでレベルメーター更新間隔を調整可能。
+- TTS モジュール: `CAST` によるロール別話者設定。対応エンジン: `gTTS`（Google TTS 無料版）、`棒読みちゃん`、`CeVIO AI`、`CeVIO Creative Studio 7`、`VOICEVOX`、`COEIROINK`（v1/v2）。
+- STT モジュール: `STT` セクションで有効化できる音声認識パイプライン（再試行・バックオフ・信頼度しきい値対応）。VAD は `level`（dBFS 閾値）と `silero_onnx`（Silero ONNX Runtime）の 2 モードを選択可能。
+- キャッシュモジュール: `CACHE` セクションで翻訳・言語判定キャッシュの TTL/件数上限を制御。キャッシュのエクスポートパスも設定可能。
+- GUI モジュール: ステータスバー・スクロールログ・STT レベルメーターを表示。STT 有効時は VAD 閾値スライダーとミュートボタンも表示。
 
 ## セットアップ
 - Python 3.13 以上
@@ -55,8 +55,11 @@ pyinstaller twitchbot.spec --clean
 - **[TRANSLATION]**: 翻訳エンジン優先順位と言語ペア設定。
 - **[DICTIONARY]**: カタカナ変換・ローマ字変換用辞書。
 - **[TTS], [TTS_FORMAT], [CAST]**: 読み上げ有効条件、フォーマットテンプレート、ロール別話者設定。
-- **[STT]**: 音声認識エンジン、入力しきい値/バッファ、再試行設定、TTS 連携設定。
-- **[CACHE]**: キャッシュ保持日数とエンジンごとの件数上限。
+- **[STT]**: 音声認識エンジン（`google_cloud_stt` / `google_cloud_stt_v2`）、再試行・バックオフ設定、TTS 連携設定。
+- **[VAD]**: VAD モード（`level` / `silero_onnx`）、前後バッファ（ms）、最大セグメント時間。
+- **[LEVELS_VAD]**: レベルベース VAD の起動/停止しきい値（dBFS）。
+- **[SILERO_VAD]**: Silero ONNX VAD のモデルパス・検出しきい値・スレッド数。
+- **[CACHE]**: キャッシュ保持日数、エンジンごとの件数上限、エクスポートパス。
 - **[GUI]**: GUI メーター更新レート。
 - **[CEVIO_AI], [CEVIO_CS7], [BOUYOMICHAN], [VOICEVOX], [COEIROINK], [COEIROINK2]**: 各 TTS エンジンの接続・起動設定。
 - **[TIME_SIGNAL]**: 時報アナウンス設定。

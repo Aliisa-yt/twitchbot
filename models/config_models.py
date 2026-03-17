@@ -17,12 +17,15 @@ __all__: list[str] = [
     "GUI",
     "STT",
     "TTS",
+    "VAD",
     "Bot",
     "Cache",
     "Cast",
     "Config",
     "Dictionary",
     "General",
+    "LevelsVAD",
+    "SileroVAD",
     "TTSEngine",
     "TTSFormat",
     "TimeSignal",
@@ -148,6 +151,27 @@ class Cache:
 
 
 @dataclass
+class LevelsVAD:
+    START: float = -20.0
+    STOP: float = -40.0
+
+
+@dataclass
+class SileroVAD:
+    MODEL_PATH: str = "data/stt/silero/silero_vad.onnx"
+    THRESHOLD: float = 0.5
+    ONNX_THREADS: int = 1  # Hidden setting: ONNX Runtime thread count for Silero VAD.
+
+
+@dataclass
+class VAD:
+    MODE: str = "level"
+    PRE_BUFFER_MS: int = 300
+    POST_BUFFER_MS: int = 500
+    MAX_SEGMENT_SEC: int = 20
+
+
+@dataclass
 class STT:
     DEBUG: bool = False  # Hidden settings that are not published in the INI file.
     ENABLED: bool = False
@@ -155,15 +179,6 @@ class STT:
     INPUT_DEVICE: str = "default"
     SAMPLE_RATE: int = 16000  # Unused configuration items.
     CHANNELS: int = 1  # Unused configuration items.
-    START_LEVEL: float = -20.0
-    STOP_LEVEL: float = -40.0
-    PRE_BUFFER_MS: int = 300
-    POST_BUFFER_MS: int = 500
-    MAX_SEGMENT_SEC: int = 20
-    VAD_MODE: str = "level"
-    VAD_SILERO_MODEL_PATH: str = "data/stt/silero/silero_vad.onnx"
-    VAD_THRESHOLD: float = 0.5
-    VAD_ONNX_THREADS: int = 1  # Hidden setting: ONNX Runtime thread count for Silero VAD.
     MUTE: bool = False
     LANGUAGE: str = "ja-JP"
     INTERIM_RESULT: bool = False  # Unused configuration items.
@@ -200,5 +215,8 @@ class Config:
     TIME_SIGNAL: TimeSignal = field(default_factory=TimeSignal)
     CACHE: Cache = field(default_factory=Cache)
     STT: STT = field(default_factory=STT)
+    VAD: VAD = field(default_factory=VAD)
+    LEVELS_VAD: LevelsVAD = field(default_factory=LevelsVAD)
+    SILERO_VAD: SileroVAD = field(default_factory=SileroVAD)
     GUI: GUI = field(default_factory=GUI)
     VOICE_PARAMETERS: UserTypeInfo = field(default_factory=UserTypeInfo)

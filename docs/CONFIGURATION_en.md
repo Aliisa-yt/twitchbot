@@ -103,18 +103,13 @@ Section names and keys are recommended to be uppercase. Lines starting with `#` 
 
 | Item | Type | Description |
 | --- |:---:| --- |
-| DEBUG | bool | `True`: Enables additional STT debug logs.<br>`False`: Uses normal logging. |
-| ENABLED | bool | `True`: Enables STT pipeline.<br>`False`: Disables STT. |
+| DEBUG | bool | `True`: Enables STT debug mode.<br>`False`: Uses normal mode. |
+| ENABLED | bool | `True`: Enables STT functionality.<br>`False`: Disables STT. |
 | ENGINE | str | STT engine name (for example `google_cloud_stt`). |
 | INPUT_DEVICE | str | Input device name/id (`default` uses system default input device). |
 | SAMPLE_RATE | int | Input sample rate in Hz. |
 | CHANNELS | int | Input channel count. |
-| START_LEVEL | float | Start threshold (dBFS) to begin a speech segment. |
-| STOP_LEVEL | float | Stop threshold (dBFS) to close a speech segment. |
-| PRE_BUFFER_MS | int | Pre-buffer size (ms) kept before speech start. |
-| POST_BUFFER_MS | int | Post-buffer size (ms) kept after speech end. |
-| MAX_SEGMENT_SEC | int | Maximum speech segment length in seconds. |
-| MUTE | bool | `True`: Mutes STT source while keeping detection pipeline active where supported.<br>`False`: Normal capture. |
+| MUTE | bool | `True`: Mutes STT input.<br>`False`: Normal capture. |
 | LANGUAGE | str | STT language locale (for example `ja-JP`). |
 | INTERIM_RESULT | bool | `True`: Uses interim/partial recognition results where supported.<br>`False`: Final results only. |
 | FORWARD_TO_TTS | bool / None | Controls whether STT results are forwarded to TTS. `None` uses internal default behavior. |
@@ -124,6 +119,30 @@ Section names and keys are recommended to be uppercase. Lines starting with `#` 
 | GOOGLE_CLOUD_STT_V2_MODEL | str | Google Cloud STT v2 recognition model. |
 | GOOGLE_CLOUD_STT_V2_RECOGNIZER | str | Google Cloud STT v2 recognizer resource shortcut. |
 | CONFIDENCE_THRESHOLD | float / None | Minimum confidence required to accept a recognition result. `None` disables threshold filtering. |
+
+### [VAD]
+
+| Item | Type | Description |
+| --- |:---:| --- |
+| MODE | str | VAD mode (`level` or `silero_onnx`). |
+| PRE_BUFFER_MS | int | Pre-buffer size (ms) kept before speech start. |
+| POST_BUFFER_MS | int | Post-buffer size (ms) kept after speech end. |
+| MAX_SEGMENT_SEC | int | Maximum speech segment length in seconds. |
+
+### [LEVELS_VAD]
+
+| Item | Type | Description |
+| --- |:---:| --- |
+| START | float | Start threshold (dBFS) to begin a speech segment. |
+| STOP | float | Stop threshold (dBFS) to close a speech segment. |
+
+### [SILERO_VAD]
+
+| Item | Type | Description |
+| --- |:---:| --- |
+| MODEL_PATH | str | Silero ONNX VAD model file path. |
+| THRESHOLD | float | Silero VAD detection threshold (0.0-1.0). |
+| ONNX_THREADS | int | ONNX Runtime thread count for Silero VAD. |
 
 ### [CACHE]
 
@@ -220,11 +239,19 @@ For voice setting format and parameter details, refer to [VOICE_SETTINGS_en.md](
 
 | Item | Type | Description |
 | --- |:---:| --- |
+| ENABLED | bool | `True`: Enables time signal functionality.<br>`False`: Disables time signal. |
+| LANGUAGE | str | Specifies the ISO 639-1 language code for time signal messages (for example `ja`, `en`). |
 | TEXT | bool | `True`: Displays time signal messages in console.<br>`False`: Does not display. |
 | VOICE | bool | `True`: Reads out time signal messages.<br>`False`: Does not read out. |
 | CLOCK12 | bool | `True`: Outputs time signals in 12-hour format.<br>`False`: Outputs in 24-hour format. |
-| AM_NAME | str | Prefix to use for AM. Only effective when CLOCK12 is `True`. |
-| PM_NAME | str | Prefix to use for PM. Only effective when CLOCK12 is `True`. |
+| EARLY_MORNING | str | Time signal message definition for early morning (4am-6am). |
+| MORNING | str | Time signal message definition for morning (6am-10am). |
+| LATE_MORNING | str | Time signal message definition for late morning (10am-12pm). |
+| AFTERNOON | str | Time signal message definition for afternoon (12pm-3pm). |
+| LATE_AFTERNOON | str | Time signal message definition for late afternoon (3pm-6pm). |
+| EVENING | str | Time signal message definition for evening (6pm-8pm). |
+| NIGHT | str | Time signal message definition for night (8pm-12am). |
+| LATE_NIGHT | str | Time signal message definition for late night (12am-4am). |
+| TIME_ANNOUNCEMENT | str | Time signal message definition used for 24-hour format. |
 
-This feature was created only for testing scheduled processing using TwitchIO's routines class, so there are not many detailed settings.
-If it's in the way, set both `TEXT` and `VOICE` to `False`, or comment out TimeSignalManager(self) in bot.Bot.setup_hook() and rebuild.
+- You can use `{hour}` in time signal messages, which will be replaced with the current hour accordingly.

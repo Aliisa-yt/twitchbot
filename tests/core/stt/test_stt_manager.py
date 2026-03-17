@@ -78,19 +78,17 @@ def _make_config(*, enabled: bool = True) -> SimpleNamespace:
         SAMPLE_RATE=16000,
         CHANNELS=1,
         INPUT_DEVICE="default",
-        START_LEVEL=0.6,
-        STOP_LEVEL=0.4,
-        PRE_BUFFER_MS=300,
-        POST_BUFFER_MS=500,
-        MAX_SEGMENT_SEC=20,
         LANGUAGE="ja-JP",
         RETRY_MAX=3,
         RETRY_BACKOFF_MS=500,
         MUTE=False,
     )
+    vad = SimpleNamespace(MODE="level", PRE_BUFFER_MS=300, POST_BUFFER_MS=500, MAX_SEGMENT_SEC=20)
+    levels_vad = SimpleNamespace(START=0.6, STOP=0.4)
+    silero_vad = SimpleNamespace(MODEL_PATH="data/stt/silero/silero_vad.onnx", THRESHOLD=0.5, ONNX_THREADS=1)
     general = SimpleNamespace(TMP_DIR="tmp")
     gui = SimpleNamespace(LEVEL_METER_REFRESH_RATE="10")
-    return SimpleNamespace(STT=stt, GENERAL=general, GUI=gui)
+    return SimpleNamespace(STT=stt, VAD=vad, LEVELS_VAD=levels_vad, SILERO_VAD=silero_vad, GENERAL=general, GUI=gui)
 
 
 @pytest.mark.asyncio
@@ -187,10 +185,10 @@ async def test_async_init_passes_vad_settings_to_recorder(monkeypatch: pytest.Mo
 
     config = _make_config(enabled=True)
     config.STT.ENGINE = "fake_stt"
-    config.STT.VAD_MODE = "silero_onnx"
-    config.STT.VAD_SILERO_MODEL_PATH = "data/stt/silero/silero_vad.onnx"
-    config.STT.VAD_THRESHOLD = 0.42
-    config.STT.VAD_ONNX_THREADS = 2
+    config.VAD.MODE = "silero_onnx"
+    config.SILERO_VAD.MODEL_PATH = "data/stt/silero/silero_vad.onnx"
+    config.SILERO_VAD.THRESHOLD = 0.42
+    config.SILERO_VAD.ONNX_THREADS = 2
     monkeypatch.setitem(STTInterface.registered, "fake_stt", _FakeEngine)
 
     manager = STTManager(cast("Config", config))

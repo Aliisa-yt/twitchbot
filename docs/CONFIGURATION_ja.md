@@ -103,20 +103,14 @@
 
 | 項目 | 型 | 説明 |
 | --- |:---:| --- |
-| DEBUG | bool | `True`: STT のデバッグログを増やします。<br>`False`: 通常ログで動作します。 |
-| ENABLED | bool | `True`: STT パイプラインを有効化します。<br>`False`: 無効化します。 |
+| DEBUG | bool | `True`: STT をデバッグモードにします。<br>`False`: 通常動作します。 |
+| ENABLED | bool | `True`: STT 機能を有効化します。<br>`False`: 無効化します。 |
 | ENGINE | str | STT エンジン名（例: `google_cloud_stt`）。 |
 | INPUT_DEVICE | str | 入力デバイス名/ID（`default` はシステム既定デバイス）。 |
 | SAMPLE_RATE | int | 入力サンプルレート（Hz）。 |
 | CHANNELS | int | 入力チャンネル数。 |
-| START_LEVEL | float | 音声セグメント開始判定しきい値（dBFS）。 |
-| STOP_LEVEL | float | 音声セグメント終了判定しきい値（dBFS）。 |
-| PRE_BUFFER_MS | int | 発話開始前に保持するバッファ長（ミリ秒）。 |
-| POST_BUFFER_MS | int | 発話終了後に保持するバッファ長（ミリ秒）。 |
-| MAX_SEGMENT_SEC | int | 音声セグメント最大長（秒）。 |
-| MUTE | bool | `True`: 対応範囲で検知処理を維持しつつ STT 入力をミュートします。<br>`False`: 通常キャプチャします。 |
+| MUTE | bool | `True`: STT 入力をミュートします。<br>`False`: 通常キャプチャします。 |
 | LANGUAGE | str | STT 言語ロケール（例: `ja-JP`）。 |
-| INTERIM_RESULT | bool | `True`: 対応エンジンで中間認識結果を利用します。<br>`False`: 最終結果のみ利用します。 |
 | FORWARD_TO_TTS | bool / None | STT 結果を TTS へ転送するかを制御します。`None` は内部既定動作を使います。 |
 | RETRY_MAX | int | STT 初期化/再接続時の最大再試行回数。 |
 | RETRY_BACKOFF_MS | int | 再試行間隔のバックオフ時間（ミリ秒）。 |
@@ -124,6 +118,30 @@
 | GOOGLE_CLOUD_STT_V2_MODEL | str | Google Cloud STT v2 の認識モデル名。 |
 | GOOGLE_CLOUD_STT_V2_RECOGNIZER | str | Google Cloud STT v2 の recognizer 指定用ショートカット。 |
 | CONFIDENCE_THRESHOLD | float / None | 認識結果を採用する最小信頼度。`None` は信頼度しきい値フィルタを無効化します。 |
+
+### [VAD]
+
+| 項目 | 型 | 説明 |
+| --- |:---:| --- |
+| MODE | str | VAD モード（`level` または `silero_onnx`）。 |
+| PRE_BUFFER_MS | int | 発話開始前に保持するバッファ長（ミリ秒）。 |
+| POST_BUFFER_MS | int | 発話終了後に保持するバッファ長（ミリ秒）。 |
+| MAX_SEGMENT_SEC | int | 音声セグメント最大長（秒）。 |
+
+### [LEVELS_VAD]
+
+| 項目 | 型 | 説明 |
+| --- |:---:| --- |
+| START | float | 音声セグメント開始判定しきい値（dBFS）。 |
+| STOP | float | 音声セグメント終了判定しきい値（dBFS）。 |
+
+### [SILERO_VAD]
+
+| 項目 | 型 | 説明 |
+| --- |:---:| --- |
+| MODEL_PATH | str | Silero ONNX VAD モデルファイルパス。 |
+| THRESHOLD | float | Silero VAD の検出しきい値（0.0-1.0）。 |
+| ONNX_THREADS | int | Silero VAD の ONNX Runtime スレッド数。 |
 
 ### [CACHE]
 
@@ -220,11 +238,19 @@
 
 | 項目 | 型 | 説明 |
 | --- |:---:| --- |
+| ENABLED | bool | `True`: 時報機能を有効化します。<br>`False`: 無効化します。 |
+| LANGUAGE | str | 時報メッセージの ISO 639-1 言語コードを指定します（例: `ja`, `en`）。 |
 | TEXT | bool | `True`: 時報メッセージをコンソールに表示します。<br>`False`: 表示しません。 |
 | VOICE | bool | `True`: 時報メッセージの読み上げを行います。<br>`False`: 読み上げません。 |
 | CLOCK12 | bool | `True`: 時報を 12 時間制で出力します。<br>`False`: 24 時間制で出力します。 |
-| AM_NAME | str | 午前に使う接頭語。CLOCK12 が `True` の場合のみ有効です。 |
-| PM_NAME | str | 午後に使う接頭語。CLOCK12 が `True` の場合のみ有効です。 |
+| EARLY_MORNING | str | 早朝時間帯の時報メッセージ定義。(4時から6時まで) |
+| MORNING | str | 朝時間帯の時報メッセージ定義。(6時から10時まで) |
+| LATE_MORNING | str | 午前時間帯の時報メッセージ定義。(10時から12時まで) |
+| AFTERNOON | str | 午後時間帯の時報メッセージ定義。(12時から15時まで) |
+| LATE_AFTERNOON | str | 夕方時間帯の時報メッセージ定義。(15時から18時まで) |
+| EVENING | str | 夜時間帯の時報メッセージ定義。(18時から20時まで) |
+| NIGHT | str | 深夜時間帯の時報メッセージ定義。(20時から24時まで) |
+| LATE_NIGHT | str | 夜時間帯の時報メッセージ定義。(0時から4時まで) |
+| TIME_ANNOUNCEMENT | str | 24 時間制の時に使用される時報メッセージの定義。 |
 
-TwitchIO の routines クラスを使用した定時処理の動作確認用に作っただけのため、あまり細かい設定はありません。
-邪魔な場合は、`TEXT` と `VOICE` を両方 `False` にするか、bot.Bot.setup_hook() 内の TimeSignalManager(self) をコメントアウトして、再ビルドしてください。
+- 時報メッセージ中に `{hour}` を使用できます。これらは時刻に応じて置換されます。

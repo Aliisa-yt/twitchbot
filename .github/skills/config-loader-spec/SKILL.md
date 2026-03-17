@@ -77,11 +77,13 @@ files: ./config/loader.py
 - 数値範囲:
 	- SAMPLE_RATE >= 8000
 	- CHANNELS >= 1
-	- START_LEVEL, STOP_LEVEL は -60.0 から 0.0
-	- START_LEVEL >= STOP_LEVEL
-	- PRE_BUFFER_MS >= 0
-	- POST_BUFFER_MS >= 0
-	- MAX_SEGMENT_SEC >= 1
+	- VAD.PRE_BUFFER_MS >= 0
+	- VAD.POST_BUFFER_MS >= 0
+	- VAD.MAX_SEGMENT_SEC >= 1
+	- LEVELS_VAD.START, LEVELS_VAD.STOP は -60.0 から 0.0（VAD.MODE=level のとき）
+	- LEVELS_VAD.START >= LEVELS_VAD.STOP（VAD.MODE=level のとき）
+	- SILERO_VAD.THRESHOLD は 0.0 から 1.0（VAD.MODE=silero_onnx のとき）
+	- SILERO_VAD.ONNX_THREADS >= 1（VAD.MODE=silero_onnx のとき）
 	- RETRY_MAX >= 0
 	- RETRY_BACKOFF_MS >= 0
 - 違反は ConfigValueError。

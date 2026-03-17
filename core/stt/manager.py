@@ -27,7 +27,7 @@ if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable
 
     from config.loader import Config
-    from models.config_models import STT
+    from models.config_models import STT, VAD, LevelsVAD, SileroVAD
 
 __all__: list[str] = ["STTManager"]
 
@@ -79,6 +79,9 @@ class STTManager:
             self._on_level_event = on_level_event
 
         stt_config: STT | None = getattr(self.config, "STT", None)
+        vad_config: VAD | None = getattr(self.config, "VAD", None)
+        levels_vad_config: LevelsVAD | None = getattr(self.config, "LEVELS_VAD", None)
+        silero_vad_config: SileroVAD | None = getattr(self.config, "SILERO_VAD", None)
 
         engine_name: str = getattr(stt_config, "ENGINE", "")
         engine_cls: type[STTInterface] | None = STTInterface.registered.get(engine_name)
@@ -98,15 +101,15 @@ class STTManager:
 
         tmp_dir_path: Path = self._resolve_tmp_dir()
         input_device: str = str(getattr(stt_config, "INPUT_DEVICE", "default"))
-        start_level: float = float(getattr(stt_config, "START_LEVEL", -20.0))
-        stop_level: float = float(getattr(stt_config, "STOP_LEVEL", -40.0))
-        pre_buffer_ms: int = int(getattr(stt_config, "PRE_BUFFER_MS", 300))
-        post_buffer_ms: int = int(getattr(stt_config, "POST_BUFFER_MS", 500))
-        max_segment_sec: int = int(getattr(stt_config, "MAX_SEGMENT_SEC", 20))
-        vad_mode: str = str(getattr(stt_config, "VAD_MODE", DEFAULT_VAD_MODE))
-        vad_silero_model_path: str = str(getattr(stt_config, "VAD_SILERO_MODEL_PATH", DEFAULT_SILERO_ONNX_MODEL_PATH))
-        vad_threshold: float = float(getattr(stt_config, "VAD_THRESHOLD", DEFAULT_SILERO_VAD_THRESHOLD))
-        vad_onnx_threads: int = int(getattr(stt_config, "VAD_ONNX_THREADS", 1))
+        start_level: float = float(getattr(levels_vad_config, "START", -20.0))
+        stop_level: float = float(getattr(levels_vad_config, "STOP", -40.0))
+        pre_buffer_ms: int = int(getattr(vad_config, "PRE_BUFFER_MS", 300))
+        post_buffer_ms: int = int(getattr(vad_config, "POST_BUFFER_MS", 500))
+        max_segment_sec: int = int(getattr(vad_config, "MAX_SEGMENT_SEC", 20))
+        vad_mode: str = str(getattr(vad_config, "MODE", DEFAULT_VAD_MODE))
+        vad_silero_model_path: str = str(getattr(silero_vad_config, "MODEL_PATH", DEFAULT_SILERO_ONNX_MODEL_PATH))
+        vad_threshold: float = float(getattr(silero_vad_config, "THRESHOLD", DEFAULT_SILERO_VAD_THRESHOLD))
+        vad_onnx_threads: int = int(getattr(silero_vad_config, "ONNX_THREADS", 1))
         language: str = str(getattr(stt_config, "LANGUAGE", "ja-JP"))
         retry_max: int = int(getattr(stt_config, "RETRY_MAX", 3))
         retry_backoff_ms: int = int(getattr(stt_config, "RETRY_BACKOFF_MS", 500))

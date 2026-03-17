@@ -371,26 +371,46 @@ class ConfigLoader:
 
         self._validate_stt_numeric_range("STT.SAMPLE_RATE", stt.SAMPLE_RATE, min_value=8000)
         self._validate_stt_numeric_range("STT.CHANNELS", stt.CHANNELS, min_value=1)
+        self._validate_vad_settings()
 
-        self._validate_stt_numeric_range("STT.START_LEVEL", stt.START_LEVEL, min_value=-60.0, max_value=0.0)
-        self._validate_stt_numeric_range("STT.STOP_LEVEL", stt.STOP_LEVEL, min_value=-60.0, max_value=0.0)
-        if stt.START_LEVEL < stt.STOP_LEVEL:
-            msg = "'STT.START_LEVEL' must be greater than or equal to 'STT.STOP_LEVEL'."
-            raise ConfigValueError(msg)
-
-        self._validate_stt_numeric_range("STT.PRE_BUFFER_MS", stt.PRE_BUFFER_MS, min_value=0)
-        self._validate_stt_numeric_range("STT.POST_BUFFER_MS", stt.POST_BUFFER_MS, min_value=0)
-        self._validate_stt_numeric_range("STT.MAX_SEGMENT_SEC", stt.MAX_SEGMENT_SEC, min_value=1)
-        if stt.VAD_MODE not in ALLOWED_STT_VAD_MODES:
-            msg = f"Unsupported value for 'STT.VAD_MODE': {stt.VAD_MODE}"
-            raise ConfigValueError(msg)
-        self._validate_stt_numeric_range("STT.VAD_THRESHOLD", stt.VAD_THRESHOLD, min_value=0.0, max_value=1.0)
-        self._validate_stt_numeric_range("STT.VAD_ONNX_THREADS", stt.VAD_ONNX_THREADS, min_value=1)
-        if stt.VAD_MODE == "silero_onnx" and not stt.VAD_SILERO_MODEL_PATH:
-            msg = "'STT.VAD_SILERO_MODEL_PATH' must not be empty when STT.VAD_MODE is silero_onnx."
-            raise ConfigValueError(msg)
         self._validate_stt_numeric_range("STT.RETRY_MAX", stt.RETRY_MAX, min_value=0)
         self._validate_stt_numeric_range("STT.RETRY_BACKOFF_MS", stt.RETRY_BACKOFF_MS, min_value=0)
+
+    def _validate_vad_settings(self) -> None:
+        """Validate VAD settings used by STT segmentation."""
+        vad = self.config.VAD
+
+        self._validate_stt_numeric_range("VAD.PRE_BUFFER_MS", vad.PRE_BUFFER_MS, min_value=0)
+        self._validate_stt_numeric_range("VAD.POST_BUFFER_MS", vad.POST_BUFFER_MS, min_value=0)
+        self._validate_stt_numeric_range("VAD.MAX_SEGMENT_SEC", vad.MAX_SEGMENT_SEC, min_value=1)
+        if vad.MODE not in ALLOWED_STT_VAD_MODES:
+            msg = f"Unsupported value for 'VAD.MODE': {vad.MODE}"
+            raise ConfigValueError(msg)
+
+        if vad.MODE == "level":
+            self._validate_level_vad_settings()
+        if vad.MODE == "silero_onnx":
+            self._validate_silero_vad_settings()
+
+    def _validate_level_vad_settings(self) -> None:
+        """Validate threshold settings for level-based VAD."""
+        levels_vad = self.config.LEVELS_VAD
+
+        self._validate_stt_numeric_range("LEVELS_VAD.START", levels_vad.START, min_value=-60.0, max_value=0.0)
+        self._validate_stt_numeric_range("LEVELS_VAD.STOP", levels_vad.STOP, min_value=-60.0, max_value=0.0)
+        if levels_vad.START < levels_vad.STOP:
+            msg = "'LEVELS_VAD.START' must be greater than or equal to 'LEVELS_VAD.STOP'."
+            raise ConfigValueError(msg)
+
+    def _validate_silero_vad_settings(self) -> None:
+        """Validate model and threshold settings for Silero ONNX VAD."""
+        silero_vad = self.config.SILERO_VAD
+
+        self._validate_stt_numeric_range("SILERO_VAD.THRESHOLD", silero_vad.THRESHOLD, min_value=0.0, max_value=1.0)
+        self._validate_stt_numeric_range("SILERO_VAD.ONNX_THREADS", silero_vad.ONNX_THREADS, min_value=1)
+        if not silero_vad.MODEL_PATH:
+            msg = "'SILERO_VAD.MODEL_PATH' must not be empty when VAD.MODE is silero_onnx."
+            raise ConfigValueError(msg)
 
     def _validate_stt_numeric_range(
         self,
