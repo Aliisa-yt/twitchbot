@@ -11,6 +11,9 @@ twitchbot.ini
 # Temporary Documentation
 docs/_*/
 
+# Binaries
+data/stt/silero/*.onnx
+
 # VSCode
 .vscode/
 *.code-workspace

@@ -1,4 +1,3 @@
-# ruff: noqa: BLE001
 """Translation cache manager.
 
 Manages translation and language detection caches using SQLite database with WAL mode.
@@ -121,7 +120,7 @@ class TranslationCacheManager:
         except RuntimeError as err:
             logger.critical("Failed to initialize TranslationCacheManager: %s", err)
             self._is_initialized = False
-        except Exception:
+        except Exception:  # noqa: BLE001
             logger.exception("Unexpected error during TranslationCacheManager initialization")
             self._is_initialized = False
 
@@ -132,7 +131,7 @@ class TranslationCacheManager:
             try:
                 self._db_conn.close()
                 logger.info("Database connection closed")
-            except Exception as err:
+            except Exception as err:  # noqa: BLE001
                 logger.error("Error closing database connection: %s", err)
         self._is_initialized = False
         logger.info("TranslationCacheManager shutdown completed")
@@ -245,7 +244,7 @@ class TranslationCacheManager:
         source_lang: str,
         target_lang: str,
         translation_profile: str = "",
-        engine: str | None = None,
+        engine: str = "",
     ) -> TranslationCacheEntry | None:
         """Search for translation in cache with engine-specific and fallback support.
 
@@ -258,7 +257,7 @@ class TranslationCacheManager:
             source_lang (str): Source language code.
             target_lang (str): Target language code.
             translation_profile (str): Translation profile identifier.
-            engine (str | None): Translation engine name (None for common cache).
+            engine (str): Translation engine name (empty string for common cache).
 
         Returns:
             TranslationCacheEntry | None: Cache entry if found, None otherwise.
@@ -269,15 +268,12 @@ class TranslationCacheManager:
             return None
 
         normalized_source: str = StringUtils.unicode_normalize(source_text)
-        # Keep track whether caller explicitly provided an engine (None means not provided).
-        provided_engine: bool = engine is not None
-        engine_norm: str = engine or ""
+        # Keep track whether caller explicitly provided an engine (empty string means not provided).
+        provided_engine: bool = bool(engine)
 
         cache_key: str = CacheUtils.generate_hash_key(
-            normalized_source, source_lang, target_lang, translation_profile, engine_norm
+            normalized_source, source_lang, target_lang, translation_profile, engine
         )
-        if cache_key is None:
-            return None
 
         try:
             entry: TranslationCacheEntry | None = await self._search_translation_entry(cache_key)
@@ -288,8 +284,6 @@ class TranslationCacheManager:
                 common_cache_key: str = CacheUtils.generate_hash_key(
                     normalized_source, source_lang, target_lang, translation_profile, engine=""
                 )
-                if common_cache_key is None:
-                    return None
                 entry = await self._search_translation_entry(common_cache_key)
                 if entry is not None:
                     logger.debug("Cache hit via fallback (common cache)")
@@ -400,19 +394,20 @@ class TranslationCacheManager:
         cache_key: str = CacheUtils.generate_hash_key(
             normalized_source, source_lang, target_lang, translation_profile, engine
         )
-        if cache_key is None:
-            return False
 
         try:
             async with self._lock:
                 now_epoch: int = TimeUtils.get_current_epoch()
                 self._db_conn.execute(
                     """
-                    INSERT OR REPLACE INTO translation_cache
+                    INSERT INTO translation_cache
                     (cache_key, normalized_source, source_lang, target_lang,
                      translation_text, translation_profile, engine,
                      created_at, last_used_at, hit_count)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
+                    ON CONFLICT(cache_key) DO UPDATE SET
+                        translation_text = excluded.translation_text,
+                        last_used_at     = excluded.last_used_at
                     """,
                     (
                         cache_key,
@@ -664,7 +659,7 @@ class TranslationCacheManager:
 
             logger.info("Cache data exported to: %s", output_path)
 
-        except Exception as err:
+        except Exception as err:  # noqa: BLE001
             logger.error("Error exporting cache data: %s", err)
             return False
         else:

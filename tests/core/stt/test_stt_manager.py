@@ -14,14 +14,16 @@ if TYPE_CHECKING:
 
 class _FakeRecorder:
     last_instance: _FakeRecorder | None = None
+    last_kwargs: dict[str, Any] | None = None
 
     def __init__(self, **kwargs: Any) -> None:
-        _ = kwargs
+        _FakeRecorder.last_kwargs = kwargs
         self.start_level = 0.6
         self.stop_level = 0.4
         self.muted = False
         self.started_with_callback = None
         self.closed = False
+        self.vad_threshold = 0.5
         _FakeRecorder.last_instance = self
 
     def set_mute(self, *, mute: bool) -> None:
@@ -32,6 +34,10 @@ class _FakeRecorder:
 
     async def close(self) -> None:
         self.closed = True
+
+    def set_vad_threshold(self, *, threshold: float) -> float:
+        self.vad_threshold = max(0.0, min(1.0, float(threshold)))
+        return self.vad_threshold
 
 
 class _FailingRecorder(_FakeRecorder):
@@ -172,3 +178,46 @@ async def test_async_init_when_input_monitoring_fails_keeps_manager_disabled(mon
     assert len(manager._background_tasks) == 0
 
     await manager.close()
+
+
+@pytest.mark.asyncio
+async def test_async_init_passes_vad_settings_to_recorder(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("core.stt.manager.STTRecorder", _FakeRecorder)
+    monkeypatch.setattr("core.stt.manager.STTProcessor", _FakeProcessor)
+
+    config = _make_config(enabled=True)
+    config.STT.ENGINE = "fake_stt"
+    config.STT.VAD_MODE = "silero_onnx"
+    config.STT.VAD_SILERO_MODEL_PATH = "data/stt/silero/silero_vad.onnx"
+    config.STT.VAD_THRESHOLD = 0.42
+    config.STT.VAD_ONNX_THREADS = 2
+    monkeypatch.setitem(STTInterface.registered, "fake_stt", _FakeEngine)
+
+    manager = STTManager(cast("Config", config))
+    await manager.async_init(on_result=None)
+
+    assert _FakeRecorder.last_kwargs is not None
+    assert _FakeRecorder.last_kwargs["vad_mode"] == "silero_onnx"
+    assert _FakeRecorder.last_kwargs["vad_silero_model_path"] == "data/stt/silero/silero_vad.onnx"
+    assert _FakeRecorder.last_kwargs["vad_threshold"] == pytest.approx(0.42)
+    assert _FakeRecorder.last_kwargs["vad_onnx_threads"] == 2
+
+    await manager.close()
+
+
+def test_set_vad_threshold_delegates_to_recorder() -> None:
+    manager = STTManager(cast("Config", _make_config(enabled=True)))
+    manager._recorder = cast("Any", _FakeRecorder())
+
+    applied = manager.set_vad_threshold(threshold=0.73)
+    recorder = cast("Any", manager._recorder)
+
+    assert applied == pytest.approx(0.73)
+    assert recorder.vad_threshold == pytest.approx(0.73)
+
+
+def test_set_vad_threshold_raises_when_recorder_missing() -> None:
+    manager = STTManager(cast("Config", _make_config(enabled=True)))
+
+    with pytest.raises(RuntimeError, match="STT recorder is not initialized"):
+        _ = manager.set_vad_threshold(threshold=0.5)

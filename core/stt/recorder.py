@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import sys
 import time
 from collections import deque
 from collections.abc import Awaitable, Callable
@@ -21,7 +22,7 @@ from typing import TYPE_CHECKING
 import numpy as np
 import sounddevice as sd
 
-from core.stt.vad import LevelVADProcessor, VADDecision, VADProcessorInterface
+from core.stt.vad import LevelVADProcessor, SileroOnnxVADProcessor, VADDecision, VADProcessorInterface
 from utils.logger_utils import LoggerUtils
 from utils.tts_utils import TTSUtils
 
@@ -43,6 +44,16 @@ DEFAULT_POST_BUFFER_MS: int = 500
 DEFAULT_MAX_SEGMENT_SEC: int = 20
 DEFAULT_INPUT_STALL_TIMEOUT_SEC: float = 2.0
 DEFAULT_RECONNECT_BACKOFF_SEC: float = 3.0
+DEFAULT_VAD_MODE: str = "level"
+DEFAULT_SILERO_ONNX_MODEL_PATH: str = "data/stt/silero/silero_vad.onnx"
+DEFAULT_SILERO_VAD_THRESHOLD: float = 0.5
+
+
+class VADMode(StrEnum):
+    """VAD mode selector for recorder segmentation."""
+
+    LEVEL = "level"
+    SILERO_ONNX = "silero_onnx"
 
 
 class SegmentMode(StrEnum):
@@ -99,6 +110,10 @@ class STTRecorder:
         pre_buffer_ms: int = DEFAULT_PRE_BUFFER_MS,
         post_buffer_ms: int = DEFAULT_POST_BUFFER_MS,
         max_segment_sec: int = DEFAULT_MAX_SEGMENT_SEC,
+        vad_mode: str = DEFAULT_VAD_MODE,
+        vad_silero_model_path: str = DEFAULT_SILERO_ONNX_MODEL_PATH,
+        vad_threshold: float = DEFAULT_SILERO_VAD_THRESHOLD,
+        vad_onnx_threads: int = 1,
     ) -> None:
         self._segment_queue: asyncio.Queue[STTSegment] = segment_queue
         self._tmp_directory: Path = tmp_directory
@@ -127,11 +142,13 @@ class STTRecorder:
         self._pre_buffer_frames: int = 0
         self._segment_chunks: list[np.ndarray] = []
         self._segment_frames: int = 0
-        self._vad_processor: VADProcessorInterface = LevelVADProcessor(
-            start_level=self._start_level,
-            stop_level=self._stop_level,
-            post_buffer_ms=self._post_buffer_ms,
-            max_segment_sec=self._max_segment_sec,
+        self._vad_mode: VADMode = self._normalize_vad_mode(vad_mode)
+        self._vad_threshold: float = max(0.0, min(1.0, float(vad_threshold)))
+        self._vad_processor: VADProcessorInterface = self._create_vad_processor(
+            vad_mode=self._vad_mode,
+            vad_silero_model_path=vad_silero_model_path,
+            vad_threshold=self._vad_threshold,
+            vad_onnx_threads=vad_onnx_threads,
         )
         self._pending_segment_tasks: set[asyncio.Task[None]] = set()
         self._input_watchdog_task: asyncio.Task[None] | None = None
@@ -140,6 +157,57 @@ class STTRecorder:
         self._input_stall_timeout_sec: float = DEFAULT_INPUT_STALL_TIMEOUT_SEC
         self._reconnect_backoff_sec: float = DEFAULT_RECONNECT_BACKOFF_SEC
         self._segment_epoch: int = 0
+
+    @staticmethod
+    def _normalize_vad_mode(vad_mode: str) -> VADMode:
+        try:
+            return VADMode(vad_mode.strip().lower())
+        except ValueError:
+            return VADMode.LEVEL
+
+    def _create_vad_processor(
+        self,
+        *,
+        vad_mode: VADMode,
+        vad_silero_model_path: str,
+        vad_threshold: float,
+        vad_onnx_threads: int,
+    ) -> VADProcessorInterface:
+        if vad_mode is VADMode.SILERO_ONNX:
+            model_path: Path = self._resolve_resource_path(vad_silero_model_path)
+            if not model_path.exists():
+                msg = f"Silero ONNX model file not found: {model_path}"
+                raise RuntimeError(msg)
+
+            logger.info("STT recorder VAD mode: silero_onnx (model=%s)", model_path)
+            return SileroOnnxVADProcessor(
+                model_path=model_path,
+                threshold=vad_threshold,
+                post_buffer_ms=self._post_buffer_ms,
+                max_segment_sec=self._max_segment_sec,
+                sample_rate=self._sample_rate,
+                onnx_threads=max(1, int(vad_onnx_threads)),
+            )
+
+        logger.info("STT recorder VAD mode: level")
+        return LevelVADProcessor(
+            start_level=self._start_level,
+            stop_level=self._stop_level,
+            post_buffer_ms=self._post_buffer_ms,
+            max_segment_sec=self._max_segment_sec,
+        )
+
+    @staticmethod
+    def _resolve_resource_path(path_text: str) -> Path:
+        candidate: Path = Path(path_text)
+        if candidate.is_absolute():
+            return candidate
+
+        meipass: str | None = getattr(sys, "_MEIPASS", None)
+        if meipass:
+            return Path(meipass) / candidate
+
+        return candidate
 
     @property
     def input_device(self) -> str | int | None:
@@ -173,6 +241,14 @@ class STTRecorder:
     def stop_level_db(self) -> float:
         return self._stop_level_db
 
+    @property
+    def vad_mode(self) -> VADMode:
+        return self._vad_mode
+
+    @property
+    def vad_threshold(self) -> float:
+        return self._vad_threshold
+
     def set_thresholds(self, *, start_level_db: float, stop_level_db: float) -> None:
         """Update segmentation thresholds.
 
@@ -186,6 +262,18 @@ class STTRecorder:
         self._start_level = self._normalize_level(TTSUtils.log_to_linear(applied_start))
         self._stop_level = self._normalize_level(TTSUtils.log_to_linear(applied_stop))
         self._vad_processor.set_thresholds(start_level=self._start_level, stop_level=self._stop_level)
+
+    def set_vad_threshold(self, *, threshold: float) -> float:
+        """Update VAD threshold used by probability-based VAD modes.
+
+        Args:
+            threshold (float): VAD probability threshold in the range 0.0-1.0.
+
+        Returns:
+            float: Applied threshold value.
+        """
+        self._vad_threshold = self._vad_processor.set_vad_threshold(threshold=threshold)
+        return self._vad_threshold
 
     def set_mute(self, *, mute: bool) -> None:
         if mute and not self._muted:
@@ -238,6 +326,7 @@ class STTRecorder:
             await asyncio.to_thread(self._close_input_stream)
 
         self._flush_active_segment()
+        await asyncio.sleep(0)  # allow call_soon_threadsafe callbacks to run before snapshotting tasks
         if self._pending_segment_tasks:
             await asyncio.gather(*list(self._pending_segment_tasks), return_exceptions=True)
             self._pending_segment_tasks.clear()
@@ -354,12 +443,7 @@ class STTRecorder:
         candidates: list[str | int | None] = [None]
         candidates.extend(self._list_available_input_device_indices())
 
-        unique_candidates: list[str | int | None] = []
-        for candidate in candidates:
-            if candidate in unique_candidates:
-                continue
-            unique_candidates.append(candidate)
-        return unique_candidates
+        return list(dict.fromkeys(candidates))
 
     def _list_available_input_device_indices(self) -> list[int]:
         try:
@@ -447,6 +531,9 @@ class STTRecorder:
         return device_name
 
     def _audio_callback(self, indata: np.ndarray, frames: int, time_info: Any, status: sd.CallbackFlags) -> None:
+        # NOTE: this method runs on the sounddevice callback thread.
+        # _last_audio_callback_monotonic, _muted, and _current_level are accessed
+        # from both this thread and the event loop thread; safe under CPython GIL.
         _ = frames, time_info
         self._last_audio_callback_monotonic = time.monotonic()
         if status:
@@ -685,10 +772,10 @@ class STTRecorder:
 
     def _clear_level_queue(self) -> None:
         while True:
-            with contextlib.suppress(asyncio.QueueEmpty):
+            try:
                 self._level_queue.get_nowait()
-                continue
-            break
+            except asyncio.QueueEmpty:
+                break
 
     async def close(self) -> None:
         """Close recorder resources."""

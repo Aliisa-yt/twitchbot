@@ -32,6 +32,14 @@ class LevelVADProcessor:
         self.start_level = start_level
         self.stop_level = stop_level
 
+    def set_vad_threshold(self, *, threshold: float) -> float:
+        """Accept VAD threshold updates for interface compatibility.
+
+        Level-based VAD does not use a probability threshold, so this method
+        keeps the existing behavior unchanged and returns a clamped value.
+        """
+        return max(0.0, min(1.0, float(threshold)))
+
     def process_chunk(
         self,
         *,

@@ -136,6 +136,16 @@ class ChatEventsManager(ComponentBase):
 
         await self._message_queue.clear()
 
+        # Cancel in-flight message tasks before clearing playback_queue.
+        # Without this, a concurrent _handle_message_task may call store_tts_queue
+        # after playback_queue.clear() completes, leaving orphaned items for playback.
+        if self._spawned_tasks:
+            for _t in list(self._spawned_tasks):
+                _t.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await asyncio.gather(*self._spawned_tasks, return_exceptions=True)
+            self._spawned_tasks.clear()
+
         # The queue must be cleared before stopping playback.
         # Otherwise, the next playback may start immediately after the playback is stopped.
         async def _enqueue_delete(tts_param: TTSParam) -> None:
@@ -231,7 +241,7 @@ class ChatEventsManager(ComponentBase):
                 try:
                     exc: BaseException | None = task.exception()
                     if exc is not None:
-                        logger.error("Message worker exited with exception: %s", exc)
+                        logger.error("Message worker exited with exception: %s", exc, exc_info=exc)
                 except asyncio.CancelledError:
                     pass
                 except Exception as err:  # noqa: BLE001
@@ -242,8 +252,8 @@ class ChatEventsManager(ComponentBase):
                     self._message_worker_loop(),
                     name="ChatEventsManagerMessageWorker",
                 )
-            except RuntimeError as err:
-                logger.error("Failed to start message worker task: %s", err)
+            except RuntimeError:  # noqa: BLE001
+                logger.exception("Failed to start message worker task")
                 self._message_worker_task = None
                 return False
         return True
@@ -264,10 +274,14 @@ class ChatEventsManager(ComponentBase):
 
             await semaphore.acquire()
             # spawn a background task per message; concurrency is limited by semaphore
-            task: asyncio.Task[None] = asyncio.create_task(
-                self._handle_message_task(dto, semaphore),
-                name=f"ChatEventsManagerMessageTask-{dto.message_id}",
-            )
+            try:
+                task: asyncio.Task[None] = asyncio.create_task(
+                    self._handle_message_task(dto, semaphore),
+                    name=f"ChatEventsManagerMessageTask-{dto.message_id}",
+                )
+            except Exception:
+                semaphore.release()
+                raise
             self._spawned_tasks.add(task)
             task.add_done_callback(self._task_done_callback)
 
@@ -277,8 +291,8 @@ class ChatEventsManager(ComponentBase):
             await self._handle_message(dto)
         except asyncio.CancelledError:
             raise
-        except Exception as err:  # noqa: BLE001 - isolate handler failures
-            logger.error("Message handler task error: %s", err)
+        except Exception:  # noqa: BLE001 - isolate handler failures
+            logger.exception("Message handler task error")
         finally:
             semaphore.release()
             # mark queue item as processed when the background task finishes
@@ -296,7 +310,7 @@ class ChatEventsManager(ComponentBase):
         except Exception:  # noqa: BLE001
             return
         if exc is not None:
-            logger.error("Spawned message task finished with exception: %s", exc)
+            logger.error("Spawned message task finished with exception: %s", exc, exc_info=exc)
 
     async def _handle_message(self, dto: ChatMessageDTO) -> None:
         """Handle a chat message DTO for translation and TTS processing.

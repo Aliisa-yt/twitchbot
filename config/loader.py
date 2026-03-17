@@ -38,6 +38,7 @@ logger: logging.Logger = LoggerUtils.get_logger(__name__)
 
 ALLOWED_TRANSLATION_ENGINES: list[str] = ["google", "deepl", "google_cloud"]
 ALLOWED_STT_ENGINES: list[str] = ["google_cloud_stt", "google_cloud_stt_v2"]
+ALLOWED_STT_VAD_MODES: list[str] = ["level", "silero_onnx"]
 
 API_COLORS: list[str] = [
     "blue",
@@ -380,6 +381,14 @@ class ConfigLoader:
         self._validate_stt_numeric_range("STT.PRE_BUFFER_MS", stt.PRE_BUFFER_MS, min_value=0)
         self._validate_stt_numeric_range("STT.POST_BUFFER_MS", stt.POST_BUFFER_MS, min_value=0)
         self._validate_stt_numeric_range("STT.MAX_SEGMENT_SEC", stt.MAX_SEGMENT_SEC, min_value=1)
+        if stt.VAD_MODE not in ALLOWED_STT_VAD_MODES:
+            msg = f"Unsupported value for 'STT.VAD_MODE': {stt.VAD_MODE}"
+            raise ConfigValueError(msg)
+        self._validate_stt_numeric_range("STT.VAD_THRESHOLD", stt.VAD_THRESHOLD, min_value=0.0, max_value=1.0)
+        self._validate_stt_numeric_range("STT.VAD_ONNX_THREADS", stt.VAD_ONNX_THREADS, min_value=1)
+        if stt.VAD_MODE == "silero_onnx" and not stt.VAD_SILERO_MODEL_PATH:
+            msg = "'STT.VAD_SILERO_MODEL_PATH' must not be empty when STT.VAD_MODE is silero_onnx."
+            raise ConfigValueError(msg)
         self._validate_stt_numeric_range("STT.RETRY_MAX", stt.RETRY_MAX, min_value=0)
         self._validate_stt_numeric_range("STT.RETRY_BACKOFF_MS", stt.RETRY_BACKOFF_MS, min_value=0)
 

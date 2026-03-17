@@ -21,7 +21,7 @@ from utils.logger_utils import LoggerUtils
 from utils.tts_utils import TTSUtils
 
 if TYPE_CHECKING:
-    from collections.abc import Awaitable, Callable
+    from collections.abc import Callable, Coroutine
 
     from core.bot import Bot
     from core.stt.manager import STTManager
@@ -49,6 +49,10 @@ LABEL_STYLE: Final[str] = "Twitchbot.TLabel"
 FRAME_STYLE: Final[str] = "Twitchbot.TFrame"
 LABEL_FRAME_STYLE: Final[str] = "Twitchbot.TLabelframe"
 LABEL_FRAME_LABEL_STYLE: Final[str] = "Twitchbot.TLabelframe.Label"
+VAD_MODE_LEVEL: Final[str] = "level"
+VAD_MODE_SILERO_ONNX: Final[str] = "silero_onnx"
+STT_SILERO_UNUSED_LABEL_TEXT: Final[str] = "Unused"
+STT_SILERO_UNUSED_VALUE_TEXT: Final[str] = "--"
 
 # Maximum lines to keep in the scrolled text widget
 MAX_SCROLLED_LINES: Final[int] = 50
@@ -84,8 +88,10 @@ class STTSectionWidgets:
     level_meter_peak_id: int
     level_meter_length: int
     level_meter_height: int
+    start_text_label: ttk.Label
     start_scale: ttk.Scale
     start_value_label: ttk.Label
+    stop_text_label: ttk.Label
     stop_scale: ttk.Scale
     stop_value_label: ttk.Label
     mute_button: ttk.Button
@@ -152,12 +158,9 @@ class StreamRedirector(io.StringIO):
 
     def _trim_lines(self) -> None:
         """Trim the text widget to keep only the most recent max_lines lines."""
-        content: str = self.text_widget.get("1.0", "end-1c")
-        lines: list[str] = content.split("\n")
-
-        if len(lines) > self.max_lines:
-            lines_to_remove: int = len(lines) - self.max_lines
-            end_index: str = f"{lines_to_remove + 1}.0"
+        line_count: int = int(self.text_widget.index("end-1c").split(".")[0])
+        if line_count > self.max_lines:
+            end_index: str = f"{line_count - self.max_lines + 1}.0"
             self.text_widget.delete("1.0", end_index)
 
     def flush(self) -> None:
@@ -201,6 +204,7 @@ class GUIApp:
         self.bot_task: asyncio.Task | None = None
         self.shutdown_event: asyncio.Event | None = None
         self._updating_stt_thresholds: bool = False
+        self._stt_vad_mode: str = VAD_MODE_LEVEL
         self._stt_smoothed_rms: float | None = None
         self._stt_smoothed_peak: float | None = None
         self._stt_widgets: STTSectionWidgets | None = None
@@ -301,7 +305,7 @@ class GUIApp:
             height=24,
         )
 
-        start_scale, start_value_label = self._labeled_scale(
+        start_text_label, start_scale, start_value_label = self._labeled_scale(
             stt_inner,
             text="Start Threshold",
             from_=STT_FLOOR_LEVEL_DB,
@@ -310,7 +314,7 @@ class GUIApp:
             command=self._on_stt_threshold_changed,
         )
 
-        stop_scale, stop_value_label = self._labeled_scale(
+        stop_text_label, stop_scale, stop_value_label = self._labeled_scale(
             stt_inner,
             text="Stop Threshold",
             from_=STT_FLOOR_LEVEL_DB,
@@ -341,8 +345,10 @@ class GUIApp:
             level_meter_peak_id=peak_id,
             level_meter_length=level_meter_length,
             level_meter_height=level_meter_height,
+            start_text_label=start_text_label,
             start_scale=start_scale,
             start_value_label=start_value_label,
+            stop_text_label=stop_text_label,
             stop_scale=stop_scale,
             stop_value_label=stop_value_label,
             mute_button=mute_button,
@@ -424,7 +430,7 @@ class GUIApp:
         to: float = 1.0,
         initial_value: float = 0.0,
         command: str | Callable[[str], None] = "",
-    ) -> tuple[ttk.Scale, ttk.Label]:
+    ) -> tuple[ttk.Label, ttk.Scale, ttk.Label]:
         """Create a labeled scale row (Label + Scale + Value Label)."""
 
         label_frame = ttk.Frame(parent, style=FRAME_STYLE)
@@ -445,7 +451,54 @@ class GUIApp:
         scale.set(initial_value)
         scale.state(["disabled"])
 
-        return scale, value_label
+        return label, scale, value_label
+
+    @staticmethod
+    def _normalize_vad_mode(vad_mode: str) -> str:
+        normalized: str = vad_mode.strip().lower()
+        if normalized == VAD_MODE_SILERO_ONNX:
+            return VAD_MODE_SILERO_ONNX
+        return VAD_MODE_LEVEL
+
+    @staticmethod
+    def _clamp_vad_threshold(value: float) -> float:
+        return max(0.0, min(1.0, float(value)))
+
+    @staticmethod
+    def _format_vad_threshold_value(value: float) -> str:
+        return f"{max(0.0, min(1.0, float(value))):.2f}"
+
+    def configure_stt_vad_mode(self, *, vad_mode: str, vad_threshold: float) -> None:
+        """Configure STT slider presentation for the selected VAD mode.
+
+        Args:
+            vad_mode (str): VAD mode text from configuration.
+            vad_threshold (float): Silero VAD threshold in the range 0.0-1.0.
+        """
+        widgets: STTSectionWidgets = self._require_stt_widgets()
+        self._stt_vad_mode = self._normalize_vad_mode(vad_mode)
+
+        if self._stt_vad_mode == VAD_MODE_SILERO_ONNX:
+            widgets.start_text_label.config(text="VAD Threshold")
+            widgets.stop_text_label.config(text=STT_SILERO_UNUSED_LABEL_TEXT, foreground="#808080")
+            widgets.start_scale.configure(from_=0.0, to=1.0)
+            widgets.stop_scale.configure(from_=STT_FLOOR_LEVEL_DB, to=0.0)
+            self._updating_stt_thresholds = True
+            try:
+                widgets.start_scale.set(self._clamp_vad_threshold(vad_threshold))
+            finally:
+                self._updating_stt_thresholds = False
+            widgets.stop_scale.state(["disabled"])
+            self._update_stt_threshold_value_labels(widgets.start_scale.get(), 0.0)
+            self.root.update_idletasks()
+            return
+
+        widgets.start_text_label.config(text="Start Threshold")
+        widgets.stop_text_label.config(text="Stop Threshold", foreground="")
+        widgets.start_scale.configure(from_=STT_FLOOR_LEVEL_DB, to=0.0)
+        widgets.stop_scale.configure(from_=STT_FLOOR_LEVEL_DB, to=0.0)
+        self._update_stt_threshold_value_labels(widgets.start_scale.get(), widgets.stop_scale.get())
+        self.root.update_idletasks()
 
     def _configure_styles(self) -> None:
         """Configure ttk widget styles for the GUI."""
@@ -686,8 +739,26 @@ class GUIApp:
         state: list[str] = ["!disabled"] if enabled else ["disabled"]
         widgets: STTSectionWidgets = self._require_stt_widgets()
         widgets.start_scale.state(state)
-        widgets.stop_scale.state(state)
+        if self._stt_vad_mode == VAD_MODE_SILERO_ONNX:
+            widgets.stop_scale.state(["disabled"])
+        else:
+            widgets.stop_scale.state(state)
         widgets.mute_button.state(state)
+        self.root.update_idletasks()
+
+    def update_stt_vad_threshold(self, threshold: float) -> None:
+        """Update the visual value of Silero VAD threshold slider.
+
+        Args:
+            threshold (float): VAD threshold in the range 0.0-1.0.
+        """
+        widgets: STTSectionWidgets = self._require_stt_widgets()
+        self._updating_stt_thresholds = True
+        try:
+            widgets.start_scale.set(self._clamp_vad_threshold(threshold))
+        finally:
+            self._updating_stt_thresholds = False
+        self._update_stt_threshold_value_labels(widgets.start_scale.get(), 0.0)
         self.root.update_idletasks()
 
     def set_stt_mute_state(self, *, is_muted: bool) -> None:
@@ -737,8 +808,12 @@ class GUIApp:
             stop_level_db (float): Stop threshold in dB.
         """
         widgets: STTSectionWidgets = self._require_stt_widgets()
+        if self._stt_vad_mode == VAD_MODE_SILERO_ONNX:
+            widgets.start_value_label.config(text=self._format_vad_threshold_value(start_level_db))
+            widgets.stop_value_label.config(text=STT_SILERO_UNUSED_VALUE_TEXT, foreground="#808080")
+            return
         widgets.start_value_label.config(text=self._format_level_value(start_level_db))
-        widgets.stop_value_label.config(text=self._format_level_value(stop_level_db))
+        widgets.stop_value_label.config(text=self._format_level_value(stop_level_db), foreground="")
 
     def _normalize_stt_threshold_pair(self, start_level_db: float, stop_level_db: float) -> tuple[float, float]:
         clamped_start: float = self._clamp_level(start_level_db)
@@ -761,15 +836,22 @@ class GUIApp:
 
         try:
             widgets: STTSectionWidgets = self._require_stt_widgets()
+
+            if self._stt_vad_mode == VAD_MODE_SILERO_ONNX:
+                selected_threshold: float = self._clamp_vad_threshold(float(widgets.start_scale.get()))
+                applied_threshold: float = stt_manager.set_vad_threshold(threshold=selected_threshold)
+                self.update_stt_vad_threshold(applied_threshold)
+                return
+
             start_level_db: float = float(widgets.start_scale.get())
             stop_level_db: float = float(widgets.stop_scale.get())
             normalized_start, normalized_stop = self._normalize_stt_threshold_pair(start_level_db, stop_level_db)
 
-            self._update_stt_threshold_value_labels(normalized_start, normalized_stop)
             applied_start, applied_stop = stt_manager.set_thresholds(
                 start_level_db=normalized_start,
                 stop_level_db=normalized_stop,
             )
+            self._update_stt_threshold_value_labels(applied_start, applied_stop)
         except (AttributeError, RuntimeError, ValueError, TypeError) as err:
             logger.debug("Failed to apply STT thresholds from GUI sliders: %s", err)
             return
@@ -794,7 +876,7 @@ class GUIApp:
         """
         messagebox.showinfo(title, message, parent=self.root)
 
-    async def run_with_bot(self, bot_coro: Awaitable) -> None:  # noqa: C901
+    async def run_with_bot(self, bot_coro: Coroutine[Any, Any, None]) -> None:  # noqa: C901
         """Run the GUI application with the bot.
 
         Args:
@@ -808,7 +890,7 @@ class GUIApp:
             self.update_status("Bot running...", STATUS_RUNNING_COLOR)
 
             # Create a task for the bot
-            self.bot_task = asyncio.ensure_future(bot_coro)
+            self.bot_task = asyncio.create_task(bot_coro, name="BotTask")
 
             # Run the tkinter event loop with asyncio integration
             while self.running:

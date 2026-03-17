@@ -17,6 +17,7 @@ google-cloud-speech
 types-pywin32
 types-dataclasses-json
 google-api-python-client-stubs
+onnxruntime
 coverage
 ruff
 mypy

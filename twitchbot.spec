@@ -6,6 +6,7 @@ from PyInstaller.utils.hooks import collect_data_files
 emoji_datas = collect_data_files('emoji.unicode_codes', includes=['*.json'])
 extra_datas = [
     ('data/stt/google-cloud-stt-v2_supported-languages.txt', 'data/stt'),
+    ('data/stt/silero/silero_vad.onnx', 'data/stt/silero'),
 ]
 
 a = Analysis(
@@ -13,7 +14,12 @@ a = Analysis(
     pathex=['.'],
     binaries=[],
     datas=emoji_datas + extra_datas,
-    hiddenimports=["google.cloud.speech", "google.cloud.speech_v2"],
+    hiddenimports=[
+        "google.cloud.speech",
+        "google.cloud.speech_v2",
+        "onnxruntime",
+        "onnxruntime.capi.onnxruntime_pybind11_state",
+    ],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],

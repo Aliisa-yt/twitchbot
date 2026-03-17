@@ -8,7 +8,7 @@ The time signal can be configured to output text to the console or to output spe
 from __future__ import annotations
 
 from datetime import datetime, timedelta
-from typing import TYPE_CHECKING, ClassVar
+from typing import TYPE_CHECKING, ClassVar, Final
 
 from twitchio.ext import routines
 
@@ -24,6 +24,8 @@ if TYPE_CHECKING:
 __all__: list[str] = ["TimeSignalManager"]
 
 logger: logging.Logger = LoggerUtils.get_logger(__name__)
+
+DEBUG: Final[bool] = False  # Set to True to enable time announcements every 10 minutes for testing purposes.
 
 
 class TimeSignalManager(ComponentBase):
@@ -183,7 +185,7 @@ class TimeSignalManager(ComponentBase):
         )
 
         _time_word: str = ""
-        if _minute == 0:
+        if DEBUG or _minute == 0:
             if self._clock12:
                 for start, end, msg, hour_adj in self._time_slots:
                     if start <= _hour < end:

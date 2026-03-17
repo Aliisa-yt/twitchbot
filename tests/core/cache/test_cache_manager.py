@@ -276,3 +276,105 @@ async def test_expired_language_detection_entry_is_deleted_on_lookup(cache_manag
         (normalized_source,),
     )
     assert cursor.fetchone()[0] == 0
+
+
+@pytest.mark.asyncio
+async def test_search_translation_cache_fallback_to_common(cache_manager: TranslationCacheManager) -> None:
+    """Engine-specific miss should fall back to common cache (engine='')."""
+    await cache_manager.register_translation_cache(
+        source_text="Hello world",
+        source_lang="en",
+        target_lang="ja",
+        translation_text="こんにちは世界",
+        engine="",  # common cache
+    )
+
+    result: TranslationCacheEntry | None = await cache_manager.search_translation_cache(
+        source_text="Hello world",
+        source_lang="en",
+        target_lang="ja",
+        engine="DeepL",  # engine-specific miss -> fallback to common
+    )
+
+    assert result is not None
+    assert result.translation_text == "こんにちは世界"
+
+
+@pytest.mark.asyncio
+async def test_cleanup_expired_entries(cache_manager: TranslationCacheManager) -> None:
+    """cleanup_expired_entries() should delete rows whose last_used_at is older than TTL."""
+    await cache_manager.register_translation_cache(
+        source_text="Hello world",
+        source_lang="en",
+        target_lang="ja",
+        translation_text="こんにちは世界",
+        engine="DeepL",
+    )
+    assert cache_manager._db_conn is not None
+
+    normalized = StringUtils.unicode_normalize("Hello world")
+    cache_key: str = CacheUtils.generate_hash_key(normalized, "en", "ja", "", "DeepL")
+    expired_epoch = int(
+        (datetime.now().astimezone() - timedelta(days=cache_manager._ttl_translation_days + 1)).timestamp()
+    )
+    cache_manager._db_conn.execute(
+        "UPDATE translation_cache SET last_used_at = ? WHERE cache_key = ?",
+        (expired_epoch, cache_key),
+    )
+    cache_manager._db_conn.commit()
+
+    await cache_manager.cleanup_expired_entries()
+
+    cursor: Cursor = cache_manager._db_conn.execute(
+        "SELECT COUNT(*) FROM translation_cache WHERE cache_key = ?", (cache_key,)
+    )
+    assert cursor.fetchone()[0] == 0
+
+
+@pytest.mark.asyncio
+async def test_reregister_preserves_hit_count(cache_manager: TranslationCacheManager) -> None:
+    """Re-registering an existing key must preserve hit_count and created_at (regression for review item 1)."""
+    await cache_manager.register_translation_cache(
+        source_text="Hello world",
+        source_lang="en",
+        target_lang="ja",
+        translation_text="こんにちは世界",
+        engine="DeepL",
+    )
+    # Simulate two cache hits to increase hit_count
+    for _ in range(2):
+        await cache_manager.search_translation_cache(
+            source_text="Hello world", source_lang="en", target_lang="ja", engine="DeepL"
+        )
+
+    # Re-register with updated translation text
+    await cache_manager.register_translation_cache(
+        source_text="Hello world",
+        source_lang="en",
+        target_lang="ja",
+        translation_text="世界、こんにちは",
+        engine="DeepL",
+    )
+
+    result: TranslationCacheEntry | None = await cache_manager.search_translation_cache(
+        source_text="Hello world",
+        source_lang="en",
+        target_lang="ja",
+        engine="DeepL",
+    )
+    assert result is not None
+    assert result.translation_text == "世界、こんにちは"
+    # hit_count must not be reset to 0 by re-registration
+    assert result.hit_count > 0
+
+
+@pytest.mark.asyncio
+async def test_export_cache_detailed_returns_false_on_write_error(
+    cache_manager: TranslationCacheManager, tmp_path: Path
+) -> None:
+    """export_cache_detailed() should return False when the output file cannot be written."""
+    output_path: Path = tmp_path / "no_such_dir" / "cache_export.txt"  # parent directory does not exist
+
+    result: bool = await cache_manager.export_cache_detailed(output_path)
+
+    assert result is False

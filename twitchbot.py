@@ -243,8 +243,14 @@ async def _gui_bootstrap(app: GUIApp, args: argparse.Namespace, log_setup: Logge
 
                 stt_enabled: bool = bool(getattr(config.STT, "ENABLED", False))
                 if stt_enabled:
+                    vad_mode: str = str(getattr(config.STT, "VAD_MODE", "level"))
+                    vad_threshold: float = float(getattr(config.STT, "VAD_THRESHOLD", 0.5))
+                    app.configure_stt_vad_mode(vad_mode=vad_mode, vad_threshold=vad_threshold)
                     app.set_stt_controls_enabled(enabled=True)
-                    app.update_stt_thresholds(config.STT.START_LEVEL, config.STT.STOP_LEVEL)
+                    if vad_mode.strip().lower() == "silero_onnx":
+                        app.update_stt_vad_threshold(vad_threshold)
+                    else:
+                        app.update_stt_thresholds(config.STT.START_LEVEL, config.STT.STOP_LEVEL)
                     is_stt_muted: bool = bool(config.STT.MUTE)
                     app.set_stt_mute_state(is_muted=is_stt_muted)
                     app.set_stt_status("Muted" if is_stt_muted else "Input monitoring")

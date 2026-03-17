@@ -59,6 +59,13 @@ class DummyTextWidget:
 
         self._content = "\n".join(lines[lines_to_remove:])
 
+    def index(self, idx: str) -> str:
+        if idx == "end-1c":
+            lines = self._content.split("\n")
+            line_count = len(lines) - (1 if self._content.endswith("\n") else 0)
+            return f"{line_count}.0"
+        return "1.0"
+
     def see(self, _index: str) -> None:
         return None
 
@@ -154,6 +161,8 @@ class DummyScale:
         self.value: float = 0.0
         self.states: list[list[str]] = []
         self.command = kwargs.get("command")
+        self.from_: float = float(kwargs.get("from_", 0.0))
+        self.to: float = float(kwargs.get("to", 1.0))
 
     def pack(self, *args: Any, **kwargs: Any) -> None:
         _ = args, kwargs
@@ -168,6 +177,12 @@ class DummyScale:
 
     def state(self, state: list[str]) -> None:
         self.states.append(state)
+
+    def configure(self, **kwargs: Any) -> None:
+        if "from_" in kwargs:
+            self.from_ = float(kwargs["from_"])
+        if "to" in kwargs:
+            self.to = float(kwargs["to"])
 
     def invoke(self) -> None:
         if self.command is not None:
@@ -446,3 +461,42 @@ def test_update_stt_thresholds_does_not_reenter_threshold_callback(patched_gui: 
     assert stt_manager.calls == []
     assert cast("DummyLabel", app.stt_start_value_label).text == "-20.0dB"
     assert cast("DummyLabel", app.stt_stop_value_label).text == "-40.0dB"
+
+
+def test_configure_stt_vad_mode_silero_updates_slider_layout(patched_gui: SimpleNamespace) -> None:
+    _ = patched_gui
+    app = gui_module.GUIApp()
+
+    app.configure_stt_vad_mode(vad_mode="silero_onnx", vad_threshold=0.42)
+
+    start_scale = cast("DummyScale", app.stt_start_scale)
+    stop_scale = cast("DummyScale", app.stt_stop_scale)
+    assert start_scale.from_ == pytest.approx(0.0)
+    assert start_scale.to == pytest.approx(1.0)
+    assert stop_scale.states[-1] == ["disabled"]
+    assert cast("DummyLabel", app.stt_start_value_label).text == "0.42"
+    assert cast("DummyLabel", app.stt_stop_value_label).text == "--"
+
+
+def test_stt_threshold_slider_applies_silero_vad_threshold(patched_gui: SimpleNamespace) -> None:
+    _ = patched_gui
+    app = gui_module.GUIApp()
+    app.configure_stt_vad_mode(vad_mode="silero_onnx", vad_threshold=0.5)
+
+    class DummySTTManager:
+        def __init__(self) -> None:
+            self.calls: list[float] = []
+
+        def set_vad_threshold(self, *, threshold: float) -> float:
+            self.calls.append(threshold)
+            return threshold
+
+    stt_manager = DummySTTManager()
+    app.bot = cast("Any", SimpleNamespace(shared_data=SimpleNamespace(stt_manager=stt_manager)))
+
+    start_scale = cast("DummyScale", app.stt_start_scale)
+    start_scale.set(0.63)
+
+    assert stt_manager.calls == [pytest.approx(0.63)]
+    assert cast("DummyLabel", app.stt_start_value_label).text == "0.63"
+    assert cast("DummyLabel", app.stt_stop_value_label).text == "--"

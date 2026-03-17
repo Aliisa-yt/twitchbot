@@ -160,6 +160,10 @@ class STT:
     PRE_BUFFER_MS: int = 300
     POST_BUFFER_MS: int = 500
     MAX_SEGMENT_SEC: int = 20
+    VAD_MODE: str = "level"
+    VAD_SILERO_MODEL_PATH: str = "data/stt/silero/silero_vad.onnx"
+    VAD_THRESHOLD: float = 0.5
+    VAD_ONNX_THREADS: int = 1  # Hidden setting: ONNX Runtime thread count for Silero VAD.
     MUTE: bool = False
     LANGUAGE: str = "ja-JP"
     INTERIM_RESULT: bool = False  # Unused configuration items.

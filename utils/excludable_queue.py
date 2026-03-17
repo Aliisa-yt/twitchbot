@@ -33,6 +33,7 @@ class ExcludableQueue[T](asyncio.Queue[Any]):
             while not self.empty():
                 try:
                     item: T = self.get_nowait()
+                    self.task_done()
                     if callback is not None:
                         try:
                             result: Awaitable[None] | None = callback(item)

@@ -10,7 +10,15 @@ from typing import TYPE_CHECKING
 from core.stt.engines import GoogleCloudSpeechToText, GoogleCloudSpeechToTextV2  # noqa: F401
 from core.stt.interface import STTInterface, STTResult
 from core.stt.processor import ProcessorOptions, STTProcessor
-from core.stt.recorder import LevelEventCallback, SegmentMode, STTRecorder, STTSegment
+from core.stt.recorder import (
+    DEFAULT_SILERO_ONNX_MODEL_PATH,
+    DEFAULT_SILERO_VAD_THRESHOLD,
+    DEFAULT_VAD_MODE,
+    LevelEventCallback,
+    SegmentMode,
+    STTRecorder,
+    STTSegment,
+)
 from utils.excludable_queue import ExcludableQueue
 from utils.logger_utils import LoggerUtils
 
@@ -57,7 +65,7 @@ class STTManager:
     def is_muted(self) -> bool:
         return self._recorder.muted if self._recorder is not None else self._mute
 
-    async def async_init(
+    async def async_init(  # noqa: PLR0915
         self,
         on_result: Callable[[STTResult], Awaitable[None]] | None = None,
         on_level_event: LevelEventCallback | None = None,
@@ -95,6 +103,10 @@ class STTManager:
         pre_buffer_ms: int = int(getattr(stt_config, "PRE_BUFFER_MS", 300))
         post_buffer_ms: int = int(getattr(stt_config, "POST_BUFFER_MS", 500))
         max_segment_sec: int = int(getattr(stt_config, "MAX_SEGMENT_SEC", 20))
+        vad_mode: str = str(getattr(stt_config, "VAD_MODE", DEFAULT_VAD_MODE))
+        vad_silero_model_path: str = str(getattr(stt_config, "VAD_SILERO_MODEL_PATH", DEFAULT_SILERO_ONNX_MODEL_PATH))
+        vad_threshold: float = float(getattr(stt_config, "VAD_THRESHOLD", DEFAULT_SILERO_VAD_THRESHOLD))
+        vad_onnx_threads: int = int(getattr(stt_config, "VAD_ONNX_THREADS", 1))
         language: str = str(getattr(stt_config, "LANGUAGE", "ja-JP"))
         retry_max: int = int(getattr(stt_config, "RETRY_MAX", 3))
         retry_backoff_ms: int = int(getattr(stt_config, "RETRY_BACKOFF_MS", 500))
@@ -116,6 +128,10 @@ class STTManager:
             pre_buffer_ms=pre_buffer_ms,
             post_buffer_ms=post_buffer_ms,
             max_segment_sec=max_segment_sec,
+            vad_mode=vad_mode,
+            vad_silero_model_path=vad_silero_model_path,
+            vad_threshold=vad_threshold,
+            vad_onnx_threads=vad_onnx_threads,
             level_interval_ms=level_interval_ms,
         )
         self._recorder.set_mute(mute=self._mute)
@@ -133,6 +149,9 @@ class STTManager:
         except RuntimeError as err:
             logger.error("STT input monitoring could not be started: %s", err)
             print(f"STT input monitoring could not be started: {err}")
+            self._engine = None
+            self._recorder = None
+            self._processor = None
             self._enabled = False
             return
 
@@ -189,6 +208,21 @@ class STTManager:
         self._recorder.set_thresholds(start_level_db=start_level_db, stop_level_db=stop_level_db)
         return self._recorder.start_level_db, self._recorder.stop_level_db
 
+    def set_vad_threshold(self, *, threshold: float) -> float:
+        """Update recorder VAD threshold for probability-based modes.
+
+        Args:
+            threshold (float): VAD threshold in the range 0.0-1.0.
+
+        Returns:
+            float: Applied VAD threshold.
+        """
+        if self._recorder is None:
+            msg = "STT recorder is not initialized. Call async_init() first."
+            raise RuntimeError(msg)
+
+        return self._recorder.set_vad_threshold(threshold=threshold)
+
     async def close(self) -> None:
         """Gracefully terminate STT background tasks."""
         self._enabled = False
@@ -198,30 +232,30 @@ class STTManager:
         if self._recorder is not None:
             await self._recorder.close()
 
-        if not self._background_tasks:
-            return
+        if self._background_tasks:
+            done_tasks: set[asyncio.Task[None]]
+            pending_tasks: set[asyncio.Task[None]]
+            done_tasks, pending_tasks = await asyncio.wait(self._background_tasks, timeout=2.0)
 
-        done_tasks: set[asyncio.Task[None]]
-        pending_tasks: set[asyncio.Task[None]]
-        done_tasks, pending_tasks = await asyncio.wait(self._background_tasks, timeout=2.0)
+            for task in done_tasks:
+                with contextlib.suppress(asyncio.CancelledError):
+                    err: BaseException | None = task.exception()
+                    if err is not None:
+                        logger.warning("STT background task failed (name=%s): %s", task.get_name(), err)
 
-        for task in done_tasks:
-            with contextlib.suppress(asyncio.CancelledError):
-                err: BaseException | None = task.exception()
-                if err is not None:
-                    logger.warning("STT background task failed (name=%s): %s", task.get_name(), err)
+            for task in pending_tasks:
+                task.cancel()
 
-        for task in pending_tasks:
-            task.cancel()
+            if pending_tasks:
+                logger.warning("Some STT tasks are still pending: %s", [task.get_name() for task in pending_tasks])
+                await asyncio.gather(*pending_tasks, return_exceptions=True)
 
-        if pending_tasks:
-            logger.warning("Some STT tasks are still pending: %s", [task.get_name() for task in pending_tasks])
+            self._background_tasks.clear()
 
-        _ = done_tasks
-        self._background_tasks.clear()
         self._processor = None
         self._recorder = None
         self._engine = None
+        self._terminate_event.clear()
 
     async def enqueue_silence_segment_for_test(self, duration_sec: float = 1.0) -> None:
         """Enqueue silence segment for pipeline tests without microphone input."""

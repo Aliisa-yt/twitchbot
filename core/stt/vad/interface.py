@@ -30,6 +30,10 @@ class VADProcessorInterface(Protocol):
         """Update thresholds for processors that use level-based gating."""
         ...
 
+    def set_vad_threshold(self, *, threshold: float) -> float:
+        """Update and return a VAD decision threshold in the range 0.0-1.0."""
+        ...
+
     def process_chunk(
         self,
         *,

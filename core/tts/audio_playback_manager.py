@@ -20,10 +20,12 @@ from utils.logger_utils import LoggerUtils
 
 if TYPE_CHECKING:
     import logging
+    from collections.abc import Callable
     from pathlib import Path
     from typing import Any
 
     from numpy.typing import NDArray
+    from sounddevice import CallbackFlags
 
     from config.loader import Config
     from core.tts.file_manager import TTSFileManager
@@ -86,10 +88,10 @@ def _stream_callback_logic(
             loop.call_soon_threadsafe(cancel_playback_event.set)
             return _CallbackAction.ABORT
 
+        outdata.fill(0)
         data = sf.read(frames=frames, dtype=dtype, always_2d=True)
         # Considered complete when there is no more data to playback
         frames_read = data.shape[0]
-        outdata.fill(0)
         if frames_read > 0:
             outdata[:frames_read] = data
 
@@ -182,8 +184,8 @@ class AudioPlaybackManager:
                 except TimeoutError as err:
                     logger.info("Playback timeout reached: %s", err)
                     await self.cancel_playback()
-                except asyncio.CancelledError as err:
-                    logger.info("Playback task was cancelled: %s", err)
+                except asyncio.CancelledError:
+                    raise
                 else:
                     logger.info("Playback completed")
                 finally:
@@ -241,10 +243,10 @@ class AudioPlaybackManager:
         dtype: str,
         loop: asyncio.AbstractEventLoop,
         task_terminate_event: asyncio.Event,
-    ):
+    ) -> Callable[[NDArray[Any], int, Any, CallbackFlags], None]:
         """Creates a stream callback function for sounddevice output stream."""
 
-        def callback_fn(outdata: NDArray[Any], frames: int, time_info, status) -> None:
+        def callback_fn(outdata: NDArray[Any], frames: int, time_info: Any, status: CallbackFlags) -> None:
             _ = time_info, status
             action: _CallbackAction = _stream_callback_logic(
                 outdata,
@@ -267,7 +269,7 @@ class AudioPlaybackManager:
         sf: soundfile.SoundFile,
         dtype: str,
         frame_buffer_size: int,
-        callback_fn,
+        callback_fn: Callable[[NDArray[Any], int, Any, CallbackFlags], None],
     ) -> bool:
         """Opens and validates the sounddevice output stream."""
         try:

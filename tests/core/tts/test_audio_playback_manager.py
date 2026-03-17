@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 from pathlib import Path
 from types import SimpleNamespace
 from typing import TYPE_CHECKING, Self, cast
@@ -201,5 +202,107 @@ async def test_play_sounddevice_enqueues_deletion_on_unsupported_format(manager:
         await manager._play_sounddevice(file_path, asyncio.Event())
     finally:
         apm.soundfile.SoundFile = original_soundfile  # type: ignore[assignment]
+
+    cast("MagicMock", manager.file_manager).enqueue_file_deletion.assert_called_once_with(file_path)
+
+
+@pytest.mark.asyncio
+async def test_cancel_playback_skips_done_task(manager: AudioPlaybackManager) -> None:
+    task: asyncio.Task[None] = asyncio.create_task(asyncio.sleep(0))
+    await task  # ensure task completes naturally
+    manager.play_task = task
+    assert task.done()
+
+    await manager.cancel_playback()
+
+    assert manager.cancel_playback_event.is_set()
+
+
+def test_is_playing_false_when_stream_inactive(manager: AudioPlaybackManager) -> None:
+    stream = MagicMock()
+    stream.active = False
+    manager.stream = stream
+    assert manager.is_playing is False
+
+
+def test_open_output_stream_returns_false_on_exception(
+    manager: AudioPlaybackManager, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(apm.sounddevice, "OutputStream", MagicMock(side_effect=Exception("open fail")))
+    sf = MagicMock()
+    sf.samplerate = 44100
+    sf.channels = 1
+    result = manager._open_output_stream(sf, "int16", 2048, MagicMock())
+    assert result is False
+
+
+@pytest.mark.asyncio
+async def test_playback_queue_processor_cancel_propagates(
+    manager: AudioPlaybackManager, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """External task cancellation propagates immediately (regression for review item 1)."""
+    play_started: asyncio.Event = asyncio.Event()
+
+    async def slow_play(_file_path: Path, _terminate_event: asyncio.Event) -> None:
+        play_started.set()
+        await asyncio.sleep(100)
+
+    monkeypatch.setattr(manager, "_play_sounddevice", slow_play)
+    monkeypatch.setattr(apm.FileUtils, "validate_file_path", MagicMock())
+
+    class FakeQueue:
+        def __init__(self) -> None:
+            self._sent = False
+
+        async def get(self) -> TTSParam:
+            if not self._sent:
+                self._sent = True
+                return TTSParam(filepath=Path("test.wav"))
+            await asyncio.sleep(100)
+            raise AssertionError
+
+        def task_done(self) -> None:
+            pass
+
+    manager.playback_queue = cast("ExcludableQueue[TTSParam]", FakeQueue())
+    outer_task: asyncio.Task[None] = asyncio.create_task(manager.playback_queue_processor())
+    await play_started.wait()
+    inner_play_task = manager.play_task
+    outer_task.cancel()
+
+    with pytest.raises(asyncio.CancelledError):
+        await outer_task
+
+    if inner_play_task and not inner_play_task.done():
+        inner_play_task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await inner_play_task
+
+
+@pytest.mark.asyncio
+async def test_play_sounddevice_enqueues_deletion_on_cancelled(
+    manager: AudioPlaybackManager, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Deletion is enqueued even when _play_sounddevice is cancelled via CancelledError."""
+
+    class FakeSoundFile:
+        subtype: str = "PCM_16"
+        channels: int = 1
+        samplerate: int = 16000
+
+        def __enter__(self) -> Self:
+            return self
+
+        def __exit__(self, exc_type: object, exc: object, tb: object) -> None:
+            pass
+
+    monkeypatch.setattr(apm.soundfile, "SoundFile", lambda _: FakeSoundFile())
+    monkeypatch.setattr(apm.sounddevice, "OutputStream", MagicMock(return_value=MagicMock()))
+
+    file_path = Path("cancel_test.wav")
+    task: asyncio.Task[None] = asyncio.create_task(manager._play_sounddevice(file_path, asyncio.Event()))
+    await asyncio.sleep(0)  # advance to cancel_playback_event.wait()
+    task.cancel()
+    await task  # CancelledError is absorbed by _play_sounddevice
 
     cast("MagicMock", manager.file_manager).enqueue_file_deletion.assert_called_once_with(file_path)

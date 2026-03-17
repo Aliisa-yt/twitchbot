@@ -221,3 +221,28 @@ def test_stt_enabled_with_invalid_thresholds_raises_config_value_error(tmp_path:
 
     with pytest.raises(ConfigValueError):
         ConfigLoader(config_filename=str(ini_path), script_name="test")
+
+
+def test_stt_enabled_with_invalid_vad_onnx_threads_raises_config_value_error(tmp_path: Path) -> None:
+    ini_path: Path = _write_ini(
+        tmp_path,
+        """
+        [TWITCH]
+        OWNER_NAME = "owner1"
+
+        [BOT]
+        BOT_NAME = "bot1"
+        COLOR = "blue"
+
+        [TRANSLATION]
+        ENGINE = ["google"]
+
+        [STT]
+        ENABLED = True
+        ENGINE = "google_cloud_stt"
+        VAD_ONNX_THREADS = 0
+        """,
+    )
+
+    with pytest.raises(ConfigValueError):
+        ConfigLoader(config_filename=str(ini_path), script_name="test")

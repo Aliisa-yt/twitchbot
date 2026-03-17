@@ -11,6 +11,7 @@ import pytest
 
 from core.components.chat_events import ChatEventsManager
 from models.message_models import ChatMessageDTO
+from models.translation_models import TranslationInfo
 from models.voice_models import TTSParam
 from utils.excludable_queue import ExcludableQueue
 
@@ -296,3 +297,99 @@ async def test_enqueue_external_message_processes_all_under_burst() -> None:
     assert bundle.cog._message_queue.empty()
 
     await bundle.cog.component_teardown()
+
+
+# ---------------------------------------------------------------------------
+# _handle_message branch coverage
+# ---------------------------------------------------------------------------
+
+
+def _setup_handle_message_mocks(cog: ChatEventsManager) -> SimpleNamespace:
+    """Patch _handle_message dependencies and return the mocks as a SimpleNamespace."""
+    message = MagicMock()
+    message.content = "hello"
+    message.emote.has_valid_emotes = False
+
+    trans_info = TranslationInfo(content="hello")
+
+    cog._preprocess_message = MagicMock(return_value=message)
+    cog.prepare_translate_parameters = MagicMock(return_value=trans_info)
+    cog.trans_manager.refresh_active_engine_list = MagicMock()
+    cog.trans_manager.detect_language = AsyncMock(return_value=True)
+    cog.trans_manager.determine_target_language = MagicMock(return_value=True)
+    cog.trans_manager.perform_translation = AsyncMock(return_value=True)
+    cog._process_original_tts = AsyncMock()
+    cog._process_translated_tts = AsyncMock()
+    cog._output_and_send_translation = AsyncMock()
+
+    return SimpleNamespace(message=message, trans_info=trans_info)
+
+
+@pytest.mark.asyncio
+async def test_handle_message_skips_when_detect_language_fails_and_no_emotes() -> None:
+    """When detect_language returns False and no valid emotes, processing stops early."""
+    bundle = _make_cog_bundle()
+    mocks = _setup_handle_message_mocks(bundle.cog)
+    mocks.trans_info.src_lang = None
+    bundle.cog.trans_manager.detect_language = AsyncMock(return_value=False)
+    mocks.message.emote.has_valid_emotes = False
+
+    with patch("core.components.chat_events.TransManager.parse_language_prefix"):
+        await bundle.cog._handle_message(ChatMessageDTO(message_id="m1"))
+
+    bundle.cog._process_original_tts.assert_not_called()
+    bundle.cog.trans_manager.determine_target_language.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_handle_message_continues_with_default_langs_when_emotes_only() -> None:
+    """When detect_language returns False but valid emotes exist, default langs are set and processing continues."""
+    bundle = _make_cog_bundle()
+    mocks = _setup_handle_message_mocks(bundle.cog)
+    mocks.trans_info.src_lang = None
+    bundle.cog.trans_manager.detect_language = AsyncMock(return_value=False)
+    mocks.message.emote.has_valid_emotes = True
+    bundle.cog.shared.config.TRANSLATION = MagicMock()
+    bundle.cog.shared.config.TRANSLATION.NATIVE_LANGUAGE = "ja"
+    bundle.cog.shared.config.TRANSLATION.SECOND_LANGUAGE = "en"
+
+    with patch("core.components.chat_events.TransManager.parse_language_prefix"):
+        await bundle.cog._handle_message(ChatMessageDTO(message_id="m2"))
+
+    assert mocks.trans_info.src_lang == "ja"
+    assert mocks.trans_info.tgt_lang == "en"
+    bundle.cog._process_original_tts.assert_awaited_once()
+    bundle.cog.trans_manager.determine_target_language.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_handle_message_skips_translation_when_no_target_language() -> None:
+    """When determine_target_language returns False, translation and subsequent TTS are skipped."""
+    bundle = _make_cog_bundle()
+    _setup_handle_message_mocks(bundle.cog)
+    bundle.cog.trans_manager.detect_language = AsyncMock(return_value=True)
+    bundle.cog.trans_manager.determine_target_language = MagicMock(return_value=False)
+
+    with patch("core.components.chat_events.TransManager.parse_language_prefix"):
+        await bundle.cog._handle_message(ChatMessageDTO(message_id="m3"))
+
+    bundle.cog._process_original_tts.assert_awaited_once()
+    bundle.cog.trans_manager.perform_translation.assert_not_called()
+    bundle.cog._process_translated_tts.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_handle_message_skips_tts_when_translation_fails() -> None:
+    """When perform_translation returns False, translated TTS and output are skipped."""
+    bundle = _make_cog_bundle()
+    _setup_handle_message_mocks(bundle.cog)
+    bundle.cog.trans_manager.detect_language = AsyncMock(return_value=True)
+    bundle.cog.trans_manager.determine_target_language = MagicMock(return_value=True)
+    bundle.cog.trans_manager.perform_translation = AsyncMock(return_value=False)
+
+    with patch("core.components.chat_events.TransManager.parse_language_prefix"):
+        await bundle.cog._handle_message(ChatMessageDTO(message_id="m4"))
+
+    bundle.cog._process_original_tts.assert_awaited_once()
+    bundle.cog._process_translated_tts.assert_not_called()
+    bundle.cog._output_and_send_translation.assert_not_called()
