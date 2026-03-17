@@ -1,0 +1,27 @@
+このフォルダに silero_vad.onnx を置いてください。
+Place the silero_vad.onnx file in this folder.
+
+------------------------------------------------------------
+【ダウンロード手順 / Download Instructions】
+
+1. 以下の URL をブラウザで開く:
+   https://github.com/snakers4/silero-vad/blob/master/src/silero_vad/data/silero_vad.onnx
+
+2. ページ右上の「Download raw file」ボタン（↓ アイコン）をクリックしてダウンロードする。
+
+3. ダウンロードしたファイルを、ファイル名を変更せずに
+   このフォルダ（data/stt/silero/）に保存する。
+   ※ 保存するファイル名は必ず「silero_vad.onnx」にすること。
+
+------------------------------------------------------------
+【有効化の手順 / How to Enable】
+
+twitchbot.ini を開き、[STT] セクションの VAD_MODE を以下に変更する:
+
+  VAD_MODE = "silero_onnx"
+
+------------------------------------------------------------
+【ライセンス / License】
+
+silero_vad.onnx は snakers4/silero-vad プロジェクトが MIT License で公開しています。
+https://github.com/snakers4/silero-vad/blob/master/LICENSE
