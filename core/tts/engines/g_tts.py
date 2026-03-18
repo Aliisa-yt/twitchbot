@@ -10,7 +10,7 @@ import soundfile
 from gtts import gTTS, gTTSError
 from numpy import dtype
 
-from core.tts.interface import Interface, TTSExceptionError
+from core.tts.tts_interface import Interface, TTSExceptionError
 from utils.logger_utils import LoggerUtils
 
 if TYPE_CHECKING:

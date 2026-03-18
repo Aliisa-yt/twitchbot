@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 from urllib import error, parse, request
 
-from core.stt.interface import (
+from core.stt.stt_interface import (
     STTExceptionError,
     STTInput,
     STTInterface,

@@ -20,7 +20,7 @@ from core.trans.engines.async_google_translate import (
     ResponseFormatError,
     TextResult,
 )
-from core.trans.interface import (
+from core.trans.trans_interface import (
     EngineAttributes,
     Result,
     TransInterface,

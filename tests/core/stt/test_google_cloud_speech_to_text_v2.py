@@ -7,7 +7,7 @@ import pytest
 
 import core.stt.engines.google_cloud_speech_to_text_v2 as stt_v2_module
 from core.stt.engines.google_cloud_speech_to_text_v2 import GoogleCloudSpeechToTextV2
-from core.stt.interface import STTInput, STTNonRetriableError, STTNotAvailableError
+from core.stt.stt_interface import STTInput, STTNonRetriableError, STTNotAvailableError
 from utils.file_utils import FileUtils
 
 if TYPE_CHECKING:

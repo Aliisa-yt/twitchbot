@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, Any, ClassVar
 import pytest
 
 from core.trans.engines import trans_google_cloud as trans_google_cloud_module
-from core.trans.interface import (
+from core.trans.trans_interface import (
     NotSupportedLanguagesError,
     Result,
     TranslateExceptionError,

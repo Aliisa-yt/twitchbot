@@ -6,7 +6,7 @@ import asyncio
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from core.stt.interface import (
+from core.stt.stt_interface import (
     STTExceptionError,
     STTInput,
     STTInterface,

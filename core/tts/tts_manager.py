@@ -5,9 +5,9 @@ from typing import TYPE_CHECKING
 
 from core.tts.audio_playback_manager import AudioPlaybackManager
 from core.tts.file_manager import TTSFileManager
-from core.tts.interface import Interface
 from core.tts.parameter_manager import ParameterManager
 from core.tts.synthesis_manager import SynthesisManager
+from core.tts.tts_interface import Interface
 from utils.excludable_queue import ExcludableQueue
 from utils.logger_utils import LoggerUtils
 

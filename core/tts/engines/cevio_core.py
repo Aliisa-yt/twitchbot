@@ -8,7 +8,7 @@ import pythoncom
 import win32com.client
 from win32.lib.pywintypes import com_error
 
-from core.tts.interface import Interface
+from core.tts.tts_interface import Interface
 from models.voice_models import TTSParam, Voice
 from utils.logger_utils import LoggerUtils
 

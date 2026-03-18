@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING, Any, Final, Literal, NamedTuple, TypeVar, over
 
 from marshmallow.exceptions import ValidationError
 
-from core.tts.interface import (
+from core.tts.tts_interface import (
     Interface,
     TTSFileError,
     TTSNotSupportedError,

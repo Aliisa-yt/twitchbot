@@ -6,7 +6,7 @@ from typing import Any, cast
 import pytest
 
 from core.trans.engines import trans_google as trans_google_module
-from core.trans.interface import Result, TranslateExceptionError
+from core.trans.trans_interface import Result, TranslateExceptionError
 from models.translation_models import CharacterQuota
 
 

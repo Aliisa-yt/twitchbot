@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, Any, cast
 import pytest
 
 from core.stt.engines.google_cloud_speech_to_text import GoogleCloudSpeechToText
-from core.stt.interface import STTInput, STTNonRetriableError, STTNotAvailableError
+from core.stt.stt_interface import STTInput, STTNonRetriableError, STTNotAvailableError
 
 if TYPE_CHECKING:
     from config.loader import Config

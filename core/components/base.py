@@ -21,9 +21,9 @@ if TYPE_CHECKING:
     from config.loader import Config
     from core.bot import Bot
     from core.shared_data import SharedData
-    from core.stt.manager import STTManager
-    from core.trans.manager import TransManager
-    from core.tts.manager import TTSManager
+    from core.stt.stt_manager import STTManager
+    from core.trans.trans_manager import TransManager
+    from core.tts.tts_manager import TTSManager
     from handlers.chat_message import ChatMessageHandler
 
 

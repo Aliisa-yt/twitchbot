@@ -5,8 +5,8 @@ from typing import TYPE_CHECKING, Any, cast
 
 import pytest
 
-from core.stt.interface import STTInterface, STTResult
-from core.stt.manager import STTManager
+from core.stt.stt_interface import STTInterface, STTResult
+from core.stt.stt_manager import STTManager
 
 if TYPE_CHECKING:
     from models.config_models import Config
@@ -93,8 +93,8 @@ def _make_config(*, enabled: bool = True) -> SimpleNamespace:
 
 @pytest.mark.asyncio
 async def test_async_init_uses_pre_registered_level_callback(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr("core.stt.manager.STTRecorder", _FakeRecorder)
-    monkeypatch.setattr("core.stt.manager.STTProcessor", _FakeProcessor)
+    monkeypatch.setattr("core.stt.stt_manager.STTRecorder", _FakeRecorder)
+    monkeypatch.setattr("core.stt.stt_manager.STTProcessor", _FakeProcessor)
 
     config = _make_config(enabled=True)
     config.STT.ENGINE = "fake_stt"
@@ -117,8 +117,8 @@ async def test_async_init_uses_pre_registered_level_callback(monkeypatch: pytest
 
 @pytest.mark.asyncio
 async def test_async_init_prefers_explicit_level_callback(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr("core.stt.manager.STTRecorder", _FakeRecorder)
-    monkeypatch.setattr("core.stt.manager.STTProcessor", _FakeProcessor)
+    monkeypatch.setattr("core.stt.stt_manager.STTRecorder", _FakeRecorder)
+    monkeypatch.setattr("core.stt.stt_manager.STTProcessor", _FakeProcessor)
     config = _make_config(enabled=True)
     config.STT.ENGINE = "fake_stt"
     monkeypatch.setitem(STTInterface.registered, "fake_stt", _FakeEngine)
@@ -143,8 +143,8 @@ async def test_async_init_prefers_explicit_level_callback(monkeypatch: pytest.Mo
 
 @pytest.mark.asyncio
 async def test_async_init_disabled_does_not_create_recorder(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr("core.stt.manager.STTRecorder", _FakeRecorder)
-    monkeypatch.setattr("core.stt.manager.STTProcessor", _FakeProcessor)
+    monkeypatch.setattr("core.stt.stt_manager.STTRecorder", _FakeRecorder)
+    monkeypatch.setattr("core.stt.stt_manager.STTProcessor", _FakeProcessor)
 
     _FakeRecorder.last_instance = None
     manager = STTManager(cast("Config", _make_config(enabled=False)))
@@ -162,8 +162,8 @@ async def test_async_init_disabled_does_not_create_recorder(monkeypatch: pytest.
 
 @pytest.mark.asyncio
 async def test_async_init_when_input_monitoring_fails_keeps_manager_disabled(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr("core.stt.manager.STTRecorder", _FailingRecorder)
-    monkeypatch.setattr("core.stt.manager.STTProcessor", _FakeProcessor)
+    monkeypatch.setattr("core.stt.stt_manager.STTRecorder", _FailingRecorder)
+    monkeypatch.setattr("core.stt.stt_manager.STTProcessor", _FakeProcessor)
 
     config = _make_config(enabled=True)
     config.STT.ENGINE = "fake_stt"
@@ -180,8 +180,8 @@ async def test_async_init_when_input_monitoring_fails_keeps_manager_disabled(mon
 
 @pytest.mark.asyncio
 async def test_async_init_passes_vad_settings_to_recorder(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr("core.stt.manager.STTRecorder", _FakeRecorder)
-    monkeypatch.setattr("core.stt.manager.STTProcessor", _FakeProcessor)
+    monkeypatch.setattr("core.stt.stt_manager.STTRecorder", _FakeRecorder)
+    monkeypatch.setattr("core.stt.stt_manager.STTProcessor", _FakeProcessor)
 
     config = _make_config(enabled=True)
     config.STT.ENGINE = "fake_stt"

@@ -12,7 +12,7 @@ from deepl.exceptions import (
     TooManyRequestsException,
 )
 
-from core.trans.interface import (
+from core.trans.trans_interface import (
     EngineAttributes,
     NotSupportedLanguagesError,
     Result,

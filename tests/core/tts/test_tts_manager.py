@@ -7,8 +7,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from core.tts.interface import Interface
-from core.tts.manager import TTSManager
+from core.tts.tts_interface import Interface
+from core.tts.tts_manager import TTSManager
 from models.config_models import Config
 from utils.excludable_queue import ExcludableQueue
 
@@ -37,9 +37,9 @@ def test_init_sets_managers_and_interface_hooks() -> None:
     prev_dir: Path | None = getattr(Interface, "_base_directory", None)
 
     with (
-        patch("core.tts.manager.ParameterManager") as param_cls,
-        patch("core.tts.manager.SynthesisManager") as synth_cls,
-        patch("core.tts.manager.AudioPlaybackManager") as playback_cls,
+        patch("core.tts.tts_manager.ParameterManager") as param_cls,
+        patch("core.tts.tts_manager.SynthesisManager") as synth_cls,
+        patch("core.tts.tts_manager.AudioPlaybackManager") as playback_cls,
     ):
         synth_inst = MagicMock()
         synth_cls.return_value = synth_inst
@@ -76,9 +76,9 @@ async def test_initialize_creates_tasks_once() -> None:
     config: Config = _make_config()
 
     with (
-        patch("core.tts.manager.ParameterManager"),
-        patch("core.tts.manager.SynthesisManager") as synth_cls,
-        patch("core.tts.manager.AudioPlaybackManager") as playback_cls,
+        patch("core.tts.tts_manager.ParameterManager"),
+        patch("core.tts.tts_manager.SynthesisManager") as synth_cls,
+        patch("core.tts.tts_manager.AudioPlaybackManager") as playback_cls,
     ):
         synth_inst = MagicMock()
         synth_inst.tts_processing_task = AsyncMock()
@@ -107,9 +107,9 @@ async def test_close_sets_events_and_clears_tasks(monkeypatch: pytest.MonkeyPatc
     config: Config = _make_config()
 
     with (
-        patch("core.tts.manager.ParameterManager"),
-        patch("core.tts.manager.SynthesisManager"),
-        patch("core.tts.manager.AudioPlaybackManager"),
+        patch("core.tts.tts_manager.ParameterManager"),
+        patch("core.tts.tts_manager.SynthesisManager"),
+        patch("core.tts.tts_manager.AudioPlaybackManager"),
     ):
         manager = TTSManager(config)
 
@@ -121,7 +121,7 @@ async def test_close_sets_events_and_clears_tasks(monkeypatch: pytest.MonkeyPatc
         _ = tasks, timeout
         return {task_done}, {task_pending}
 
-    monkeypatch.setattr("core.tts.manager.asyncio.wait", fake_wait)
+    monkeypatch.setattr("core.tts.tts_manager.asyncio.wait", fake_wait)
     manager.synthesis_queue.shutdown = MagicMock()
     manager.playback_queue.shutdown = MagicMock()
 
@@ -141,9 +141,9 @@ def test_forwarding_methods_call_managers() -> None:
     config: Config = _make_config()
 
     with (
-        patch("core.tts.manager.ParameterManager") as param_cls,
-        patch("core.tts.manager.SynthesisManager") as synth_cls,
-        patch("core.tts.manager.AudioPlaybackManager"),
+        patch("core.tts.tts_manager.ParameterManager") as param_cls,
+        patch("core.tts.tts_manager.SynthesisManager") as synth_cls,
+        patch("core.tts.tts_manager.AudioPlaybackManager"),
     ):
         param_inst = MagicMock()
         synth_inst = MagicMock()
@@ -171,9 +171,9 @@ async def test_enqueue_tts_synthesis_delegates() -> None:
     config: Config = _make_config()
 
     with (
-        patch("core.tts.manager.ParameterManager"),
-        patch("core.tts.manager.SynthesisManager") as synth_cls,
-        patch("core.tts.manager.AudioPlaybackManager"),
+        patch("core.tts.tts_manager.ParameterManager"),
+        patch("core.tts.tts_manager.SynthesisManager") as synth_cls,
+        patch("core.tts.tts_manager.AudioPlaybackManager"),
     ):
         synth_inst = MagicMock()
         synth_inst.enqueue_tts_synthesis = AsyncMock()
@@ -190,9 +190,9 @@ def test_voice_parameters_property_returns_parameter_manager() -> None:
     config: Config = _make_config()
 
     with (
-        patch("core.tts.manager.ParameterManager") as param_cls,
-        patch("core.tts.manager.SynthesisManager"),
-        patch("core.tts.manager.AudioPlaybackManager"),
+        patch("core.tts.tts_manager.ParameterManager") as param_cls,
+        patch("core.tts.tts_manager.SynthesisManager"),
+        patch("core.tts.tts_manager.AudioPlaybackManager"),
     ):
         param_inst = MagicMock()
         param_inst.voice_parameters = MagicMock()

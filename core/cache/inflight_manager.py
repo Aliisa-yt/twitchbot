@@ -8,7 +8,7 @@ from utils.logger_utils import LoggerUtils
 if TYPE_CHECKING:
     import logging
 
-    from core.trans.interface import Result
+    from core.trans.trans_interface import Result
 
 
 __all__: list[str] = ["InFlightManager"]

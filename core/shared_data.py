@@ -10,11 +10,11 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
+from core.cache.cache_manager import TranslationCacheManager
 from core.cache.inflight_manager import InFlightManager
-from core.cache.manager import TranslationCacheManager
-from core.stt.manager import STTManager
-from core.trans.manager import TransManager
-from core.tts.manager import TTSManager
+from core.stt.stt_manager import STTManager
+from core.trans.trans_manager import TransManager
+from core.tts.tts_manager import TTSManager
 
 if TYPE_CHECKING:
     from config.loader import Config

@@ -8,7 +8,7 @@ from importlib import import_module
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
-from core.stt.interface import (
+from core.stt.stt_interface import (
     STTExceptionError,
     STTInput,
     STTInterface,

@@ -1,4 +1,4 @@
-"""Unit tests for core.trans.manager module."""
+"""Unit tests for core.trans.trans_manager module."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from core.trans.interface import (
+from core.trans.trans_interface import (
     EngineAttributes,
     NotSupportedLanguagesError,
     Result,
@@ -18,7 +18,7 @@ from core.trans.interface import (
     TranslationQuotaExceededError,
     TranslationRateLimitError,
 )
-from core.trans.manager import TransManager
+from core.trans.trans_manager import TransManager
 from models.cache_models import TranslationCacheEntry
 from models.translation_models import CharacterQuota, TranslationInfo
 

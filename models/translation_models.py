@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from core.trans.interface import Result, TransInterface
+from core.trans.trans_interface import Result, TransInterface
 
 __all__: list[str] = ["CharacterQuota", "TranslationInfo"]
 

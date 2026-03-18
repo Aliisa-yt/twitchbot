@@ -8,7 +8,6 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from core.stt.engines import GoogleCloudSpeechToText, GoogleCloudSpeechToTextV2  # noqa: F401
-from core.stt.interface import STTInterface, STTResult
 from core.stt.processor import ProcessorOptions, STTProcessor
 from core.stt.recorder import (
     DEFAULT_SILERO_ONNX_MODEL_PATH,
@@ -19,6 +18,7 @@ from core.stt.recorder import (
     STTRecorder,
     STTSegment,
 )
+from core.stt.stt_interface import STTInterface, STTResult
 from utils.excludable_queue import ExcludableQueue
 from utils.logger_utils import LoggerUtils
 

@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING
 import pytest
 
 from config.loader import Config
-from core.cache.manager import TranslationCacheManager
+from core.cache.cache_manager import TranslationCacheManager
 from utils.cache_utils import CacheUtils
 from utils.string_utils import StringUtils
 

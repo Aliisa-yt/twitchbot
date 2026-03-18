@@ -22,7 +22,7 @@ from google.auth.credentials import AnonymousCredentials
 from google.auth.transport.requests import AuthorizedSession
 from google.cloud import translate_v2 as translate
 
-from core.trans.interface import (
+from core.trans.trans_interface import (
     EngineAttributes,
     NotSupportedLanguagesError,
     Result,

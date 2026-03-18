@@ -9,7 +9,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from core.components.stt_component import STTServiceComponent
-from core.stt.interface import STTResult
+from core.stt.stt_interface import STTResult
 
 if TYPE_CHECKING:
     from pathlib import Path

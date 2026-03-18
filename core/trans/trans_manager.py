@@ -9,7 +9,7 @@ from core.trans.engines import (
     GoogleTranslation,  # noqa: F401
 )
 from core.trans.engines.const_google import LANGUAGES
-from core.trans.interface import (
+from core.trans.trans_interface import (
     NotSupportedLanguagesError,
     Result,
     TransInterface,
@@ -27,8 +27,8 @@ if TYPE_CHECKING:
     import logging
 
     from config.loader import Config
+    from core.cache.cache_manager import TranslationCacheManager
     from core.cache.inflight_manager import InFlightManager
-    from core.cache.manager import TranslationCacheManager
     from models.cache_models import LanguageDetectionCacheEntry, TranslationCacheEntry
     from models.translation_models import TranslationInfo
 

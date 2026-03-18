@@ -15,7 +15,7 @@ if TYPE_CHECKING:
     import logging
 
     from core.components.chat_events import ChatEventsManager
-    from core.stt.interface import STTResult
+    from core.stt.stt_interface import STTResult
 
 
 __all__: list[str] = ["STTServiceComponent"]

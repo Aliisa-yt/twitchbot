@@ -40,7 +40,7 @@ keywords: [naming-convention, pep8, consistency, api-compatibility, rename-safet
 | コンポーネント | `Component` | `ChatEventsComponent`, `TTSServiceComponent` |
 | マネージャー | `Manager` | `TransManager`, `TTSManager`, `STTManager` |
 | インターフェース（STT/Trans） | `Interface` サフィックス | `STTInterface`, `TransInterface` |
-| インターフェース（TTS） | `Interface`（クラス名そのもの） | `Interface`（`core/tts/interface.py`） |
+| インターフェース（TTS） | `Interface`（クラス名そのもの） | `Interface`（`core/tts/tts_interface.py`） |
 | エンジン実装 | キャメルケース | `VoiceVox`, `DeeplTranslation`, `GoogleCloudSpeechToText` |
 | 例外クラス | `Error` サフィックス | `TTSExceptionError`, `TranslateExceptionError`, `STTExceptionError` |
 

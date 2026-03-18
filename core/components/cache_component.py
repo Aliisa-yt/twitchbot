@@ -16,7 +16,7 @@ if TYPE_CHECKING:
     import logging
     from pathlib import Path
 
-    from core.cache.manager import TranslationCacheManager
+    from core.cache.cache_manager import TranslationCacheManager
     from models.cache_models import CacheStatistics
     from models.config_models import Cache
 

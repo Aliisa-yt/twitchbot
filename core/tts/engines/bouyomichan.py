@@ -4,7 +4,7 @@ import contextlib
 import struct
 from typing import TYPE_CHECKING, Final
 
-from core.tts.interface import Interface
+from core.tts.tts_interface import Interface
 from handlers.async_comm import AsyncCommError, AsyncSocket
 from utils.logger_utils import LoggerUtils
 

@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, ClassVar
 from twitchio.ext.commands import Component
 
 from core.components.base import ComponentBase
-from core.trans.manager import TransManager
+from core.trans.trans_manager import TransManager
 from handlers.chat_message import ChatMessageHandler
 from models.message_models import ChatMessageDTO
 from models.translation_models import TranslationInfo

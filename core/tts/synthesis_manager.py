@@ -21,7 +21,7 @@ from core.tts.engines import (  # noqa: F401
     GoogleText2Speech,
     VoiceVox,
 )
-from core.tts.interface import EngineHandler, Interface
+from core.tts.tts_interface import EngineHandler, Interface
 from handlers.emoji import EmojiHandler
 from handlers.katakana import E2KConverter
 from models.config_models import TTSEngine

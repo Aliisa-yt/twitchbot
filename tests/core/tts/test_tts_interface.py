@@ -1,4 +1,4 @@
-"""Unit tests for core.tts.interface module."""
+"""Unit tests for core.tts.tts_interface module."""
 
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from core.tts.interface import (
+from core.tts.tts_interface import (
     DEFAULT_PROTOCOL,
     DEFAULT_TIMEOUT,
     Interface,

@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from core.stt.vad.interface import VADDecision
+from core.stt.vad.vad_interface import VADDecision
 
 if TYPE_CHECKING:
     import numpy as np

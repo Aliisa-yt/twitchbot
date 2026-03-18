@@ -24,8 +24,8 @@ if TYPE_CHECKING:
     from collections.abc import Callable, Coroutine
 
     from core.bot import Bot
-    from core.stt.manager import STTManager
     from core.stt.recorder import STTLevelEvent
+    from core.stt.stt_manager import STTManager
 
 __all__: list[str] = ["GUIApp", "StreamRedirector"]
 

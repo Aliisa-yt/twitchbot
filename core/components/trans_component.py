@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, ClassVar
 from twitchio.ext import commands
 
 from core.components.base import ComponentBase
-from core.trans.manager import TransManager
+from core.trans.trans_manager import TransManager
 from utils.logger_utils import LoggerUtils
 
 if TYPE_CHECKING:

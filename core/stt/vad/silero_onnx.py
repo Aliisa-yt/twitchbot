@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 import onnxruntime as ort
 
-from core.stt.vad.interface import VADDecision
+from core.stt.vad.vad_interface import VADDecision
 
 if TYPE_CHECKING:
     from collections.abc import Sequence

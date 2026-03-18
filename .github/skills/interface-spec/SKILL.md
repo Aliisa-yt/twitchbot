@@ -6,7 +6,7 @@ keywords: [interface, abstract-contract, auto-registration, stt, translation, tt
 
 共通規約は [.github/copilot-instructions.md](../../copilot-instructions.md) を参照してください。
 
-この文書は `core/stt/interface.py`、`core/trans/interface.py`、`core/tts/interface.py` の
+この文書は `core/stt/stt_interface.py`、`core/trans/trans_interface.py`、`core/tts/tts_interface.py` の
 interface クラス仕様を横断的に扱う実装ガイドです。
 
 ## 1. 対象クラスと責務

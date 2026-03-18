@@ -45,8 +45,8 @@ if TYPE_CHECKING:
     from twitchio.models.chat import SentMessage
 
     from config.loader import Config
-    from core.stt.manager import STTManager
     from core.stt.recorder import LevelEventCallback
+    from core.stt.stt_manager import STTManager
     from core.token_manager import TwitchBotToken
 
 

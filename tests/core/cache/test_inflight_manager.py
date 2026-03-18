@@ -10,7 +10,7 @@ import pytest
 from core.cache.inflight_manager import InFlightManager
 
 if TYPE_CHECKING:
-    from core.trans.interface import Result
+    from core.trans.trans_interface import Result
 
 
 @pytest.fixture

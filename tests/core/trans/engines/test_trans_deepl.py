@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, cast
 import pytest
 
 from core.trans.engines import trans_deepl as trans_deepl_module
-from core.trans.interface import (
+from core.trans.trans_interface import (
     NotSupportedLanguagesError,
     Result,
     TranslateExceptionError,
