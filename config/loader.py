@@ -12,9 +12,9 @@ import re
 from configparser import ConfigParser
 from dataclasses import fields
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any, ClassVar, cast
 
-from models.config_models import Config
+from models.config_models import STT, VAD, Config, LevelsVAD, SileroVAD
 from models.voice_models import TTSInfo, TTSInfoPerLanguage, UserTypeInfo, Voice
 from utils.logger_utils import LoggerUtils
 
@@ -117,6 +117,14 @@ class ConfigLoader:
         ConfigFileNotFoundError: If the configuration file does not exist.
         ConfigFormatError: If the file cannot be parsed or contains invalid values/types.
     """
+
+    voice_parameters_map: ClassVar[dict[str, str]] = {
+        "a": "alpha",
+        "i": "intonation",
+        "s": "speed",
+        "t": "tone",
+        "v": "volume",
+    }
 
     def __init__(
         self,
@@ -260,6 +268,8 @@ class ConfigLoader:
                 parameter_type: Callable[[TTSInfo, Voice, str], None] | None = parameter_type_map.get(_key)
                 if parameter_type:
                     parameter_type(tmp_ttsinfo, tmp_voice, _value)
+                else:
+                    logger.warning("Unknown parameter '%s' is ignored in CAST entry: %s", _key, language_parameters)
 
             tmp_ttsinfo.voice = tmp_voice
             if tmp_ttsinfo.supported_lang and not tmp_ttsinfo.engine:
@@ -307,7 +317,7 @@ class ConfigLoader:
                 raise ConfigValueError(msg)
 
             _typ, _val = param[0], param[1:]
-            if _typ not in ("a", "i", "s", "t", "v"):
+            if _typ not in self.voice_parameters_map:
                 msg = f"Unknown parameter type: '{_typ}' in '{param}'"
                 raise ConfigValueError(msg)
 
@@ -324,11 +334,11 @@ class ConfigLoader:
             if not item.strip():
                 continue
             _typ, _val = check_param_sub(item)
-            setattr(
-                voice,
-                {"a": "alpha", "i": "intonation", "s": "speed", "t": "tone", "v": "volume"}.get(_typ, ""),
-                _val,
-            )
+            param_name: str | None = self.voice_parameters_map.get(_typ)
+            if not param_name:
+                msg = f"Unknown parameter type: '{_typ}'"
+                raise ConfigValueError(msg)
+            setattr(voice, param_name, _val)
 
     def _validate_settings(self) -> None:
         """Validate configuration settings for usernames, translation engines, and colors.
@@ -351,7 +361,7 @@ class ConfigLoader:
 
         STT is optional. When disabled, relaxed validation is applied.
         """
-        stt = self.config.STT
+        stt: STT = self.config.STT
         if not stt.ENABLED:
             return
 
@@ -378,7 +388,7 @@ class ConfigLoader:
 
     def _validate_vad_settings(self) -> None:
         """Validate VAD settings used by STT segmentation."""
-        vad = self.config.VAD
+        vad: VAD = self.config.VAD
 
         self._validate_stt_numeric_range("VAD.PRE_BUFFER_MS", vad.PRE_BUFFER_MS, min_value=0)
         self._validate_stt_numeric_range("VAD.POST_BUFFER_MS", vad.POST_BUFFER_MS, min_value=0)
@@ -394,7 +404,7 @@ class ConfigLoader:
 
     def _validate_level_vad_settings(self) -> None:
         """Validate threshold settings for level-based VAD."""
-        levels_vad = self.config.LEVELS_VAD
+        levels_vad: LevelsVAD = self.config.LEVELS_VAD
 
         self._validate_stt_numeric_range("LEVELS_VAD.START", levels_vad.START, min_value=-60.0, max_value=0.0)
         self._validate_stt_numeric_range("LEVELS_VAD.STOP", levels_vad.STOP, min_value=-60.0, max_value=0.0)
@@ -404,10 +414,10 @@ class ConfigLoader:
 
     def _validate_silero_vad_settings(self) -> None:
         """Validate model and threshold settings for Silero ONNX VAD."""
-        silero_vad = self.config.SILERO_VAD
+        silero_vad: SileroVAD = self.config.SILERO_VAD
 
         self._validate_stt_numeric_range("SILERO_VAD.THRESHOLD", silero_vad.THRESHOLD, min_value=0.0, max_value=1.0)
-        self._validate_stt_numeric_range("SILERO_VAD.ONNX_THREADS", silero_vad.ONNX_THREADS, min_value=1)
+        self._validate_stt_numeric_range("SILERO_VAD.ONNX_THREADS", silero_vad.ONNX_THREADS, min_value=0, max_value=8)
         if not silero_vad.MODEL_PATH:
             msg = "'SILERO_VAD.MODEL_PATH' must not be empty when VAD.MODE is silero_onnx."
             raise ConfigValueError(msg)
@@ -478,7 +488,7 @@ class ConfigLoader:
         field_name: str = f"{section_name}.{key_name}"
 
         chat_to_api_color_map: dict[str, str] = {
-            chat.lower(): api for chat, api in zip(CHAT_COMMAND_COLORS, API_COLORS, strict=False)
+            chat.lower(): api for chat, api in zip(CHAT_COMMAND_COLORS, API_COLORS, strict=True)
         }
 
         if value.lower() in (api.lower() for api in CHAT_COMMAND_COLORS):

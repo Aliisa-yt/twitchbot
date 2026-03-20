@@ -214,6 +214,8 @@ def test_stt_enabled_with_invalid_thresholds_raises_config_value_error(tmp_path:
         [STT]
         ENABLED = True
         ENGINE = "google_cloud_stt"
+        INPUT_DEVICE = "default"
+        LANGUAGE = "ja-JP"
 
         [VAD]
         MODE = "level"
@@ -227,11 +229,12 @@ def test_stt_enabled_with_invalid_thresholds_raises_config_value_error(tmp_path:
     with pytest.raises(ConfigValueError):
         ConfigLoader(config_filename=str(ini_path), script_name="test")
 
-
-def test_stt_enabled_with_invalid_vad_onnx_threads_raises_config_value_error(tmp_path: Path) -> None:
+# Validate ONNX thread boundaries only under STT enabled + silero_onnx mode.
+@pytest.mark.parametrize("onnx_threads", [0, 8])
+def test_stt_enabled_with_valid_vad_onnx_threads_does_not_raise(tmp_path: Path, onnx_threads: int) -> None:
     ini_path: Path = _write_ini(
         tmp_path,
-        """
+        f"""
         [TWITCH]
         OWNER_NAME = "owner1"
 
@@ -245,12 +248,47 @@ def test_stt_enabled_with_invalid_vad_onnx_threads_raises_config_value_error(tmp
         [STT]
         ENABLED = True
         ENGINE = "google_cloud_stt"
+        INPUT_DEVICE = "default"
+        LANGUAGE = "ja-JP"
 
         [VAD]
         MODE = "silero_onnx"
 
         [SILERO_VAD]
-        ONNX_THREADS = 0
+        ONNX_THREADS = {onnx_threads}
+        """,
+    )
+
+    loader = ConfigLoader(config_filename=str(ini_path), script_name="test")
+    assert onnx_threads == loader.config.SILERO_VAD.ONNX_THREADS
+
+
+@pytest.mark.parametrize("onnx_threads", [-1, 9])
+def test_stt_enabled_with_invalid_vad_onnx_threads_raises_config_value_error(tmp_path: Path, onnx_threads: int) -> None:
+    ini_path: Path = _write_ini(
+        tmp_path,
+        f"""
+        [TWITCH]
+        OWNER_NAME = "owner1"
+
+        [BOT]
+        BOT_NAME = "bot1"
+        COLOR = "blue"
+
+        [TRANSLATION]
+        ENGINE = ["google"]
+
+        [STT]
+        ENABLED = True
+        ENGINE = "google_cloud_stt"
+        INPUT_DEVICE = "default"
+        LANGUAGE = "ja-JP"
+
+        [VAD]
+        MODE = "silero_onnx"
+
+        [SILERO_VAD]
+        ONNX_THREADS = {onnx_threads}
         """,
     )
 
