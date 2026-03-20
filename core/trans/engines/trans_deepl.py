@@ -122,13 +122,13 @@ class DeeplTranslation(TransInterface):
 
     @property
     def count(self) -> int:
-        if self._usage.character.count:
+        if self._usage.character.count is not None:
             return self._usage.character.count
         return 0
 
     @property
     def limit(self) -> int:
-        if self._usage.character.limit:
+        if self._usage.character.limit is not None:
             return self._usage.character.limit
         return 500000
 
