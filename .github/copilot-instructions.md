@@ -17,12 +17,14 @@
 
 ## SKILL 参照先
 - チャットイベントフロー: [.github/skills/chat-events-flow/SKILL.md](skills/chat-events-flow/SKILL.md)
+- TwitchIO API メモ: [.github/skills/twitchio-api-additional-notes/SKILL.md](skills/twitchio-api-additional-notes/SKILL.md)
 - レビュー: [.github/skills/code-review/SKILL.md](skills/code-review/SKILL.md)
 - 翻訳マネージャー: [.github/skills/translation-manager/SKILL.md](skills/translation-manager/SKILL.md)
 - 翻訳エンジン仕様: [.github/skills/translation-engine-spec/SKILL.md](skills/translation-engine-spec/SKILL.md)
 - TTS マネージャー: [.github/skills/tts-manager/SKILL.md](skills/tts-manager/SKILL.md)
 - TTS エンジン仕様: [.github/skills/tts-engine-spec/SKILL.md](skills/tts-engine-spec/SKILL.md)
 - STT サービス: [.github/skills/stt-service/SKILL.md](skills/stt-service/SKILL.md)
+- ONNX Runtime 設定: [.github/skills/onnx-runtime-setting/SKILL.md](skills/onnx-runtime-setting/SKILL.md)
 - 設定ローダー仕様: [.github/skills/config-loader-spec/SKILL.md](skills/config-loader-spec/SKILL.md)
 - キャッシュ / in-flight: [.github/skills/cache-inflight/SKILL.md](skills/cache-inflight/SKILL.md)
 - コンポーネント仕様: [.github/skills/component-spec/SKILL.md](skills/component-spec/SKILL.md)
@@ -72,17 +74,21 @@
 
 ## 変更時の共通ルール
 - 変更は最小差分で行い、無関係なリファクタや整形を混在させない。
-  ただし、以下の場合は同一変更内でリファクタや整形を許可する。大規模な変更が見込まれる場合は、事前にユーザー確認を行い、許可を得た場合に限る。
+- **例外**: 以下の場合は同一変更内でリファクタや整形を許可する。
+  - ユーザーによる事前確認と許可がある場合。
   - 機能に影響の無い整形のみの場合。(例: 文字列の結合方法の統一、インポート順の整理、空行の追加/削除など)
   - 変更前後でコードの動作や仕様が大きく変わる場合。
   - 変更内容の理解にリファクタリングや整形が必要な場合。
   - 変更前後でコードの可読性が大きく変わる場合。
   - 変更量が多くなりすぎる場合。(例: 100行以上の変更が見込まれる場合)
+  - 変更により同様なコードが複数箇所に発生する場合。
+- 変更前に、変更対象の SKILL を確認し、必要に応じて関連 SKILL も確認する。
 - 互換性情報・バグ回避策に関する既存記述は削除しない（簡潔化は可）。
 - 仕様変更時は、まず該当 SKILL を更新し、その後コードへ反映する。
 - 振る舞い変更時は、実装・テスト・ドキュメント（SKILL/`docs/`）を同一変更で整合させる。
 - 既存 SKILL と実装の不整合を見つけた場合は、推測で実装を寄せず、先に不整合を解消してから修正する。
 - 命名規約、マネージャー実装、インターフェース契約、各ドメイン仕様は該当 SKILL を参照する。
+- **重要**: 大規模な変更が見込まれる場合は事前にユーザー確認を行い、許可を得た場合に限る。
 
 ## 変更完了時チェック（共通）
 - 変更したファイルに対して `ruff check .` / `mypy .` の影響範囲を確認する。

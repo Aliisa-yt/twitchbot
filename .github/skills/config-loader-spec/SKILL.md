@@ -102,6 +102,7 @@ files: ./config/loader.py
 - コンストラクタは config_filename と script_name を必須とする。
 - CLI 上書きは owner, bot, debug を受理する。
 - 最終出力は辞書ではなく Config オブジェクト（loader.config）を公開契約とする。
+- 設定ファイル（twitchbot.ini）は読み取り専用として扱う。実行時の書き込みは禁止する。
 
 ## 9. テスト観点
 - 少なくとも次をテストで担保する。
