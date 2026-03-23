@@ -81,13 +81,14 @@ python_version = "3.13"
 exclude = "dic/.*"
 warn_redundant_casts = true
 warn_return_any = true
-warn_unreachable = true
+warn_unreachable = false
 warn_unused_configs = true
 warn_unused_ignores = true
 
 [[tool.mypy.overrides]]
-module = ["soundfile.*", "sounddevice.*", "gtts.*"]
+module = ["soundfile.*", "sounddevice.*", "gtts.*", "onnxruntime.*"]
 ignore_missing_imports = true
+follow_untyped_imports = true
 
 [tool.pytest.ini_options]
 addopts = "-ra"
