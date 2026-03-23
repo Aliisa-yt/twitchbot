@@ -500,3 +500,200 @@ async def test_start_authorization_flow_local_server_timeout_falls_back_to_brows
 
     token: TwitchBotToken = await manager.start_authorization_flow("owner", "bot")
     assert token.access_token == "a"
+
+
+# ---------------------------------------------------------------------------
+# _refresh_access_token tests
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_refresh_access_token_success(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    class FakeResp:
+        async def json(self):
+            return {"access_token": "new_a", "refresh_token": "new_r", "expires_in": 3600}
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *_):
+            return None
+
+    class FakeSession:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *_):
+            return None
+
+        def post(self, *_args, **_kwargs):
+            return FakeResp()
+
+    monkeypatch.setattr(tm.aiohttp, "ClientSession", lambda **_kw: FakeSession())
+    manager = TokenManager(tmp_path / "tokens.db")
+    result = await manager._refresh_access_token("old_refresh")  # noqa: SLF001
+    assert result["access_token"] == "new_a"
+    assert result["refresh_token"] == "new_r"
+    assert "obtained_at" in result
+
+
+@pytest.mark.asyncio
+async def test_refresh_access_token_no_access_token_raises(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    class FakeResp:
+        async def json(self):
+            return {"error": "invalid_grant"}
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *_):
+            return None
+
+    class FakeSession:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *_):
+            return None
+
+        def post(self, *_args, **_kwargs):
+            return FakeResp()
+
+    monkeypatch.setattr(tm.aiohttp, "ClientSession", lambda **_kw: FakeSession())
+    manager = TokenManager(tmp_path / "tokens.db")
+    with pytest.raises(RuntimeError, match="Token refresh failed"):
+        await manager._refresh_access_token("bad_refresh")  # noqa: SLF001
+
+
+# ---------------------------------------------------------------------------
+# Token refresh in start_authorization_flow tests
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_start_authorization_flow_refreshes_expired_token(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """When the cached access token is expired (validation fails), the refresh token is used."""
+    db_path: Path = tmp_path / "tokens.db"
+    manager = TokenManager(db_path)
+    manager.save_tokens({"access_token": "expired_a", "refresh_token": "valid_r", "expires_in": 3600})
+
+    async def fake_get_id(_owner: str, _bot: str) -> UserIDs:
+        return UserIDs(owner_id="oid", bot_id="bot-id")
+
+    monkeypatch.setattr(manager, "_get_id_by_name", fake_get_id)
+
+    validate_call_count = 0
+
+    async def fake_validate(token: str) -> str:
+        nonlocal validate_call_count
+        validate_call_count += 1
+        if token == "expired_a":
+            msg = "Token validation failed with status 401."
+            raise RuntimeError(msg)
+        # Called for the refreshed token
+        return "bot-id"
+
+    monkeypatch.setattr(manager, "_validate_access_token_user_id", fake_validate)
+
+    async def fake_refresh(_rt: str) -> dict:
+        return {"access_token": "new_a", "refresh_token": "new_r", "expires_in": 3600}
+
+    monkeypatch.setattr(manager, "_refresh_access_token", fake_refresh)
+
+    def fail_oauth(*_args, **_kwargs):
+        msg = "OAuth flow should not be called when refresh succeeds"
+        raise AssertionError(msg)
+
+    monkeypatch.setattr(manager, "_run_oauth_for_bot", fail_oauth)
+
+    token: TwitchBotToken = await manager.start_authorization_flow("owner", "bot")
+    assert token.access_token == "new_a"
+    assert token.refresh_token == "new_r"
+    saved = manager.load_tokens()
+    assert saved["access_token"] == "new_a"
+
+
+@pytest.mark.asyncio
+async def test_start_authorization_flow_falls_back_to_oauth_when_refresh_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """When both cached token validation and refresh fail, the full OAuth flow is executed."""
+    db_path: Path = tmp_path / "tokens.db"
+    manager = TokenManager(db_path)
+    manager.save_tokens({"access_token": "expired_a", "refresh_token": "invalid_r", "expires_in": 3600})
+
+    async def fake_get_id(_owner: str, _bot: str) -> UserIDs:
+        return UserIDs(owner_id="oid", bot_id="bot-id")
+
+    monkeypatch.setattr(manager, "_get_id_by_name", fake_get_id)
+
+    async def fake_validate(token: str) -> str:
+        if token == "expired_a":
+            msg = "Token validation failed with status 401."
+            raise RuntimeError(msg)
+        return "bot-id"
+
+    monkeypatch.setattr(manager, "_validate_access_token_user_id", fake_validate)
+
+    async def fail_refresh(_rt: str) -> dict:
+        msg = "invalid refresh token"
+        raise RuntimeError(msg)
+
+    monkeypatch.setattr(manager, "_refresh_access_token", fail_refresh)
+
+    oauth_called = False
+
+    async def fake_oauth(_bot_name: str, _expected_bot_id: str) -> dict:
+        nonlocal oauth_called
+        oauth_called = True
+        return {"access_token": "oauth_a", "refresh_token": "oauth_r", "expires_in": 3600}
+
+    monkeypatch.setattr(manager, "_run_oauth_for_bot", fake_oauth)
+
+    token: TwitchBotToken = await manager.start_authorization_flow("owner", "bot")
+    assert token.access_token == "oauth_a"
+    assert oauth_called
+
+
+@pytest.mark.asyncio
+async def test_start_authorization_flow_skips_refresh_when_refreshed_token_owner_mismatched(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """When the refreshed token belongs to a different user, fall back to OAuth."""
+    db_path: Path = tmp_path / "tokens.db"
+    manager = TokenManager(db_path)
+    manager.save_tokens({"access_token": "expired_a", "refresh_token": "r", "expires_in": 3600})
+
+    async def fake_get_id(_owner: str, _bot: str) -> UserIDs:
+        return UserIDs(owner_id="oid", bot_id="bot-id")
+
+    monkeypatch.setattr(manager, "_get_id_by_name", fake_get_id)
+
+    async def fake_validate(token: str) -> str:
+        if token == "expired_a":
+            msg = "Token validation failed with status 401."
+            raise RuntimeError(msg)
+        # Refreshed token belongs to owner, not bot
+        return "owner-id"
+
+    monkeypatch.setattr(manager, "_validate_access_token_user_id", fake_validate)
+
+    async def fake_refresh(_rt: str) -> dict:
+        return {"access_token": "refreshed_owner_a", "refresh_token": "refreshed_owner_r", "expires_in": 3600}
+
+    monkeypatch.setattr(manager, "_refresh_access_token", fake_refresh)
+
+    oauth_called = False
+
+    async def fake_oauth(_bot_name: str, _expected_bot_id: str) -> dict:
+        nonlocal oauth_called
+        oauth_called = True
+        return {"access_token": "oauth_a", "refresh_token": "oauth_r", "expires_in": 3600}
+
+    monkeypatch.setattr(manager, "_run_oauth_for_bot", fake_oauth)
+
+    token: TwitchBotToken = await manager.start_authorization_flow("owner", "bot")
+    assert token.access_token == "oauth_a"
+    assert oauth_called

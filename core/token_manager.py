@@ -294,15 +294,42 @@ class TokenManager:
             "redirect_uri": REDIRECT_URI,
         }
 
-        async with aiohttp.ClientSession(raise_for_status=True) as session:
+        async with aiohttp.ClientSession(raise_for_status=True) as session, session.post(url, data=params) as resp:
             # OAuth token endpoints expect form data.
-            async with session.post(url, data=params) as resp:
-                data = await resp.json()
-            if "access_token" not in data:
-                msg: str = "Token exchange failed: API did not return access_token."
-                raise RuntimeError(msg)
-            data["obtained_at"] = time.time()  # It seems that this data isn't being used.
-            return data
+            data: dict[str, Any] = await resp.json()
+        if "access_token" not in data:
+            msg: str = "Token exchange failed: API did not return access_token."
+            raise RuntimeError(msg)
+        data["obtained_at"] = time.time()  # It seems that this data isn't being used.
+        return data
+
+    async def _refresh_access_token(self, refresh_token: str) -> dict[str, Any]:
+        """Refresh the access token using the stored refresh token.
+
+        Args:
+            refresh_token (str): The refresh token to exchange for a new access token.
+
+        Returns:
+            dict[str, Any]: The new token data containing at minimum access_token and refresh_token.
+
+        Raises:
+            RuntimeError: If the API does not return an access_token.
+            aiohttp.ClientResponseError: If the HTTP request fails (e.g. the refresh token is invalid).
+        """
+        url: str = "https://id.twitch.tv/oauth2/token"
+        params: dict[str, str] = {
+            "client_id": self.client_id,
+            "client_secret": self.client_secret,
+            "grant_type": "refresh_token",
+            "refresh_token": refresh_token,
+        }
+        async with aiohttp.ClientSession(raise_for_status=True) as session, session.post(url, data=params) as resp:
+            data: dict[str, Any] = await resp.json()
+        if "access_token" not in data:
+            msg: str = "Token refresh failed: API did not return access_token."
+            raise RuntimeError(msg)
+        data["obtained_at"] = time.time()
+        return data
 
     async def _validate_access_token_user_id(self, access_token: str) -> str:
         """Validate an access token and return the associated Twitch user ID.
@@ -460,6 +487,7 @@ class TokenManager:
         if tokens:
             logger.info("Using cached tokens.")
             cached_access_token: str = tokens.get("access_token", "")
+            cached_refresh_token: str = tokens.get("refresh_token", "")
             if cached_access_token:
                 try:
                     token_user_id: str = await self._validate_access_token_user_id(cached_access_token)
@@ -473,8 +501,26 @@ class TokenManager:
                         )
                         tokens = {}
                 except RuntimeError as exc:
-                    logger.warning("Cached token validation failed (%s). Re-authorizing.", exc)
+                    logger.warning("Cached token validation failed (%s). Attempting token refresh.", exc)
                     tokens = {}
+                    if cached_refresh_token:
+                        try:
+                            refreshed_tokens: dict[str, Any] = await self._refresh_access_token(cached_refresh_token)
+                            refreshed_user_id: str = await self._validate_access_token_user_id(
+                                refreshed_tokens["access_token"]
+                            )
+                            if refreshed_user_id == self.bot_id:
+                                self.save_tokens(refreshed_tokens)
+                                tokens = refreshed_tokens
+                                logger.info("Token refreshed successfully.")
+                            else:
+                                logger.warning(
+                                    "Refreshed token belongs to user '%s', not bot '%s'. Re-authorizing.",
+                                    refreshed_user_id,
+                                    self.bot_id,
+                                )
+                        except (RuntimeError, aiohttp.ClientResponseError) as refresh_exc:
+                            logger.warning("Token refresh failed (%s). Re-authorizing.", refresh_exc)
 
         if not tokens:
             tokens = await self._run_oauth_for_bot(bot_name, self.bot_id)
