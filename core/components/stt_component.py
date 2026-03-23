@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+import asyncio
 from contextlib import suppress
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, ClassVar, cast
+from typing import TYPE_CHECKING, ClassVar
 from uuid import uuid4
 
 from core.components.base import ComponentBase
@@ -14,7 +15,6 @@ from utils.logger_utils import LoggerUtils
 if TYPE_CHECKING:
     import logging
 
-    from core.components.chat_events import ChatEventsManager
     from core.stt.stt_interface import STTResult
 
 
@@ -155,19 +155,41 @@ class STTServiceComponent(ComponentBase):
         return False
 
     async def _forward_stt_result_to_chat_events(self, *, text: str) -> None:
+        """Forward the STT result to the chat events manager for further processing (e.g., TTS).
+
+        Args:
+            text (str): The transcribed text from the STT result to be forwarded.
+        """
         forward_raw: bool | None = self.config.STT.FORWARD_TO_TTS
         if not isinstance(forward_raw, bool) or not forward_raw:
             return
 
-        component: ComponentBase | None = self.get_attached_component("ChatEventsManager")
-        if component is None:
-            logger.warning("STT forwarding skipped because ChatEventsManager is unavailable")
-            return
-
         dto: ChatMessageDTO = self._create_stt_chat_message_dto(text=text)
-        await cast("ChatEventsManager", component).enqueue_external_message(dto)
+
+        async def predicate(payload: ChatMessageDTO) -> bool:
+            return isinstance(payload, ChatMessageDTO) and payload.message_id == dto.message_id
+
+        waiter_task: asyncio.Task[ChatMessageDTO] = asyncio.create_task(
+            self.bot.wait_for(
+                "safe_enqueue_message",
+                timeout=1.0,
+                predicate=predicate,
+            ),
+            name="STTResultWaiterTask",
+        )
+        await asyncio.sleep(0)
+        # Fire a custom event to send the STT results to the queue.
+        self.bot.safe_dispatch("enqueue_message", payload=dto)
+
+        # The system waits for the event to be processed by listening out for the same message ID
+        # that was used to publish it.
+        try:
+            _: ChatMessageDTO = await waiter_task
+        except TimeoutError:
+            logger.warning("Failed to forward STT result to chat events: wait_for timed out")
 
     def _create_stt_chat_message_dto(self, *, text: str) -> ChatMessageDTO:
+        """Create a ChatMessageDTO for the given STT text."""
         owner_name: str = self.config.TWITCH.OWNER_NAME or self.config.BOT.BOT_NAME or "streamer"
         author = ChatMessageAuthorDTO(
             id=str(self.bot.owner_id),

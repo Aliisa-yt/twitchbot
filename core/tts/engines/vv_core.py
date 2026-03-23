@@ -429,7 +429,7 @@ class VVCore(Interface):
         name, style = cast.split("|", maxsplit=1) if "|" in cast else (cast, "")
         if not name:
             logger.warning("Using default speaker ID because speaker name is empty")
-            speaker_id: SpeakerID = default_speaker_id()
+            speaker_id = default_speaker_id()
             self.id_cache[cast] = speaker_id
             return speaker_id
 
@@ -443,7 +443,7 @@ class VVCore(Interface):
             return speaker_style_id
 
         logger.warning("Using default speaker ID because speaker name '%s' or style '%s' not found", name, style)
-        speaker_id: SpeakerID = default_speaker_id()
+        speaker_id = default_speaker_id()
         self.id_cache[cast] = speaker_id
         return speaker_id
 

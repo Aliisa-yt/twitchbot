@@ -114,7 +114,7 @@ class TextResult:
             # The specification for when it becomes a list is unclear.
             # e.g. when translating simultaneously into multiple languages?
             # Given the current implementation, it should never return as a list, so for now, return the combined list.
-            self.text: str = " ".join(sentences)
+            self.text = " ".join(sentences)
         else:
             msg: str = f"'{type(sentences)}' is an unsupported type"
             raise ResponseFormatError(msg)

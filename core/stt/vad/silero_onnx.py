@@ -37,12 +37,12 @@ class SileroOnnxVADProcessor:
     _recording_active: bool = field(init=False, default=False)
     _silence_duration_sec: float = field(init=False, default=0.0)
     _tail_buffer: np.ndarray = field(init=False, default_factory=lambda: np.empty((0,), dtype=np.float32))
-    _session: ort.InferenceSession = field(init=False)  # type: ignore[misc]
+    _session: ort.InferenceSession = field(init=False)
     _input_names: list[str] = field(init=False, default_factory=list)
     _output_names: list[str] = field(init=False, default_factory=list)
     _state_cache: dict[str, np.ndarray] = field(init=False, default_factory=dict)
     _context_size: int = field(init=False, default=0)
-    _context: np.ndarray = field(init=False)  # type: ignore[misc]
+    _context: np.ndarray = field(init=False)
 
     def __post_init__(self) -> None:
         providers: list[str] = ["CPUExecutionProvider"]

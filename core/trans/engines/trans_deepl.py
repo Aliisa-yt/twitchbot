@@ -272,7 +272,7 @@ class DeeplTranslation(TransInterface):
         elif isinstance(results, list):
             # Although this app does not return list types, type checking is performed.
             logger.debug("The return value is of type list.")
-            result: TextResult = results[0]
+            result = results[0]
         else:
             msg = "An anomaly occurred during the translation process at DeepL"
             raise TranslateExceptionError(msg) from None

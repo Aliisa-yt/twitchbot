@@ -138,14 +138,14 @@ class MessageFormatter:
         """
         # Select template source based on reply status
         if not self._message_handler.is_replying:
-            templates = (
+            templates: dict[str, str] = (
                 self._message_handler.translated_message_templates
                 if is_translated
                 else self._message_handler.message_templates
             )
         else:
             # Use reply template for reply messages
-            templates: dict[str, str] = self._message_handler.reply_message_templates
+            templates = self._message_handler.reply_message_templates
 
         return self._find_template_for_language(templates, language)
 

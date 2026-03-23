@@ -44,6 +44,7 @@ def stt_bundle() -> SimpleNamespace:
     class ChatEventsManager:
         def __init__(self) -> None:
             self.enqueue_external_message = AsyncMock()
+            self.wait_for_message = AsyncMock()
 
     chat_events = ChatEventsManager()
 
@@ -51,6 +52,8 @@ def stt_bundle() -> SimpleNamespace:
     bot.shared_data = shared
     bot.owner_id = "owner"
     bot.attached_components = [chat_events]
+    bot.safe_dispatch = AsyncMock()
+    bot.wait_for = AsyncMock(return_value=None)
 
     component = STTServiceComponent(bot)
     component._stt_result_ignore_words = []
@@ -146,8 +149,8 @@ async def test_forward_stt_result_to_chat_events_enqueues_when_enabled(stt_bundl
     stt_bundle.shared.config.STT.FORWARD_TO_TTS = True
     await stt_bundle.component._forward_stt_result_to_chat_events(text="recognized text")
 
-    stt_bundle.chat_events.enqueue_external_message.assert_awaited_once()
-    dto: ChatMessageDTO = stt_bundle.chat_events.enqueue_external_message.await_args.args[0]
+    stt_bundle.bot.safe_dispatch.assert_called_once()
+    dto: ChatMessageDTO = stt_bundle.bot.safe_dispatch.call_args.kwargs["payload"]
     assert dto.content == "recognized text"
     assert dto.text == "recognized text"
     assert dto.author.name == "owner_name"
@@ -190,7 +193,8 @@ async def test_on_stt_result_enqueues_when_forward_enabled(stt_bundle: SimpleNam
 
     stt_bundle.component.send_chat_message.assert_awaited_once_with("recognized text", sender="owner")
     stt_bundle.component.print_console_message.assert_not_called()
-    stt_bundle.chat_events.enqueue_external_message.assert_awaited_once()
+    stt_bundle.bot.safe_dispatch.assert_called_once()
+    assert stt_bundle.bot.safe_dispatch.call_args.args[0] == "enqueue_message"
 
 
 def test_load_stt_result_ignore_words_reads_non_comment_lines(tmp_path: Path, stt_bundle: SimpleNamespace) -> None:

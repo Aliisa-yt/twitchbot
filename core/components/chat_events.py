@@ -53,6 +53,13 @@ class ChatEventsManager(ComponentBase):
         _spawned_tasks (set[asyncio.Task[None]]): Set of currently active tasks spawned for message processing.
         _concurrency_sem (asyncio.Semaphore | None): Semaphore to limit concurrent message processing tasks.
         _is_available (bool): Flag indicating whether the component is available for processing messages.
+
+    listens to the following TwitchIO events:
+        - event_message: Triggered when a new chat message is received.
+        - event_message_delete: Triggered when a chat message is deleted.
+        - event_chat_clear: Triggered when the chat box is cleared.
+        - event_chat_clear_user: Triggered when all messages from a specific user are deleted.
+        - event_safe_enqueue_message: Triggered when a message is enqueued via safe_dispatch.
     """
 
     depends: ClassVar[list[str]] = []
@@ -68,8 +75,7 @@ class ChatEventsManager(ComponentBase):
         self._is_available: bool = False
 
     async def component_load(self) -> None:
-        """Load the component. No setup required for this component."""
-        # initialize concurrency semaphore from config if present, otherwise use default
+        """Initialize the component, including the message queue and concurrency semaphore."""
         max_concurrent: int = getattr(self.config.TTS, "MAX_CONCURRENT_MESSAGES", MESSAGE_CONCURRENCY_DEFAULT)
         try:
             max_concurrent = int(max_concurrent)
@@ -91,18 +97,24 @@ class ChatEventsManager(ComponentBase):
         logger.debug("'%s' component loaded", self.__class__.__name__)
 
     async def component_teardown(self) -> None:
-        """Teardown the component. No teardown required for this component."""
+        """Teardown the component, including cancelling tasks and releasing resources."""
         self._is_available = False
         await self._message_queue.clear()
         if self._message_worker_task is not None:
             self._message_worker_task.cancel()
-            with contextlib.suppress(asyncio.CancelledError):
+            try:
                 await self._message_worker_task
+            except BaseException as exc:  # noqa: BLE001
+                if not isinstance(exc, asyncio.CancelledError):
+                    logger.warning("Message worker exited with exception during teardown: %s", exc)
             self._message_worker_task = None
         # cancel and await any per-message tasks we spawned
         if self._spawned_tasks:
             for _t in list(self._spawned_tasks):
                 _t.cancel()
+            # Suppress CancelledError in case the calling coroutine itself is
+            # cancelled while waiting; exceptions from spawned tasks are already
+            # collected via return_exceptions=True.
             with contextlib.suppress(asyncio.CancelledError):
                 await asyncio.gather(*self._spawned_tasks, return_exceptions=True)
             self._spawned_tasks.clear()
@@ -142,6 +154,9 @@ class ChatEventsManager(ComponentBase):
         if self._spawned_tasks:
             for _t in list(self._spawned_tasks):
                 _t.cancel()
+            # Suppress CancelledError in case the calling coroutine itself is
+            # cancelled while waiting; exceptions from spawned tasks are already
+            # collected via return_exceptions=True.
             with contextlib.suppress(asyncio.CancelledError):
                 await asyncio.gather(*self._spawned_tasks, return_exceptions=True)
             self._spawned_tasks.clear()
@@ -193,27 +208,28 @@ class ChatEventsManager(ComponentBase):
         dto: ChatMessageDTO = ChatMessageDTO.from_twitch_message(payload)
         await self._enqueue_message(dto)
 
-    async def enqueue_external_message(self, dto: ChatMessageDTO) -> None:
-        """Enqueue an externally generated chat message DTO.
+    @Component.listener("safe_enqueue_message")
+    async def _on_safe_enqueue_message(self, payload: ChatMessageDTO) -> None:
+        """Receive the 'event_safe_enqueue_message' event and forward to the internal queue.
 
         Args:
-            dto (ChatMessageDTO): The externally generated chat message DTO.
+            payload (ChatMessageDTO): The chat message data transfer object dispatched via safe_dispatch.
         """
-        await self._enqueue_message(dto)
+        await self._enqueue_message(payload)
 
-    async def _enqueue_message(self, dto: ChatMessageDTO) -> None:
+    async def _enqueue_message(self, payload: ChatMessageDTO) -> None:
         """Enqueue a chat message DTO for processing.
 
         Args:
-            dto (ChatMessageDTO): The chat message data transfer object.
+            payload (ChatMessageDTO): The chat message data transfer object.
         """
         if not self._is_available:
             # TwitchIO events may arrive before component_load completes or after teardown starts.
             # Events in this transient state are non-critical, so log at debug and drop them.
-            logger.debug("ChatEventsManager is not available. Cannot enqueue message id '%s'.", dto.message_id)
+            logger.debug("ChatEventsManager is not available. Cannot enqueue message id '%s'.", payload.message_id)
             return
         if self._message_queue.full():
-            logger.warning("Message queue full. Dropping message id '%s'.", dto.message_id)
+            logger.warning("Message queue full. Dropping message id '%s'.", payload.message_id)
             return
         maxsize: int = self._message_queue.maxsize
         if maxsize > 0:
@@ -223,7 +239,7 @@ class ChatEventsManager(ComponentBase):
                 logger.debug("Message queue usage %.0f%% (%d/%d)", usage * 100, projected_size, maxsize)
         if not self._ensure_message_worker_running():
             return
-        await self._message_queue.put(dto)
+        await self._message_queue.put(payload)
 
     def _ensure_message_worker_running(self) -> bool:
         """Ensure the message worker task is running to process messages from the queue.
@@ -279,8 +295,12 @@ class ChatEventsManager(ComponentBase):
                     self._handle_message_task(dto, semaphore),
                     name=f"ChatEventsManagerMessageTask-{dto.message_id}",
                 )
-            except Exception:
+            except Exception:  # noqa: BLE001
+                # In case of failure to create a task,
+                # release the semaphore and mark the message as done to prevent deadlock.
                 semaphore.release()
+                with contextlib.suppress(ValueError, RuntimeError):
+                    self._message_queue.task_done()
                 raise
             self._spawned_tasks.add(task)
             task.add_done_callback(self._task_done_callback)
@@ -391,11 +411,11 @@ class ChatEventsManager(ComponentBase):
             or ChatUtils.is_ignore_users(self.config, payload.chatter.name)
         )
 
-    def _preprocess_message(self, payload: TwitchMessage | ChatMessageDTO) -> ChatMessageHandler:
+    def _preprocess_message(self, payload: ChatMessageDTO) -> ChatMessageHandler:
         """Preprocess the message (emote/emoji handling, TTS parameters).
 
         Args:
-            payload (TwitchMessage | ChatMessageDTO): The chat message payload.
+            payload (ChatMessageDTO): The chat message payload.
 
         Returns:
             ChatMessageHandler: The preprocessed chat message handler instance.

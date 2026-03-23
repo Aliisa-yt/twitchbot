@@ -9,7 +9,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from io import BytesIO
 from pathlib import Path
-from typing import TYPE_CHECKING, ClassVar, Final, Literal, Self, cast
+from typing import TYPE_CHECKING, ClassVar, Final, Literal, cast
 
 from models.re_models import SERVER_CONFIG_PATTERN
 from utils.file_utils import FileUtils
@@ -125,7 +125,7 @@ class _TTSConfig:
 
         Reads the configuration from the TTSEngine model and initializes a _TTSConfig instance.
         """
-        tts_config: Self = cls()
+        tts_config: _TTSConfig = cls()
         # SERVER setting
         server_str: str | None = getattr(tts_engine, "SERVER", None)
         if server_str:

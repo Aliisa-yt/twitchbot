@@ -110,8 +110,10 @@ class GUILoggingHandler(logging.Handler):
     @staticmethod
     def _emit_to_stderr(msg: str) -> None:
         try:
-            sys.__stderr__.write(msg + "\n")  # pyright: ignore[reportOptionalMemberAccess]
-            sys.__stderr__.flush()  # pyright: ignore[reportOptionalMemberAccess]
+            if sys.__stderr__ is not None:
+                sys.__stderr__.write(msg + "\n")
+            if sys.__stderr__ is not None:
+                sys.__stderr__.flush()
         except Exception:  # noqa: BLE001
             return
 
