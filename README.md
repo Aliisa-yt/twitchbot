@@ -22,10 +22,16 @@ Modular Twitch chat bot with translation, TTS, STT, cache, and GUI support. It s
   1. Copy `twitchbot.ini.example` to `twitchbot.ini`
   2. Edit `twitchbot.ini` and set your Twitch channel owner name and bot account name
   3. Customize other settings as needed (translation engines, TTS parameters, etc.)
+- **Log in to Twitch with the bot account**:
+  - Before obtaining OAuth tokens, make sure you are logged into Twitch with the bot account in your browser.
+  - If you are logged in with a different account, log out and log back in with the bot account.
+  - Attempting to obtain tokens while logged in as a non-bot account will result in an error. In that case, log in with the bot account and run the command again.
 - Obtain OAuth tokens:
   - Run `python setup_tokens.py [--owner OWNER_NAME] [--bot BOT_NAME]`
-  - This opens a browser for OAuth authorization and caches tokens to `tokens.db`
-  - Required before first run of the bot
+    - If the owner and bot names are already set in `twitchbot.ini`, you can run `python setup_tokens.py` without arguments.
+  - This opens a browser for OAuth authorization and caches tokens to `tokens.db`.
+  - Required before first run of the bot.
+  - If `tokens.db` is deleted or corrupted after a successful authentication, an error may appear at startup. In that case, start over from the bot account login step above.
 
 ## Run
 
@@ -33,6 +39,7 @@ Modular Twitch chat bot with translation, TTS, STT, cache, and GUI support. It s
 1) Set the environment variables above.
 2) Run `setup_tokens.py` if you haven't already (see Setup section).
 3) From the repo root: `python twitchbot.py [--owner OWNER_NAME] [--bot BOT_NAME] [--debug] [--gui|--no-gui]`
+   If `twitchbot.ini` is already configured, you can run `python twitchbot.py` without arguments.
    - `--owner OWNER_NAME` (optional): Twitch channel owner name; overrides `twitchbot.ini`
    - `--bot BOT_NAME` (optional): Bot account name; overrides `twitchbot.ini`
    - `-d`, `--debug` (optional): Enable debug mode for detailed logging
