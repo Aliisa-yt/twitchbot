@@ -165,20 +165,15 @@ class TokenManager:
     # -----------------------------------
     # Token storage and management
     # -----------------------------------
-    def _load_tokens(self) -> dict[str, Any]:
+    def load_tokens(self) -> dict[str, Any]:
         """Load tokens from the storage."""
         with self.storage:
             return self.storage.load_tokens()
 
-    def _save_tokens(self, data: dict[str, Any]) -> None:
+    def save_tokens(self, data: dict[str, Any]) -> None:
         """Save tokens to the storage."""
         with self.storage:
             self.storage.save_tokens(data)
-
-    def _is_expired(self, tokens: dict[str, Any]) -> bool:
-        """Check if the access token is expired."""
-        with self.storage:
-            return self.storage.is_expired(tokens)
 
     # -----------------------------------
     # OAuth Authorization Code Flow
@@ -306,28 +301,33 @@ class TokenManager:
             if "access_token" not in data:
                 msg: str = "Token exchange failed: API did not return access_token."
                 raise RuntimeError(msg)
-            data["obtained_at"] = time.time()
+            data["obtained_at"] = time.time()  # It seems that this data isn't being used.
             return data
 
-    async def _refresh_access_token(self, refresh_token: str) -> dict[str, Any]:
-        """Refresh the access token using the refresh token."""
-        url: str = "https://id.twitch.tv/oauth2/token"
-        params: dict[str, str] = {
-            "client_id": self.client_id,
-            "client_secret": self.client_secret,
-            "grant_type": "refresh_token",
-            "refresh_token": refresh_token,
-        }
+    async def _validate_access_token_user_id(self, access_token: str) -> str:
+        """Validate an access token and return the associated Twitch user ID.
 
-        async with aiohttp.ClientSession(raise_for_status=True) as session:
-            # OAuth token endpoints expect form data.
-            async with session.post(url, data=params) as resp:
-                data = await resp.json()
-            if "access_token" not in data:
-                msg: str = "Token refresh failed: API did not return access_token."
+        Args:
+            access_token (str): The user access token to validate.
+
+        Returns:
+            str: The Twitch user ID associated with the token.
+
+        Raises:
+            RuntimeError: If validation fails or the token is not a user access token.
+        """
+        url: str = "https://id.twitch.tv/oauth2/validate"
+        headers: dict[str, str] = {"Authorization": f"OAuth {access_token}"}
+        async with aiohttp.ClientSession() as session, session.get(url, headers=headers) as resp:
+            if resp.status != 200:
+                msg: str = f"Token validation failed with status {resp.status}."
                 raise RuntimeError(msg)
-            data["obtained_at"] = time.time()
-            return data
+            data: dict[str, Any] = await resp.json()
+        user_id: str = data.get("user_id", "")
+        if not user_id:
+            msg = "Token validation returned no user_id. The token may be an app token, not a user access token."
+            raise RuntimeError(msg)
+        return user_id
 
     # -----------------------------------
     # Twitch API helpers
@@ -385,10 +385,60 @@ class TokenManager:
         # Return the user IDs as a UserIDs instance
         return UserIDs(owner_id=owner_id, bot_id=bot_id)
 
+    async def _run_oauth_for_bot(
+        self,
+        bot_name: str,
+        expected_bot_id: str,
+    ) -> dict[str, Any]:
+        """Run the OAuth authorization flow and validate the resulting token.
+
+        Prompts the user to log in with the bot account, exchanges the
+        authorization code for tokens, then verifies the token user ID matches
+        *expected_bot_id* before persisting the tokens.
+
+        Args:
+            bot_name (str): Display name used in user-facing messages.
+            expected_bot_id (str): The Twitch user ID the token must belong to.
+
+        Returns:
+            dict[str, Any]: The token data returned from the token exchange.
+
+        Raises:
+            RuntimeError: If the obtained token does not belong to *expected_bot_id*.
+        """
+        logger.info("No valid bot token found. Starting OAuth authorization flow.")
+        print(f"\nIMPORTANT: Please log in to Twitch with the BOT account ({bot_name}),")
+        print("           NOT the channel owner account!")
+        try:
+            code: str = await self._get_authorization_code_via_local_server()
+        except (TimeoutError, OSError) as exc:
+            logger.warning("Local server callback unavailable (%s); falling back to manual input.", exc)
+            code = self._get_authorization_code_via_browser()
+        tokens: dict[str, Any] = await self._exchange_code_for_tokens(code)
+
+        # Validate that the newly obtained token actually belongs to the bot account.
+        new_access_token: str = tokens.get("access_token", "")
+        if new_access_token:
+            token_user_id: str = await self._validate_access_token_user_id(new_access_token)
+            if token_user_id != expected_bot_id:
+                msg: str = (
+                    f"Authorization error: expected bot account '{bot_name}' (ID: {expected_bot_id}), "
+                    f"but the authorised account has ID '{token_user_id}'. "
+                    f"Please run setup_tokens again and log in with the bot account."
+                )
+                raise RuntimeError(msg)
+
+        self.save_tokens(tokens)
+        return tokens
+
     async def start_authorization_flow(self, owner_name: str, bot_name: str) -> TwitchBotToken:
         """Start the Twitch API authorization flow to obtain access and refresh tokens.
 
-        This method will check for existing tokens, refresh them if necessary, and retrieve the bot and owner IDs.
+        This method retrieves bot and owner IDs first (using an App Token), then checks
+        for a valid cached bot token. If the cached token belongs to a different user
+        (e.g. the channel owner), it is discarded and a new OAuth flow is started so
+        the bot account can re-authorise. The resulting token is always validated
+        against the expected bot ID before being persisted.
 
         Args:
             owner_name (str): The Twitch username of the bot owner.
@@ -399,40 +449,45 @@ class TokenManager:
             It raises RuntimeError on missing env vars, token exchange failures, or if users are not found.
         """
         logger.info("Starting Twitch API authorization flow.")
-        tokens: dict[str, Any] = self._load_tokens()
-        if not tokens:
-            logger.info("No tokens found, starting authorization flow.")
-            try:
-                code: str = await self._get_authorization_code_via_local_server()
-            except (TimeoutError, OSError) as exc:
-                logger.warning("Local server callback unavailable (%s); falling back to manual input.", exc)
-                code = self._get_authorization_code_via_browser()
-            tokens = await self._exchange_code_for_tokens(code)
-            self._save_tokens(tokens)
-        elif self._is_expired(tokens):
-            logger.info("Access token expired, refreshing tokens.")
-            refresh_token: str | None = tokens.get("refresh_token")
-            if not refresh_token:
-                msg = "Refresh token is missing. Please reauthorize."
-                raise RuntimeError(msg)
-            tokens = await self._refresh_access_token(refresh_token)
-            self._save_tokens(tokens)
-        else:
+
+        # Retrieve bot/owner IDs first so we can validate the token owner below.
+        logger.info("Retrieving bot and owner IDs.")
+        user_id: UserIDs = await self._get_id_by_name(owner_name, bot_name)
+        self.owner_id = user_id.owner_id
+        self.bot_id = user_id.bot_id
+
+        tokens: dict[str, Any] = self.load_tokens()
+        if tokens:
             logger.info("Using cached tokens.")
+            cached_access_token: str = tokens.get("access_token", "")
+            if cached_access_token:
+                try:
+                    token_user_id: str = await self._validate_access_token_user_id(cached_access_token)
+                    if token_user_id != self.bot_id:
+                        logger.warning(
+                            "Cached token belongs to user '%s', but expected bot '%s' (%s). "
+                            "Discarding cached token and re-authorizing.",
+                            token_user_id,
+                            bot_name,
+                            self.bot_id,
+                        )
+                        tokens = {}
+                except RuntimeError as exc:
+                    logger.warning("Cached token validation failed (%s). Re-authorizing.", exc)
+                    tokens = {}
+
+        if not tokens:
+            tokens = await self._run_oauth_for_bot(bot_name, self.bot_id)
 
         # Set the instance variables with the tokens
         access_token: str | None = tokens.get("access_token")
         refresh_token: str | None = tokens.get("refresh_token")
         if not access_token or not refresh_token:
-            msg = "Access token or refresh token is missing. Please reauthorize."
+            msg: str = "Access token or refresh token is missing. Please reauthorize."
             raise RuntimeError(msg)
         self.user_access_token = access_token
         self.refresh_token = refresh_token
 
-        logger.info("Retrieving bot and owner IDs.")
-        user_id: UserIDs = await self._get_id_by_name(owner_name, bot_name)
-        self.owner_id = user_id.owner_id
-        self.bot_id = user_id.bot_id
         logger.info("Authorization flow completed successfully.")
 
         return TwitchBotToken(

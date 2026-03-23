@@ -42,33 +42,23 @@ def set_env(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_load_tokens_file_not_found(tmp_path: Path) -> None:
     db_path: Path = tmp_path / "tokens.db"
     manager = TokenManager(db_path)
-    assert manager._load_tokens() == {}  # noqa: SLF001
+    assert manager.load_tokens() == {}  # noqa: SLF001
 
 
 def test_load_tokens_empty_when_missing(tmp_path: Path) -> None:
     db_path: Path = tmp_path / "tokens.db"
     manager = TokenManager(db_path)
-    assert manager._load_tokens() == {}  # noqa: SLF001
+    assert manager.load_tokens() == {}  # noqa: SLF001
 
 
 def test_save_and_load_tokens_atomic(tmp_path: Path) -> None:
     db_path: Path = tmp_path / "tokens.db"
     manager = TokenManager(db_path)
     data = {"access_token": "a", "refresh_token": "r"}
-    manager._save_tokens(data)  # noqa: SLF001
-    loaded = manager._load_tokens()  # noqa: SLF001
+    manager.save_tokens(data)  # noqa: SLF001
+    loaded = manager.load_tokens()  # noqa: SLF001
     assert loaded["access_token"] == "a"
     assert loaded["refresh_token"] == "r"
-
-
-def test_is_expired_true_false(tmp_path: Path) -> None:
-    db_path: Path = tmp_path / "tokens.db"
-    manager = TokenManager(db_path)
-    now: builtins.float = time.time()
-    tokens_not_expired = {"obtained_at": now, "expires_in": 3600}
-    tokens_expired = {"obtained_at": now - 7200, "expires_in": 3600}
-    assert manager._is_expired(tokens_not_expired) is False  # noqa: SLF001
-    assert manager._is_expired(tokens_expired) is True  # noqa: SLF001
 
 
 def test_init_missing_env_vars_raises(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -89,16 +79,6 @@ def test_context_managers_are_noop(tmp_path: Path) -> None:
             assert m2 is manager
 
     asyncio.run(_check_async())
-
-
-def test_is_expired_boundary(tmp_path: Path) -> None:
-    db_path: Path = tmp_path / "tokens.db"
-    manager = TokenManager(db_path)
-    now: float = time.time()
-    tokens_not_expired = {"obtained_at": now, "expires_in": 120}
-    assert manager._is_expired(tokens_not_expired) is False  # noqa: SLF001
-    tokens_expired = {"obtained_at": now - (120 - 59), "expires_in": 120}
-    assert manager._is_expired(tokens_expired) is True  # noqa: SLF001
 
 
 def test_get_authorization_code_via_browser_success(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -155,48 +135,6 @@ async def test_exchange_code_for_tokens_success_and_failure(monkeypatch: pytest.
     payload = {"access_token": "a", "refresh_token": "r", "expires_in": 3600}
     monkeypatch.setattr(tm.aiohttp, "ClientSession", lambda **_kwargs: FakeSession(payload))
     res = await manager._exchange_code_for_tokens("code")  # noqa: SLF001
-    assert res["access_token"] == "a"
-    assert "obtained_at" in res
-
-
-@pytest.mark.asyncio
-async def test_refresh_access_token_success_and_failure(monkeypatch: pytest.MonkeyPatch) -> None:
-    class FakeResp:
-        def __init__(self, payload) -> None:
-            self._payload = payload
-
-        async def json(self) -> Any:
-            return self._payload
-
-        async def __aenter__(self) -> Self:
-            return self
-
-        async def __aexit__(self, exc_type, exc, tb) -> None:
-            return None
-
-    class FakeSession:
-        def __init__(self, payload) -> None:
-            self._payload = payload
-
-        async def __aenter__(self) -> Self:
-            return self
-
-        async def __aexit__(self, exc_type, exc, tb) -> None:
-            return None
-
-        def post(self, *_args, **_kwargs) -> FakeResp:
-            return FakeResp(self._payload)
-
-    manager = TokenManager(Path("tokens.db"))
-    # failure
-    monkeypatch.setattr(tm.aiohttp, "ClientSession", lambda **_kwargs: FakeSession({}))
-    with pytest.raises(RuntimeError):
-        await manager._refresh_access_token("refresh")  # noqa: SLF001
-
-    # success
-    payload = {"access_token": "a", "refresh_token": "r", "expires_in": 3600}
-    monkeypatch.setattr(tm.aiohttp, "ClientSession", lambda **_kwargs: FakeSession(payload))
-    res = await manager._refresh_access_token("refresh")  # noqa: SLF001
     assert res["access_token"] == "a"
     assert "obtained_at" in res
 
@@ -261,21 +199,22 @@ async def test_start_authorization_flow_full(monkeypatch: pytest.MonkeyPatch, tm
     async def async_exchange(_code):
         return {"access_token": "a", "refresh_token": "r", "expires_in": 3600}
 
-    async def async_refresh(_refresh):
-        return {"access_token": "a2", "refresh_token": "r2", "expires_in": 3600}
-
     async def async_get_id(_owner, _bot) -> UserIDs:
         return UserIDs(owner_id="owner-id", bot_id="bot-id")
 
     monkeypatch.setattr(manager, "_exchange_code_for_tokens", async_exchange)
-    monkeypatch.setattr(manager, "_refresh_access_token", async_refresh)
     monkeypatch.setattr(manager, "_get_id_by_name", async_get_id)
+
+    async def async_validate_token(_token: str) -> str:
+        return "bot-id"
+
+    monkeypatch.setattr(manager, "_validate_access_token_user_id", async_validate_token)
 
     token: TwitchBotToken = await manager.start_authorization_flow("owner", "bot")
     assert isinstance(token, TwitchBotToken)
     assert token.access_token == "a"
     assert token.refresh_token == "r"
-    saved = manager._load_tokens()  # noqa: SLF001
+    saved = manager.load_tokens()  # noqa: SLF001
     assert saved["access_token"] == "a"
 
 
@@ -289,7 +228,7 @@ async def test_start_authorization_flow_uses_cached_tokens(tmp_path: Path, monke
         "expires_in": 3600,
         "obtained_at": time.time(),
     }
-    manager._save_tokens(tokens)  # noqa: SLF001
+    manager.save_tokens(tokens)  # noqa: SLF001
 
     def fail_exchange(*_args, **_kwargs):
         msg = "Exchange should not be called when cached token is valid"
@@ -307,42 +246,16 @@ async def test_start_authorization_flow_uses_cached_tokens(tmp_path: Path, monke
 
     monkeypatch.setattr(manager, "_get_id_by_name", fake_get_id)
 
+    async def fake_validate_token(_token: str) -> str:
+        return "bot-id"
+
+    monkeypatch.setattr(manager, "_validate_access_token_user_id", fake_validate_token)
+
     token: TwitchBotToken = await manager.start_authorization_flow("owner", "bot")
     assert token.access_token == "cached_a"
     assert token.refresh_token == "cached_r"
-    saved = manager._load_tokens()  # noqa: SLF001
+    saved = manager.load_tokens()  # noqa: SLF001
     assert saved["access_token"] == "cached_a"
-
-
-@pytest.mark.asyncio
-async def test_start_authorization_flow_refreshes_expired_tokens(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    db_path: Path = tmp_path / "tokens.db"
-    manager = TokenManager(db_path)
-    tokens = {
-        "access_token": "old_a",
-        "refresh_token": "old_r",
-        "expires_in": 3600,
-        "obtained_at": time.time() - 7200,
-    }
-    manager._save_tokens(tokens)  # noqa: SLF001
-
-    async def fake_refresh(refresh_token: str) -> dict[str, Any]:
-        assert refresh_token == "old_r"
-        return {"access_token": "new_a", "refresh_token": "new_r", "expires_in": 3600, "obtained_at": time.time()}
-
-    async def fake_get_id(_owner, _bot) -> UserIDs:
-        return UserIDs(owner_id="owner-id", bot_id="bot-id")
-
-    monkeypatch.setattr(manager, "_refresh_access_token", fake_refresh)
-    monkeypatch.setattr(manager, "_get_id_by_name", fake_get_id)
-
-    token: TwitchBotToken = await manager.start_authorization_flow("owner", "bot")
-    assert token.access_token == "new_a"
-    assert token.refresh_token == "new_r"
-    saved = manager._load_tokens()  # noqa: SLF001
-    assert saved["access_token"] == "new_a"
 
 
 @pytest.mark.asyncio
@@ -359,6 +272,11 @@ async def test_start_authorization_flow_raises_when_user_does_not_input_code(
 
     monkeypatch.setattr(manager, "_get_authorization_code_via_local_server", fail_local_server)
     monkeypatch.setattr("webbrowser.open", lambda _url: True)
+
+    async def fake_get_id(_owner: str, _bot: str) -> UserIDs:
+        return UserIDs(owner_id="owner-id", bot_id="bot-id")
+
+    monkeypatch.setattr(manager, "_get_id_by_name", fake_get_id)
 
     def raise_eof(_prompt: str = "") -> str:
         msg = "input unavailable"
@@ -384,6 +302,12 @@ async def test_start_authorization_flow_raises_when_user_inputs_error_redirect(
 
     monkeypatch.setattr(manager, "_get_authorization_code_via_local_server", fail_local_server)
     monkeypatch.setattr("webbrowser.open", lambda _url: True)
+
+    async def fake_get_id(_owner: str, _bot: str) -> UserIDs:
+        return UserIDs(owner_id="owner-id", bot_id="bot-id")
+
+    monkeypatch.setattr(manager, "_get_id_by_name", fake_get_id)
+
     monkeypatch.setattr(builtins, "input", lambda _prompt="": "http://localhost?error=access_denied")
 
     with pytest.raises(RuntimeError, match="Authorization code not found"):
@@ -401,13 +325,12 @@ async def test_start_authorization_flow_raises_when_cached_access_token_missing(
         "expires_in": 3600,
         "obtained_at": time.time(),
     }
-    manager._save_tokens(tokens)  # noqa: SLF001
+    manager.save_tokens(tokens)  # noqa: SLF001
 
-    async def fail_get_id(_owner: str, _bot: str) -> UserIDs:
-        msg = "_get_id_by_name should not be called when token data is invalid"
-        raise AssertionError(msg)
+    async def fake_get_id(_owner: str, _bot: str) -> UserIDs:
+        return UserIDs(owner_id="owner-id", bot_id="bot-id")
 
-    monkeypatch.setattr(manager, "_get_id_by_name", fail_get_id)
+    monkeypatch.setattr(manager, "_get_id_by_name", fake_get_id)
 
     with pytest.raises(RuntimeError, match="Access token or refresh token is missing"):
         await manager.start_authorization_flow("owner", "bot")
@@ -424,13 +347,17 @@ async def test_start_authorization_flow_raises_when_cached_refresh_token_missing
         "expires_in": 3600,
         "obtained_at": time.time(),
     }
-    manager._save_tokens(tokens)  # noqa: SLF001
+    manager.save_tokens(tokens)  # noqa: SLF001
 
-    async def fail_get_id(_owner: str, _bot: str) -> UserIDs:
-        msg = "_get_id_by_name should not be called when token data is invalid"
-        raise AssertionError(msg)
+    async def fake_get_id(_owner: str, _bot: str) -> UserIDs:
+        return UserIDs(owner_id="owner-id", bot_id="bot-id")
 
-    monkeypatch.setattr(manager, "_get_id_by_name", fail_get_id)
+    monkeypatch.setattr(manager, "_get_id_by_name", fake_get_id)
+
+    async def fake_validate_token(_token: str) -> str:
+        return "bot-id"
+
+    monkeypatch.setattr(manager, "_validate_access_token_user_id", fake_validate_token)
 
     with pytest.raises(RuntimeError, match="Access token or refresh token is missing"):
         await manager.start_authorization_flow("owner", "bot")
@@ -565,6 +492,11 @@ async def test_start_authorization_flow_local_server_timeout_falls_back_to_brows
 
     monkeypatch.setattr(manager, "_exchange_code_for_tokens", async_exchange)
     monkeypatch.setattr(manager, "_get_id_by_name", async_get_id)
+
+    async def fake_validate_token(_token: str) -> str:
+        return "bid"
+
+    monkeypatch.setattr(manager, "_validate_access_token_user_id", fake_validate_token)
 
     token: TwitchBotToken = await manager.start_authorization_flow("owner", "bot")
     assert token.access_token == "a"

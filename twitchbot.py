@@ -234,7 +234,7 @@ async def _gui_bootstrap(app: GUIApp, args: argparse.Namespace, log_setup: Logge
             config.GENERAL.TMP_DIR = FileUtils.resolve_path(tmpdirname)
             logger.info("Created temporary directory: %s", config.GENERAL.TMP_DIR)
 
-            async with Bot(config, token_data) as bot:
+            async with Bot(config, token_data, token_manager) as bot:
                 app.bot = bot
                 refresh_rate: int = max(
                     10, min(100, bot.config.GUI.LEVEL_METER_REFRESH_RATE)
@@ -315,7 +315,7 @@ async def _console_bootstrap(args: argparse.Namespace, log_setup: LoggerUtils) -
         config.GENERAL.TMP_DIR = FileUtils.resolve_path(tmpdirname)
         logger.info("Created temporary directory: %s", config.GENERAL.TMP_DIR)
 
-        async with Bot(config, token_data) as bot:
+        async with Bot(config, token_data, token_manager) as bot:
             await bot.start(with_adapter=False)
 
 

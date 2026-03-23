@@ -10,7 +10,7 @@ from __future__ import annotations
 import logging
 from collections import defaultdict, deque
 from contextlib import suppress
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import twitchio
 from twitchio import Chatter, PartialUser, User, eventsub
@@ -40,6 +40,7 @@ from utils.logger_utils import LoggerUtils
 
 if TYPE_CHECKING:
     from twitchio import EventErrorPayload
+    from twitchio.authentication import ValidateTokenPayload
     from twitchio.ext.commands import CommandErrorPayload
     from twitchio.models import Stream
     from twitchio.models.chat import SentMessage
@@ -47,15 +48,12 @@ if TYPE_CHECKING:
     from config.loader import Config
     from core.stt.recorder import LevelEventCallback
     from core.stt.stt_manager import STTManager
-    from core.token_manager import TwitchBotToken
+    from core.token_manager import TokenManager, TwitchBotToken
 
 
 __all__: list[str] = ["Bot"]
 
 logger: logging.Logger = LoggerUtils.get_logger(__name__)
-
-# STT_CHAT_SEND_ENABLED: bool = False  # for debugging
-# STT_CONSOLE_PREFIX: str = "[STT] "
 
 
 class Bot(commands.Bot):
@@ -75,17 +73,23 @@ class Bot(commands.Bot):
         self,
         config: Config,
         token_data: TwitchBotToken,
+        token_manager: TokenManager,
     ) -> None:
         """Initialise the TwitchIO bot with configuration and token data.
 
         Args:
             config (Config): The configuration object containing bot settings.
             token_data (TwitchBotToken): The token data containing authentication information.
+            token_manager (TokenManager): The token manager for handling token operations.
+
+        Note:
+            The contents of 'token_data' and 'token_manager.load_tokens()' differ, so they cannot be combined.
         """
         logger.debug("Initialising %s", self.__class__.__name__)
         self._setup_twitchio_logger(logging.WARNING)
 
         self.config: Config = config
+        self._token_manager: TokenManager = token_manager
         self._token_data: TwitchBotToken = token_data
 
         self.shared_data: SharedData = SharedData(config)
@@ -347,8 +351,11 @@ class Bot(commands.Bot):
 
         Args:
             payload (twitchio.authentication.UserTokenPayload): The payload containing OAuth information.
+
+        Note:
+            The Twitchio built-in adapter triggers this event when OAuth authentication is successful.
+            As this app does not use the built-in adapter, this event will not occur.
         """
-        logger.debug("OAuth authorized with payload: %s", payload)
         await self.add_token(payload.access_token, payload.refresh_token)
 
         if not payload.user_id:
@@ -366,12 +373,66 @@ class Bot(commands.Bot):
             return
         try:
             await self.subscribe_websocket(chat)
+            logger.info("Successfully subscribed to chat messages for user ID: %s", payload.user_id)
         except ValueError as err:
             logger.error("Failed to subscribe to chat messages: %s", err)
             return
         except twitchio.HTTPException as err:
             logger.error("TwitchIO HTTP error while subscribing to chat messages: %s", err)
             return
+
+    async def event_token_refreshed(self, payload: twitchio.TokenRefreshedPayload) -> None:
+        """Called when the bot's OAuth token is refreshed.
+
+        Updates the stored tokens with the new access and refresh tokens.
+
+        Args:
+            payload (twitchio.TokenRefreshedPayload): The payload containing new token information.
+        """
+        await self.add_token(payload.token, payload.refresh_token)
+        logger.info("OAuth token refreshed successfully")
+
+    async def add_token(self, token: str, refresh: str) -> ValidateTokenPayload:
+        """Add or update the bot's OAuth token.
+
+        Only updates the token database when the validated token belongs to the bot account.
+        This prevents the bot's stored token from being overwritten by the owner's token
+        when owner token refreshes occur via TwitchIO's internal token management.
+
+        Args:
+            token (str): The new access token.
+            refresh (str): The new refresh token.
+
+        Returns:
+            ValidateTokenPayload: The payload containing validation information.
+        """
+        logger.debug("Adding/updating OAuth token")
+        validation_payload: ValidateTokenPayload = await super().add_token(token, refresh)
+
+        # Only update the token database for the bot account.
+        # Owner tokens are managed by TwitchIO internally and must not overwrite the bot's stored token.
+        if validation_payload.user_id != self.bot_id:
+            logger.debug(
+                "Skipping token DB update: token belongs to user %s, expected bot %s",
+                validation_payload.user_id,
+                self.bot_id,
+            )
+            return validation_payload
+
+        # After super().add_token(), the token may have been refreshed internally by TwitchIO.
+        # Retrieve the latest token from TwitchIO's internal storage to ensure the current value is saved.
+        bot_token_data: Any = self.tokens.get(self.bot_id)
+        actual_token: str = bot_token_data["token"] if bot_token_data else token
+        actual_refresh: str = bot_token_data["refresh"] if bot_token_data else refresh
+
+        _tokens: dict[str, Any] = self._token_manager.load_tokens()
+        _tokens["access_token"] = actual_token
+        _tokens["refresh_token"] = actual_refresh
+        _tokens["expires_in"] = validation_payload.expires_in
+        self._token_manager.save_tokens(_tokens)
+
+        logger.debug("Token validated and saved successfully for bot user ID: %s", validation_payload.user_id)
+        return validation_payload
 
     async def close(self, **kwargs) -> None:
         """Close the bot and perform any necessary cleanup.

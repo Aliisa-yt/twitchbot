@@ -54,13 +54,14 @@ async def bot_instance(mock_config: Config, mock_token_data: TwitchBotToken) -> 
     """Create a Bot instance for testing."""
     shared_data = MagicMock(spec_set=["async_init"])
     shared_data.async_init = AsyncMock()
+    token_manager = MagicMock()
 
     with (
         patch("core.bot.commands.Bot.__init__", return_value=None),
         patch("core.bot.LoggerUtils.get_logger"),
         patch("core.bot.SharedData", return_value=shared_data),
     ):
-        bot = Bot(mock_config, mock_token_data)
+        bot = Bot(mock_config, mock_token_data, token_manager)
         bot.add_component = AsyncMock()
         bot.remove_component = AsyncMock()
         bot.add_token = AsyncMock()
@@ -76,12 +77,14 @@ class TestBotInitialization:
     def test_bot_init_sets_properties(self, mock_config: Config, mock_token_data: TwitchBotToken) -> None:
         """Test that Bot initialization sets required properties."""
         shared_data = MagicMock()
+        token_manager = MagicMock()
+
         with (
             patch("core.bot.commands.Bot.__init__", return_value=None),
             patch("core.bot.LoggerUtils.get_logger"),
             patch("core.bot.SharedData", return_value=shared_data),
         ):
-            bot = Bot(mock_config, mock_token_data)
+            bot = Bot(mock_config, mock_token_data, token_manager)
 
         assert bot.config == mock_config
         assert bot._token_data == mock_token_data
