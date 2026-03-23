@@ -1,6 +1,8 @@
+---
 name: chat-events-flow
 description: ChatEventsManager のキューワーカー構成、翻訳/TTS連携、クリア時停止順序の実装指針
-keywords: chat-events, queue-worker, semaphore, translation-flow, tts-flow, cancellation, teardown
+keywords: [chat-events, queue-worker, semaphore, translation-flow, tts-flow, cancellation, teardown]
+---
 
 共通規約は [.github/copilot-instructions.md](../../copilot-instructions.md) を参照してください。
 
