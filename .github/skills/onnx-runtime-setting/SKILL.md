@@ -9,7 +9,7 @@ keywords: [onnx, onnxruntime, installation, setup, python, pip]
 
 ## 1. インストール（Python）
 
-**本リポジトリで使用しているバージョン: `onnxruntime==1.24.3`**
+**本リポジトリで使用しているバージョン: `onnxruntime==1.24.4`**
 
 > **注意**: メジャーバージョンアップ時は API 互換性を必ず公式ドキュメントで確認してください。
 
@@ -20,7 +20,7 @@ keywords: [onnx, onnxruntime, installation, setup, python, pip]
 - DirectML (Windows, Sustained Engineering): `onnxruntime-directml`
 
 ```powershell
-pip install onnxruntime==1.24.3
+pip install onnxruntime==1.24.4
 ```
 
 補足:
@@ -113,7 +113,7 @@ quantize_dynamic("model_fp32.onnx", "model_int8.onnx")
 ```python
 providers = ["CPUExecutionProvider"]
 so = ort.SessionOptions()
-so.intra_op_num_threads = max(1, onnx_threads)
+so.intra_op_num_threads = min(max(0, onnx_threads), 8)  # 0 は自動設定、1-8 は指定スレッド数、8 を超える値は 8 として扱う
 so.inter_op_num_threads = 1
 so.execution_mode = ort.ExecutionMode.ORT_SEQUENTIAL
 so.add_session_config_entry("session.intra_op.allow_spinning", "0")
