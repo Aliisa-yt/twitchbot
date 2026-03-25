@@ -9,6 +9,9 @@ keywords: [TwitchIO, API, event driven, safe_dispatch, wait_for, wait_until_read
 現在の実装をイベント駆動型に改善するために活用できる可能性のある TwitchIO API のリファレンスメモ。
 実際に採用するかどうかは別途検討が必要であり、このファイルは検討の入り口として参照することを目的としている。
 
+イベント名の命名規則と API ごとのイベント名指定ルールは `event-naming-rules` スキルを一次情報とし、
+この文書では API の挙動・制約・運用上の注意点に絞って扱う。
+
 ## API 早見表
 
 | メソッド | 概要 |
@@ -40,16 +43,14 @@ def safe_dispatch(name: str, *, payload: Any | None = None) -> None:
 
 **動作**
 
-- `name` に指定したイベント名に `event_safe_` を接頭辞として付加したリスナー (`event_safe_<name>`) を呼び出す。
+- `name` に指定したイベント名に対して `event_safe_` 系のカスタムイベントを発行する。
 - イベントの発行はどこからでも可能だが、リスナーの定義は `Component` クラス内でのみ有効。
 - 複数箇所から同じイベントを発行することは可能だが、順序保証はないため、1 イベントにつき 1 箇所からの発行が望ましい。
 - `payload` はリスナーに渡される任意のデータで、リスナー側で適切に型注釈を付けることが推奨される。
 - イベントが実際に発行される遅延時間やタイミングは保証されていないため、リアルタイム性が必要な処理には適さない可能性がある。
-- **重要**: イベント名は safe_dispatch の内部処理では小文字に変換されるが、リスナー側では小文字に変換されないため、カスタムイベント名は小文字で定義することが推奨される。
-  - 例: `safe_dispatch("CoolEvent", ...)` と発行した場合、リスナーは `event_safe_coolevent` と定義する必要がある（大文字が小文字に変換されるため）。  
-    もしリスナーを `event_safe_CoolEvent` と定義しても、イベントは発行されない（イベント名が不一致のため）。  
-    さらに、`event_safe_CoolEvent` と定義した場合でも、エラーは発生せずにイベントが発行されないだけになるため、デバッグが難しくなる可能性がある。
+- **重要**: イベント名の命名・表記（小文字スネークケース、プレフィックス規則）は `event-naming-rules` を参照すること。
 - **重要**: このメソッドをオーバーライドすることは厳禁。TwitchIO 自体のイベントシステムが正常に動作しなくなる。
+- **重要**: `safe_dispatch` で発行したイベントはリスナーで受信されるが、リスナーの処理結果を `safe_dispatch` の呼び出し元に返すことはできない。処理の流れは一方向であり、イベント駆動型の処理を構築する際は、必要に応じてリスナー側で状態を更新したり、別のイベントを発行するなどして、処理の流れを設計する必要がある。
 
 **使用例**
 
@@ -102,10 +103,7 @@ async def wait_for(
 **動作**
 
 - TwitchIO のイベントシステムで発生したすべてのイベントを非同期に待機する（`safe_dispatch` で発行したカスタムイベントも含む）。
-- `event` には `event_` 接頭辞を除いたイベント名を指定する（例: `"chat_message"`）。
-  - `safe_dispatch("cool", ...)` で発行したイベントを待機する場合は `wait_for("safe_cool")` と指定する。  
-    これは `safe_dispatch` が内部で `dispatch("safe_cool", ...)` を呼び、リスナー名が `"event_safe_cool"` になるためであり、`wait_for("safe_cool")` も同じキーでウェイターを登録するため一致する。  
-    （ソースコード: `safe_dispatch` → `dispatch(f"safe_{name}", ...)` → `_wait_fors["event_safe_cool"]`）
+- `event` で指定するイベント名の形式（`event_` 省略ルールなど）は `event-naming-rules` を参照する。
 - `timeout` を省略した場合は無期限に待機するため、必要に応じてタイムアウト値を指定すること。  
   タイムアウト時は `TimeoutError` が送出される（TwitchIO ソースコードも `TimeoutError` を使用しており、プロジェクト規約と一致する）。
 - `predicate` を指定することで条件フィルタリングが可能。条件を満たすイベントのみを受け取る。
@@ -180,13 +178,14 @@ classmethod listener(name: str | None = None) -> Any:
 **動作**
 
 - クラスメソッドにデコレータとして適用することで、そのメソッドを TwitchIO のイベントリスナーとして登録する。
-- `safe_dispatch` で発行したイベントをリスンする場合は、イベント名に `event_safe_` を接頭したメソッド名を定義する必要がある（例: `event_safe_cool`）。
-- TwitchIO のイベントシステムの一部であるイベントをリスンする場合は、イベント名に `event_` を接頭したメソッド名を定義する必要がある（例: `event_message`）。
+- イベント名の指定方法（メソッド名一致 / 引数指定時の命名）は `event-naming-rules` を参照する。
 - リスナーは非同期関数である必要がある。
 - **重要**: パラメーターを受け取るときは、payload をキーワード専用引数として定義することが推奨される。  
   例: `async def event_safe_cool(self, payload: CoolPayload) -> None` のように定義する。  
   これは、`safe_dispatch` が `payload` をキーワード専用引数として渡すためであり、位置引数として定義した場合はエラーが発生する可能性があるためである。
   パラメータが不要なイベントの場合は、self のみで、payload の記述は不要である。
+- **重要**: リスナーは戻り値を返すことができない。そのため None を返すように定義することが推奨される（例: `async def event_safe_cool(...) -> None`）。
+  これは、TwitchIO のイベントシステムがリスナーの戻り値を処理しないためであり、戻り値を返すように定義した場合は、意図しない動作やエラーが発生する可能性があるためである。
 
 **使用例**
 
@@ -231,9 +230,7 @@ def add_listener(listener: Callable[..., Coroutine[Any, Any, None]], *, event: s
 **動作**
 
 - 任意の非同期関数を TwitchIO のイベントリスナーとして動的に登録する。
-- `event` を指定した場合は、イベント名に `event_` を接頭したメソッド名を定義する必要がある（例: `event_custom`）。
-- `event` を省略した場合は、関数名に `event_` を接頭したメソッド名を定義する必要がある（例: `event_cool`）。
-- TwitchIO のイベントシステムの一部であるイベントをリスンする場合は、イベント名に `event_` を接頭したメソッド名を定義する必要がある（例: `event_message`）。
+- イベント名指定の詳細ルール（プレフィックスの扱い）は `event-naming-rules` を参照する。
 - リスナーは非同期関数である必要がある。
 
 **使用例**
@@ -263,7 +260,7 @@ def remove_listener(listener: Callable[..., Coroutine[Any, Any, None]]) -> Calla
 - `add_listener` で登録したイベントリスナーを削除する。
 - `listener` と `event` の組み合わせで特定のリスナーを指定する必要がある。
 - 登録されていないリスナーを削除しようとした場合はエラーが発生する。
-- TwitchIO のイベントシステムの一部であるイベントをリスンする場合は、イベント名に `event_` を接頭したメソッド名を定義する必要がある（例: `event_message`）。
+- イベント名指定の詳細ルール（プレフィックスの扱い）は `event-naming-rules` を参照する。
 - リスナーは非同期関数である必要がある。
 
 **使用例**
@@ -292,8 +289,7 @@ def listen(self, event: str) -> Callable[..., Coroutine[Any, Any, None]]:
 **動作**
 
 - クラスメソッドにデコレータとして適用することで、そのメソッドを TwitchIO のイベントリスナーとして登録する。
-- `event` には `event_` 接頭辞を除いたイベント名を指定する（例: `"chat_message"`）。
-- TwitchIO のイベントシステムの一部であるイベントをリスンする場合は、イベント名に `event_` を接頭したメソッド名を定義する必要がある（例: `event_message`）。
+- `event` の指定形式（`event_` の扱いを含む）は `event-naming-rules` を参照する。
 - リスナーは非同期関数である必要がある。
 
 **Client.listen() と Component.listener() の違い**
