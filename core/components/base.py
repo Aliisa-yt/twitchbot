@@ -174,16 +174,6 @@ class ComponentBase(Component):
             tts_info=self.tts_manager.get_voice_param(trans_info.tgt_lang),
         )
 
-    async def store_tts_queue(self, tts_param: TTSParam) -> None:
-        """Prepare TTS content and enqueue for synthesis.
-
-        Args:
-            tts_param (TTSParam): TTS parameters to be synthesized.
-        """
-        queue_data: TTSParam | None = self.tts_manager.prepare_tts_content(tts_param)
-        if queue_data is not None:
-            await self.tts_manager.enqueue_tts_synthesis(queue_data)
-
     def prepare_translate_parameters(self, message: ChatMessageHandler) -> TranslationInfo:
         """Prepare translation parameters from a chat message.
 
@@ -218,7 +208,7 @@ class ComponentBase(Component):
         """
         self.tts_manager.select_voice_usertype(message)
         if self.config.TTS.ALLOW_TTS_TWEAK:
-            self.tts_manager.command_voiceparameters(message)
+            self.tts_manager.command_voiceparameters(message)  # `message.content` has been modified
 
     def print_console_message(
         self, message: str | None, *, header: str | None = None, footer: str | None = None

@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING, ClassVar, Final
 from twitchio.ext import routines
 
 from core.components.base import ComponentBase
-from models.voice_models import TTSParam
+from models.voice_models import TimeSignalParam
 from utils.logger_utils import LoggerUtils
 
 if TYPE_CHECKING:
@@ -25,7 +25,8 @@ __all__: list[str] = ["TimeSignalManager"]
 
 logger: logging.Logger = LoggerUtils.get_logger(__name__)
 
-DEBUG: Final[bool] = False  # Set to True to enable time announcements every 10 minutes for testing purposes.
+DEBUG: Final[bool] = False  # Always False.
+# Set to True to enable time announcements every 10 minutes for testing purposes.
 
 
 class TimeSignalManager(ComponentBase):
@@ -209,12 +210,9 @@ class TimeSignalManager(ComponentBase):
             if self._is_text:
                 self.print_console_message(_time_word)
             if self._is_voice:
-                tts_param = TTSParam(
-                    content=_time_word,
-                    content_lang=self._language,
-                    tts_info=self.tts_manager.get_voice_param(self._language, is_system=True),
-                )
-                await self.store_tts_queue(tts_param)
+                time_signal_param = TimeSignalParam(content=_time_word, content_lang=self._language)
+                logger.debug("Dispatching `time_signal_message` event")
+                self.bot.safe_dispatch("time_signal_message", payload=time_signal_param)
 
     @event_time_signal.after_routine
     async def event_next_time(self) -> None:

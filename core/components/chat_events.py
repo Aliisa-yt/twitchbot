@@ -20,7 +20,6 @@ from utils.tts_utils import TTSUtils
 
 if TYPE_CHECKING:
     import logging
-    from pathlib import Path
 
     from twitchio import ChannelChatClear, ChannelChatClearUserMessages, ChatMessageDelete
     from twitchio import ChatMessage as TwitchMessage
@@ -160,20 +159,8 @@ class ChatEventsManager(ComponentBase):
             with contextlib.suppress(asyncio.CancelledError):
                 await asyncio.gather(*self._spawned_tasks, return_exceptions=True)
             self._spawned_tasks.clear()
-
-        # The queue must be cleared before stopping playback.
-        # Otherwise, the next playback may start immediately after the playback is stopped.
-        async def _enqueue_delete(tts_param: TTSParam) -> None:
-            _file_path: Path | None = tts_param.filepath
-            if _file_path is not None:
-                self.tts_manager.file_manager.enqueue_file_deletion(_file_path)
-
-        await self.tts_manager.playback_queue.clear(callback=_enqueue_delete)
-
-        # Playback will stop unconditionally when the chat box is cleared.
-        if self.tts_manager.playback_manager.is_playing:
-            await self.tts_manager.playback_manager.cancel_playback()
-            logger.debug("Current playback cancelled.")
+        logger.debug("Dispatching `tts_clear` event to clear TTS playback queue")
+        self.bot.safe_dispatch("tts_clear")
 
     @Component.listener()
     async def event_chat_clear_user(self, payload: ChannelChatClearUserMessages) -> None:
@@ -208,9 +195,9 @@ class ChatEventsManager(ComponentBase):
         dto: ChatMessageDTO = ChatMessageDTO.from_twitch_message(payload)
         await self._enqueue_message(dto)
 
-    @Component.listener("safe_enqueue_message")
-    async def _on_safe_enqueue_message(self, payload: ChatMessageDTO) -> None:
-        """Receive the 'event_safe_enqueue_message' event and forward to the internal queue.
+    @Component.listener()
+    async def event_safe_stt_message(self, payload: ChatMessageDTO) -> None:
+        """Receive the 'event_safe_stt_message' event and forward to the internal queue.
 
         Args:
             payload (ChatMessageDTO): The chat message data transfer object dispatched via safe_dispatch.
@@ -447,9 +434,9 @@ class ChatEventsManager(ComponentBase):
         if self.config.TTS.ORIGINAL_TEXT:
             tts_param: TTSParam = TTSUtils.create_tts_parameters(self.config, message)
             tts_param.content_lang = trans_info.src_lang
-            queue_data: TTSParam | None = self.prepare_original_text(message=message, tts_param=tts_param)
-            if queue_data is not None:
-                await self.store_tts_queue(queue_data)
+            queue_data: TTSParam = self.prepare_original_text(message=message, tts_param=tts_param)
+            logger.debug("Dispatching `tts_message` event for original text")
+            self.bot.safe_dispatch("tts_message", payload=queue_data)
 
     async def _process_translated_tts(self, message: ChatMessageHandler, trans_info: TranslationInfo) -> None:
         """Process translated text TTS.
@@ -461,9 +448,9 @@ class ChatEventsManager(ComponentBase):
             trans_info (TranslationInfo): The translation information instance.
         """
         if self.config.TTS.TRANSLATED_TEXT:
-            queue_data: TTSParam | None = self.prepare_translated_text(message=message, trans_info=trans_info)
-            if queue_data is not None:
-                await self.store_tts_queue(queue_data)
+            queue_data: TTSParam = self.prepare_translated_text(message=message, trans_info=trans_info)
+            logger.debug("Dispatching `tts_message` event for translated text")
+            self.bot.safe_dispatch("tts_message", payload=queue_data)
 
     async def _output_and_send_translation(self, message: ChatMessageHandler, trans_info: TranslationInfo) -> None:
         """Output translated text to console and send to chat.

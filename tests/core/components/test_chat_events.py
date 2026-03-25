@@ -216,11 +216,13 @@ async def test_message_worker_loop_drops_message_when_semaphore_not_initialized(
 
 
 @pytest.mark.asyncio
-async def test_event_chat_clear_clears_queue_and_cancels_playback() -> None:
+async def test_event_chat_clear_clears_message_queue_and_dispatches_tts_clear() -> None:
     bundle: SimpleNamespace = _make_cog_bundle()
     payload = MagicMock()
 
     bundle.playback_manager.is_playing = True
+
+    await bundle.cog._message_queue.put(ChatMessageDTO(message_id="clear-target"))
 
     await bundle.playback_queue.put(TTSParam(filepath=Path("/tmp/file1.wav")))
     await bundle.playback_queue.put(TTSParam(filepath=None))
@@ -228,14 +230,15 @@ async def test_event_chat_clear_clears_queue_and_cancels_playback() -> None:
 
     await bundle.cog.event_chat_clear(payload)
 
-    assert bundle.playback_queue.empty()
-    bundle.file_manager.enqueue_file_deletion.assert_any_call(Path("/tmp/file1.wav"))
-    bundle.file_manager.enqueue_file_deletion.assert_any_call(Path("/tmp/file2.wav"))
-    bundle.playback_manager.cancel_playback.assert_called_once()
+    assert bundle.cog._message_queue.empty()
+    assert bundle.playback_queue.qsize() == 3
+    bundle.cog.bot.safe_dispatch.assert_called_once_with("tts_clear")
+    bundle.file_manager.enqueue_file_deletion.assert_not_called()
+    bundle.playback_manager.cancel_playback.assert_not_called()
 
 
 @pytest.mark.asyncio
-async def test_event_chat_clear_skips_cancel_when_not_playing() -> None:
+async def test_event_chat_clear_dispatches_tts_clear_without_direct_cancel_when_not_playing() -> None:
     bundle: SimpleNamespace = _make_cog_bundle()
     payload = MagicMock()
 
@@ -245,7 +248,8 @@ async def test_event_chat_clear_skips_cancel_when_not_playing() -> None:
 
     await bundle.cog.event_chat_clear(payload)
 
-    assert bundle.playback_queue.empty()
+    assert bundle.playback_queue.qsize() == 1
+    bundle.cog.bot.safe_dispatch.assert_called_once_with("tts_clear")
     bundle.playback_manager.cancel_playback.assert_not_called()
 
 

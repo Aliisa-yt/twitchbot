@@ -171,7 +171,7 @@ class STTServiceComponent(ComponentBase):
 
         waiter_task: asyncio.Task[ChatMessageDTO] = asyncio.create_task(
             self.bot.wait_for(
-                "safe_enqueue_message",
+                "safe_stt_message",
                 timeout=1.0,
                 predicate=predicate,
             ),
@@ -179,7 +179,8 @@ class STTServiceComponent(ComponentBase):
         )
         await asyncio.sleep(0)
         # Fire a custom event to send the STT results to the queue.
-        self.bot.safe_dispatch("enqueue_message", payload=dto)
+        logger.debug("Dispatching `stt_message` event with message ID: %s", dto.message_id)
+        self.bot.safe_dispatch("stt_message", payload=dto)
 
         # The system waits for the event to be processed by listening out for the same message ID
         # that was used to publish it.

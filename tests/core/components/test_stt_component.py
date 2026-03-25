@@ -194,7 +194,7 @@ async def test_on_stt_result_enqueues_when_forward_enabled(stt_bundle: SimpleNam
     stt_bundle.component.send_chat_message.assert_awaited_once_with("recognized text", sender="owner")
     stt_bundle.component.print_console_message.assert_not_called()
     stt_bundle.bot.safe_dispatch.assert_called_once()
-    assert stt_bundle.bot.safe_dispatch.call_args.args[0] == "enqueue_message"
+    assert stt_bundle.bot.safe_dispatch.call_args.args[0] == "stt_message"
 
 
 def test_load_stt_result_ignore_words_reads_non_comment_lines(tmp_path: Path, stt_bundle: SimpleNamespace) -> None:

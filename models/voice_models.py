@@ -18,6 +18,7 @@ __all__: list[str] = [
     "TTSInfo",
     "TTSInfoPerLanguage",
     "TTSParam",
+    "TimeSignalParam",
     "UserTypeInfo",
     "Voice",
     "VoiceParamType",
@@ -117,6 +118,19 @@ class TTSInfo:
 # Type alias: Maps language codes to TTS engine information.
 # Must be defined after TTSInfo class to avoid undefined type error.
 TTSInfoPerLanguage = dict[str, TTSInfo]
+
+
+@dataclass
+class TimeSignalParam:
+    """Parameters for time signal TTS messages.
+
+    Attributes:
+        content (str): Text to be synthesized for the time signal.
+        content_lang (str | None): Language code for the content (None for auto-detect).
+    """
+
+    content: str = ""
+    content_lang: str | None = None
 
 
 @dataclass

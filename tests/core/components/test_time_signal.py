@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -72,14 +72,14 @@ async def test_event_time_signal_prints_expected_message_at_noon_for_english() -
     fixed_now = datetime(2026, 3, 16, 12, 0, 0, tzinfo=UTC)
     with (
         patch.object(component, "print_console_message") as mocked_print,
-        patch.object(component, "store_tts_queue", new_callable=AsyncMock) as mocked_store_tts_queue,
+        patch.object(component.bot, "safe_dispatch") as mocked_safe_dispatch,
         patch("core.components.removable.time_signal.datetime") as mocked_datetime,
     ):
         mocked_datetime.now.return_value.astimezone.return_value = fixed_now
         await component.event_time_signal._coro(component)
 
     mocked_print.assert_called_once_with("Afternoon 12")
-    mocked_store_tts_queue.assert_not_awaited()
+    mocked_safe_dispatch.assert_not_called()
 
 
 @pytest.mark.asyncio
@@ -90,14 +90,14 @@ async def test_event_time_signal_prints_expected_message_at_noon_for_japanese() 
     fixed_now = datetime(2026, 3, 16, 12, 0, 0, tzinfo=UTC)
     with (
         patch.object(component, "print_console_message") as mocked_print,
-        patch.object(component, "store_tts_queue", new_callable=AsyncMock) as mocked_store_tts_queue,
+        patch.object(component.bot, "safe_dispatch") as mocked_safe_dispatch,
         patch("core.components.removable.time_signal.datetime") as mocked_datetime,
     ):
         mocked_datetime.now.return_value.astimezone.return_value = fixed_now
         await component.event_time_signal._coro(component)
 
     mocked_print.assert_called_once_with("Afternoon 0")
-    mocked_store_tts_queue.assert_not_awaited()
+    mocked_safe_dispatch.assert_not_called()
 
 
 @pytest.mark.asyncio
@@ -108,14 +108,14 @@ async def test_event_time_signal_prints_expected_message_at_late_night_for_engli
     fixed_now = datetime(2026, 3, 16, 0, 0, 0, tzinfo=UTC)
     with (
         patch.object(component, "print_console_message") as mocked_print,
-        patch.object(component, "store_tts_queue", new_callable=AsyncMock) as mocked_store_tts_queue,
+        patch.object(component.bot, "safe_dispatch") as mocked_safe_dispatch,
         patch("core.components.removable.time_signal.datetime") as mocked_datetime,
     ):
         mocked_datetime.now.return_value.astimezone.return_value = fixed_now
         await component.event_time_signal._coro(component)
 
     mocked_print.assert_called_once_with("Late night 12")
-    mocked_store_tts_queue.assert_not_awaited()
+    mocked_safe_dispatch.assert_not_called()
 
 
 @pytest.mark.asyncio
@@ -126,11 +126,11 @@ async def test_event_time_signal_prints_expected_message_at_late_night_for_japan
     fixed_now = datetime(2026, 3, 16, 0, 0, 0, tzinfo=UTC)
     with (
         patch.object(component, "print_console_message") as mocked_print,
-        patch.object(component, "store_tts_queue", new_callable=AsyncMock) as mocked_store_tts_queue,
+        patch.object(component.bot, "safe_dispatch") as mocked_safe_dispatch,
         patch("core.components.removable.time_signal.datetime") as mocked_datetime,
     ):
         mocked_datetime.now.return_value.astimezone.return_value = fixed_now
         await component.event_time_signal._coro(component)
 
     mocked_print.assert_called_once_with("Late night 0")
-    mocked_store_tts_queue.assert_not_awaited()
+    mocked_safe_dispatch.assert_not_called()
