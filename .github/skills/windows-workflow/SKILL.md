@@ -109,3 +109,11 @@ Get-Command python
 
 - **使用可**: PowerShell、venv、pytest、coverage、PyInstaller、ruff、mypy
 - **使用不可**: WSL、Conda、Docker
+
+## 11. 使用不可ツールの例
+
+使用したツール: runTests
+ツールの実行時のコマンドライン: files=["d:\\workspace\\twitchbot\\tests\\core\\tts\\engines\\test_voicevox.py"], mode="run"
+エラー内容: `No tests found in the files. Ensure the correct absolute paths are passed to the tool.` が返り、対象ファイルのテスト検出に失敗。
+切り分け結果: 同一ファイルを `python -m pytest tests/core/tts/engines/test_voicevox.py -q` で実行すると 9 件検出・実行できたため、テスト実体ではなくツール側の検出条件差異と判断。
+代替手段: Windows では venv 有効化後に `python -m pytest <対象ファイル>` を優先し、runTests で同症状が出た場合は速やかに切り替える。
