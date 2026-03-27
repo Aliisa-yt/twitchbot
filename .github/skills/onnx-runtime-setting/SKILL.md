@@ -113,7 +113,7 @@ quantize_dynamic("model_fp32.onnx", "model_int8.onnx")
 ```python
 providers = ["CPUExecutionProvider"]
 so = ort.SessionOptions()
-so.intra_op_num_threads = min(max(0, onnx_threads), 8)  # 0 は自動設定、1-8 は指定スレッド数、8 を超える値は 8 として扱う
+so.intra_op_num_threads = min(max(0, onnx_threads), 8)  # 0 は自動設定（OS に依存）、1-8 は指定スレッド数、8 を超える値は 8 として扱う
 so.inter_op_num_threads = 1
 so.execution_mode = ort.ExecutionMode.ORT_SEQUENTIAL
 so.add_session_config_entry("session.intra_op.allow_spinning", "0")
