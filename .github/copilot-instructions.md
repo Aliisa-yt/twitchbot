@@ -17,9 +17,7 @@
 
 ## SKILL 参照先
 - チャットイベントフロー: [.github/skills/chat-events-flow/SKILL.md](skills/chat-events-flow/SKILL.md)
-- TwitchIO API メモ: [.github/skills/twitchio-api-additional-notes/SKILL.md](skills/twitchio-api-additional-notes/SKILL.md)
 - Twitch 認証フロー: [.github/skills/twitch-auth-flow/SKILL.md](skills/twitch-auth-flow/SKILL.md)
-- レビュー: [.github/skills/code-review/SKILL.md](skills/code-review/SKILL.md)
 - 翻訳マネージャー: [.github/skills/translation-manager/SKILL.md](skills/translation-manager/SKILL.md)
 - 翻訳エンジン仕様: [.github/skills/translation-engine-spec/SKILL.md](skills/translation-engine-spec/SKILL.md)
 - TTS マネージャー: [.github/skills/tts-manager/SKILL.md](skills/tts-manager/SKILL.md)
@@ -31,12 +29,15 @@
 - コンポーネント仕様: [.github/skills/component-spec/SKILL.md](skills/component-spec/SKILL.md)
 - インターフェース仕様: [.github/skills/interface-spec/SKILL.md](skills/interface-spec/SKILL.md)
 - マネージャー共通: [.github/skills/manager-common/SKILL.md](skills/manager-common/SKILL.md)
-- 命名規則: [.github/skills/naming-rules/SKILL.md](skills/naming-rules/SKILL.md)
-- 単体テスト規約: [.github/skills/unit-test/SKILL.md](skills/unit-test/SKILL.md)
 - Google Cloud 認証: [.github/skills/google-cloud-api-auth/SKILL.md](skills/google-cloud-api-auth/SKILL.md)
 - Google Cloud 例外処理: [.github/skills/google-cloud-api-exception/SKILL.md](skills/google-cloud-api-exception/SKILL.md)
 - GUI デザイン: [.github/skills/gui-design/SKILL.md](skills/gui-design/SKILL.md)
+- 命名規則: [.github/skills/naming-rules/SKILL.md](skills/naming-rules/SKILL.md)
+- 単体テスト規約: [.github/skills/unit-test/SKILL.md](skills/unit-test/SKILL.md)
 - Windows 実行フロー: [.github/skills/windows-workflow/SKILL.md](skills/windows-workflow/SKILL.md)
+- レビュー: [.github/skills/code-review/SKILL.md](skills/code-review/SKILL.md)
+- リファクタリング方針: [.github/skills/refactoring-policy/SKILL.md](skills/refactoring-policy/SKILL.md)
+- 将来の実装: [.github/skills/future-implementation/SKILL.md](skills/future-implementation/SKILL.md)
 
 ## 作業開始時の必須手順
 - 変更対象に対応する SKILL を最初に読む。
