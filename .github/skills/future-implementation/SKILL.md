@@ -27,7 +27,8 @@ TwitchBot のリファクタリングや機能追加を行う際に、適切な 
 
 ## 1. TwitchIO API 情報
 
-TwitchIO の API に関する情報を整理することで、将来の実装において適切な API を選択しやすくなります。
+TwitchIO の API に関する情報を整理することで、将来の実装において適切な API を選択しやすくする目的になります。
+必ずしもここに記載されている API を使用する必要はありませんが、TwitchIO の機能を活用することで、実装の効率化やコードの簡潔化が期待できるため、参考情報として提供します。
 
 ### 1.1 認証に関する API
 
@@ -132,8 +133,8 @@ async def start(token: str | None = None, *, with_adapter: bool = True, load_tok
 
 **動作**
 
-- Bot を起動するための非同期メソッド。
-- 内部でイベントループを開始し、Bot の接続やイベント処理を行う。
+- **現在使用しているメソッド**。
+- Bot を起動するための非同期メソッドであり、内部でイベントループを開始し、Bot の接続やイベント処理を行う。
 - 起動後、`event_ready` が発行されるため、このイベント内で `add_token` を呼び出してトークンを登録するのが一般的なパターンである。
 - `start` メソッドは通常、Bot のエントリーポイントとして使用され、コマンドの登録やイベントリスナーの定義など、Bot の初期化処理を行った後に呼び出される。
 
@@ -188,7 +189,7 @@ async def login_dcf(*, load_token: bool = True, save_token: bool = True, scopes:
 **パラメータ**
 
 - `load_token`: ログイン前に `load_tokens()` を呼び出してトークンを読み込むかどうか。デフォルトは `True`。
-- `save_token`: ログイン後に `save_tokens()` を呼び出してトークンを保存するかどうか。デフォルトは `True`。
+- `save_token`: 終了時（`close()` が呼び出されたとき）に `save_tokens()` を呼び出してトークンを保存するかどうか。デフォルトは `True`。
 - `scopes`: 認証に必要なスコープ。`None` の場合は `ACCESS_SCOPES` が使用される。
 - `force_flow`: 既存のトークンが存在しても Device Code Flow を強制的に実行するかどうか。デフォルトは `False`。
 
@@ -205,7 +206,7 @@ async def login_dcf(*, load_token: bool = True, save_token: bool = True, scopes:
 
 ### 1.2 イベント駆動型の処理 API
 
-TwitchIO はイベント駆動型のフレームワークであり、カスタムイベントを組み合わせることで処理を疎結合に分割できる可能性がある。
+TwitchIO はイベント駆動型のフレームワークであり、カスタムイベントを組み合わせることで各処理を疎結合に分割できる可能性がある。
 例えば、翻訳完了イベントを発行し、TTS 処理をそのリスナーとして実装するような構成が考えられる。
 
 #### 1.2.1 任意のユーザーイベントを発行する API: `safe_dispatch`

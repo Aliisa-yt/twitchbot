@@ -10,7 +10,7 @@ keywords: [event-naming, event-driven, consistency, documentation]
 イベント名の一貫性は、可読性・保守性・検索性の向上につながります。
 
 この文書は、イベント名に関する一次情報です。
-TwitchIO API の挙動・制約・実装上の注意点は `twitchio-api-additional-notes` スキルを参照してください。
+TwitchIO API の挙動・制約・実装上の注意点は `future-implementation` スキルを参照してください。
 
 現時点ではイベント数がまだ少ないため、本スキルでは命名規則に絞って定義し、管理方法そのものは規定しません。
 
