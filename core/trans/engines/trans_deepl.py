@@ -103,7 +103,7 @@ class DeeplTranslation(TransInterface):
             self.__inst = None
             self.__available = False
             self.__usage = None
-        logger.debug("'%s': 'set instance'", self.__class__.__name__)
+        logger.debug("Set instance: '%s'", inst)
 
     @property
     def _usage(self) -> Usage:
@@ -116,9 +116,11 @@ class DeeplTranslation(TransInterface):
     def _usage(self, usage: Usage | None) -> None:
         if usage is not None:
             self.__usage = usage
+            usage_str = f"Character count: {usage.character.count} / Character limit: {usage.character.limit}"
         else:
             self.__usage = None
-        logger.debug("'%s': 'set usage'", self.__class__.__name__)
+            usage_str = "None"
+        logger.debug("%s usage: '%s'", self.__class__.__name__, usage_str)
 
     @property
     def count(self) -> int:
@@ -332,6 +334,6 @@ class DeeplTranslation(TransInterface):
         This method sets the instance variables to 'None', indicating that the client is no longer available.
         """
         self.__available = False
-        self._usage = None
-        self._inst = None
+        self.__usage = None
+        self.__inst = None
         logger.debug("'%s' process termination", self.__class__.__name__)

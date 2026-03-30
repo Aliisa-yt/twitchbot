@@ -111,7 +111,7 @@ class GoogleCloudTranslation(TransInterface):
             self.__inst = inst
         else:
             self.__inst = None
-        logger.debug("'%s': 'set instance'", self.__class__.__name__)
+        logger.debug("Set instance: '%s'", inst)
 
     @property
     def count(self) -> int:
@@ -332,5 +332,5 @@ class GoogleCloudTranslation(TransInterface):
         The Google Cloud Translation client does not require explicit cleanup,
         but we reset the instance to ensure proper state.
         """
-        self._inst = None
+        self.__inst = None
         logger.info("'%s' process termination", self.__class__.__name__)

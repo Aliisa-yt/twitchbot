@@ -58,7 +58,7 @@ class GoogleTranslation(TransInterface):
             self.__inst = inst
         else:
             self.__inst = None
-        logger.debug("'%s': 'set instance'", self.__class__.__name__)
+        logger.debug("Set instance: '%s'", inst)
 
     @property
     def count(self) -> int:
@@ -136,4 +136,5 @@ class GoogleTranslation(TransInterface):
 
     async def close(self) -> None:
         await self._inst.close()
+        self.__inst = None
         logger.info("'%s' process termination", self.__class__.__name__)
