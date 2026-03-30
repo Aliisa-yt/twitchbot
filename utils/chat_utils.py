@@ -11,20 +11,14 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Final
 
-from utils.logger_utils import LoggerUtils
 from utils.string_utils import StringUtils
 
 if TYPE_CHECKING:
-    import logging
-
     from handlers.chat_message import ChatMessageHandler
     from models.config_models import Config
     from models.translation_models import TranslationInfo
 
 __all__: list[str] = ["ChatUtils"]
-
-logger: logging.Logger = LoggerUtils.get_logger(__name__)
-# logger.addHandler(logging.NullHandler())
 
 SHORTEST_MESSAGE_LENGTH: Final[int] = 20
 
@@ -87,10 +81,7 @@ class ChatUtils:
         Returns:
             bool: True if the author should be ignored, False otherwise.
         """
-        if author_name in config.BOT.IGNORE_USERS:
-            logger.debug("Ignoring user: %s", author_name)
-            return True
-        return False
+        return author_name in config.BOT.IGNORE_USERS
 
     @staticmethod
     def truncate_message(
@@ -110,6 +101,9 @@ class ChatUtils:
 
         Returns:
             str: The formatted and potentially truncated message.
+
+        Raises:
+            ValueError: If the limit_length is too small to accommodate the header, footer, and minimum content length.
         """
         _content: str = StringUtils.ensure_str(content)
         _header: str = StringUtils.ensure_str(header)
@@ -121,11 +115,8 @@ class ChatUtils:
         if message_length > limit_length:
             limit: int = limit_length - len(_header) - len(_footer) - len(_ellipsis)
             if limit < SHORTEST_MESSAGE_LENGTH:
-                logger.warning(
-                    "The message cannot be truncated to the specified length. "
-                    "Either increase the length limit or shorten the header/footer."
-                )
-                limit = SHORTEST_MESSAGE_LENGTH
+                msg: str = f"Cannot truncate message to fit within the limit of {limit_length} bytes."
+                raise ValueError(msg)
 
             _content = f"{_header}{_content[:limit]}{_ellipsis}{_footer}"
         else:
