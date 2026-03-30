@@ -114,3 +114,35 @@ class StringUtils:
             str: Normalized text.
         """
         return unicodedata.normalize(form, text)
+
+    @staticmethod
+    def truncate_string(content: str, limit_length: int, *, ellipsis: str = " ...") -> str:
+        """Truncate a string to fit within a specified character length.
+
+        Truncates the input string to the specified character limit. If truncation occurs,
+        appends the specified ellipsis to the end. If no truncation is needed, returns the original string.
+
+        Args:
+            content (str): The string content to potentially truncate.
+            limit_length (int): The maximum allowed character length.
+            ellipsis (str): The string to append if truncation occurs. Defaults to " ...".
+
+        Returns:
+            str: The truncated string with the specified ellipsis appended if truncated, otherwise the original.
+
+        Raises:
+            ValueError: If limit_length is negative.
+        """
+        if limit_length < 0:
+            msg = "limit_length must be non-negative"
+            raise ValueError(msg)
+
+        if len(content) <= limit_length:
+            return content
+
+        limit_length -= len(ellipsis)
+        if limit_length < 0:
+            msg = "limit_length must be greater than or equal to the length of ellipsis"
+            raise ValueError(msg)
+
+        return f"{content[:limit_length]}{ellipsis}"
