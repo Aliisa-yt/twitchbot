@@ -27,7 +27,7 @@ from core.gui.gui_app import (
     STATUS_WAKEUP_COLOR,
     GUIApp,
 )
-from core.token_manager import TokenManager, TwitchBotToken
+from core.token_manager import TokenManager
 from core.token_storage import TokenStorage
 from core.version import VERSION
 from handlers.katakana import E2KConverter, Romaji
@@ -223,9 +223,7 @@ async def _gui_bootstrap(app: GUIApp, args: argparse.Namespace, log_setup: Logge
         # Step 4: Load tokens and start bot
         app.update_status("Starting bot...", STATUS_WAKEUP_COLOR)
         token_manager: TokenManager = TokenManager(token_db_path)
-        token_data: TwitchBotToken = await token_manager.start_authorization_flow(
-            config.TWITCH.OWNER_NAME, config.BOT.BOT_NAME
-        )
+        await token_manager.start_authorization_flow(config.TWITCH.OWNER_NAME, config.BOT.BOT_NAME)
 
         print(f"twitchbot ver.{config.GENERAL.VERSION}")
 
@@ -234,7 +232,7 @@ async def _gui_bootstrap(app: GUIApp, args: argparse.Namespace, log_setup: Logge
             config.GENERAL.TMP_DIR = FileUtils.resolve_path(tmpdirname)
             logger.info("Created temporary directory: %s", config.GENERAL.TMP_DIR)
 
-            async with Bot(config, token_data, token_manager) as bot:
+            async with Bot(config, token_manager) as bot:
                 app.bot = bot
                 refresh_rate: int = max(
                     10, min(100, bot.config.GUI.LEVEL_METER_REFRESH_RATE)
@@ -305,9 +303,7 @@ async def _console_bootstrap(args: argparse.Namespace, log_setup: LoggerUtils) -
     logger.info("Dictionary files loaded")
 
     token_manager: TokenManager = TokenManager(token_db_path)
-    token_data: TwitchBotToken = await token_manager.start_authorization_flow(
-        config.TWITCH.OWNER_NAME, config.BOT.BOT_NAME
-    )
+    await token_manager.start_authorization_flow(config.TWITCH.OWNER_NAME, config.BOT.BOT_NAME)
 
     print(f"twitchbot ver.{config.GENERAL.VERSION}")
 
@@ -315,7 +311,7 @@ async def _console_bootstrap(args: argparse.Namespace, log_setup: LoggerUtils) -
         config.GENERAL.TMP_DIR = FileUtils.resolve_path(tmpdirname)
         logger.info("Created temporary directory: %s", config.GENERAL.TMP_DIR)
 
-        async with Bot(config, token_data, token_manager) as bot:
+        async with Bot(config, token_manager) as bot:
             await bot.start(with_adapter=False)
 
 

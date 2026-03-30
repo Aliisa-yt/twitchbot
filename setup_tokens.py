@@ -18,7 +18,7 @@ from pathlib import Path
 from typing import Final, NoReturn
 
 from config.loader import Config, ConfigLoader, ConfigLoaderError
-from core.token_manager import TokenManager, TwitchBotToken
+from core.token_manager import TokenManager
 from utils.file_utils import FileUtils
 
 CFG_FILE: Final[str] = "twitchbot.ini"
@@ -140,13 +140,13 @@ async def main() -> None:
     try:
         print("\nStarting OAuth authorization flow...")
         token_manager: TokenManager = TokenManager(token_db_path)
-        token_data: TwitchBotToken = await token_manager.start_authorization_flow(owner_name, bot_name)
+        await token_manager.start_authorization_flow(owner_name, bot_name)
 
         print("\n" + "=" * 50)
         print("✓ Token setup completed successfully!")
         print("=" * 50)
-        print(f"Owner ID: {token_data.owner_id}")
-        print(f"Bot ID: {token_data.bot_id}")
+        print(f"Owner ID: {token_manager.owner_id}")
+        print(f"Bot ID: {token_manager.bot_id}")
         print(f"Tokens saved to: {token_db_path}")
         print("\nYou can now run twitchbot.py")
 

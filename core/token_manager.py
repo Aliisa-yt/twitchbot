@@ -14,6 +14,7 @@ from twitchio import Client, Scopes
 
 from core.token_storage import TokenStorage
 from utils.logger_utils import LoggerUtils
+from utils.time_utils import TimeUtils
 
 if TYPE_CHECKING:
     import logging
@@ -22,7 +23,7 @@ if TYPE_CHECKING:
     from twitchio.user import User
 
 
-__all__: list[str] = ["TokenManager", "TwitchBotToken"]
+__all__: list[str] = ["TokenManager"]
 
 logger: logging.Logger = LoggerUtils.get_logger(__name__)
 
@@ -44,29 +45,6 @@ ACCESS_SCOPES: Scopes = Scopes(
     user_manage_chat_color=True,
     channel_bot=True,
 )
-
-
-@dataclass(frozen=True)
-class TwitchBotToken:
-    """Data class to hold Twitch bot token information.
-
-    This class is used to store the OAuth2 tokens and other related information for the Twitch bot.
-
-    Attributes:
-        client_id (str): The Twitch API client ID.
-        client_secret (str): The Twitch API client secret.
-        bot_id (str): The unique identifier for the bot user.
-        owner_id (str): The unique identifier for the bot owner.
-        access_token (str): The access token for the bot user.
-        refresh_token (str): The refresh token for the bot user.
-    """
-
-    client_id: str = ""
-    client_secret: str = ""
-    bot_id: str = ""
-    owner_id: str = ""
-    access_token: str = ""
-    refresh_token: str = ""
 
 
 @dataclass(frozen=True)
@@ -105,6 +83,7 @@ class TokenManager:
         owner_id (str): The unique identifier for the bot owner.
         user_access_token (str): The access token for the bot user.
         refresh_token (str): The refresh token for the bot user.
+        last_validated (str): The timestamp of when the token was last validated, in ISO 8601 format.
     """
 
     def __init__(self, db_path: str | Path) -> None:
@@ -145,6 +124,7 @@ class TokenManager:
         self.owner_id: str = ""
         self.user_access_token: str = ""
         self.refresh_token: str = ""
+        self.last_validated: str = ""
 
     def __enter__(self) -> Self:
         """Enter sync context; no-op convenience helper."""
@@ -174,6 +154,70 @@ class TokenManager:
         """Save tokens to the storage."""
         with self.storage:
             self.storage.save_tokens(data)
+
+    # -----------------------------------
+    # Token conversion helpers
+    # -----------------------------------
+
+    def converted_load_tokens(self) -> dict[str, dict[str, Any]]:
+        """Load tokens from storage and convert to the format used by Bot class."""
+        raw_tokens: dict[str, Any] = self.load_tokens()
+
+        try:
+            converted_tokens: dict[str, dict[str, Any]] = {
+                self.bot_id: {
+                    "user_id": self.bot_id,
+                    "token": raw_tokens["access_token"],
+                    "refresh": raw_tokens["refresh_token"],
+                    # "last_validated": TimeUtils.convert_epoch_to_iso8601(
+                    #     raw_tokens["obtained_at"], with_timezone=False
+                    # ),
+                }
+            }
+        except KeyError as err:
+            # Since error handling is performed by the caller, an empty dictionary is returned.
+            msg = f"Failed to convert loaded tokens: {err}"
+            logger.error(msg)
+            return {}
+
+        return converted_tokens
+
+    def converted_save_tokens(self, tokens: dict[str, dict[str, Any]]) -> None:
+        """Convert tokens from the format used by Bot class and save to storage.
+
+        Args:
+            tokens (dict[str, dict[str, Any]]): The token data in the format used by the Bot class,
+                typically containing entries keyed by bot user IDs.
+
+        Warning:
+            Do not call this method using the value returned by converted_load_tokens() directly as an argument.
+            First, set the necessary information from the Bot class's token management and token validation data,
+            then call it.
+        """
+        if self.bot_id not in tokens:
+            # If the token for the Bot ID is not found, do not save and log a warning.
+            msg = f"The token for Bot ID {self.bot_id} could not be found. The save operation will be skipped."
+            logger.warning(msg)
+            return
+
+        last_validated: str = tokens[self.bot_id].get("last_validated", "")
+
+        try:
+            converted_tokens: dict[str, Any] = {
+                "access_token": tokens[self.bot_id]["token"],
+                "refresh_token": tokens[self.bot_id]["refresh"],
+                "expires_in": tokens[self.bot_id]["expires_in"],
+                "obtained_at": TimeUtils.convert_iso8601_to_epoch(last_validated) if last_validated else time.time(),
+                "scope": tokens[self.bot_id]["scopes"],
+                "token_type": "bearer",
+            }
+        except KeyError as err:
+            # If token conversion fails, do not save and log the error.
+            msg = f"Failed to convert tokens for Bot ID {self.bot_id}: {err}"
+            logger.error(msg)
+            return
+
+        self.save_tokens(converted_tokens)
 
     # -----------------------------------
     # OAuth Authorization Code Flow
@@ -458,7 +502,7 @@ class TokenManager:
         self.save_tokens(tokens)
         return tokens
 
-    async def start_authorization_flow(self, owner_name: str, bot_name: str) -> TwitchBotToken:
+    async def start_authorization_flow(self, owner_name: str, bot_name: str) -> None:
         """Start the Twitch API authorization flow to obtain access and refresh tokens.
 
         This method retrieves bot and owner IDs first (using an App Token), then checks
@@ -533,14 +577,6 @@ class TokenManager:
             raise RuntimeError(msg)
         self.user_access_token = access_token
         self.refresh_token = refresh_token
+        self.last_validated = TimeUtils.get_iso8601_current_time(with_timezone=False)
 
         logger.info("Authorization flow completed successfully.")
-
-        return TwitchBotToken(
-            client_id=self.client_id,
-            client_secret=self.client_secret,
-            bot_id=self.bot_id,
-            owner_id=self.owner_id,
-            access_token=self.user_access_token,
-            refresh_token=self.refresh_token,
-        )

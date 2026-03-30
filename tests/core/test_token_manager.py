@@ -30,7 +30,7 @@ import aiohttp.web
 import pytest
 
 import core.token_manager as tm
-from core.token_manager import TokenManager, TwitchBotToken, UserIDs
+from core.token_manager import TokenManager, UserIDs
 
 
 @pytest.fixture(autouse=True)
@@ -59,6 +59,168 @@ def test_save_and_load_tokens_atomic(tmp_path: Path) -> None:
     loaded = manager.load_tokens()  # noqa: SLF001
     assert loaded["access_token"] == "a"
     assert loaded["refresh_token"] == "r"
+
+
+def test_converted_load_tokens_success(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    db_path: Path = tmp_path / "tokens.db"
+    manager = TokenManager(db_path)
+    manager.bot_id = "bot-id"
+
+    monkeypatch.setattr(manager, "load_tokens", lambda: {"access_token": "a", "refresh_token": "r"})
+
+    assert manager.converted_load_tokens() == {
+        "bot-id": {
+            "user_id": "bot-id",
+            "token": "a",
+            "refresh": "r",
+        }
+    }
+
+
+def test_converted_load_tokens_returns_empty_when_storage_has_no_tokens(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    db_path: Path = tmp_path / "tokens.db"
+    manager = TokenManager(db_path)
+    manager.bot_id = "bot-id"
+
+    monkeypatch.setattr(manager, "load_tokens", dict)
+
+    assert manager.converted_load_tokens() == {}
+
+
+def test_converted_load_tokens_returns_empty_when_access_token_missing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    db_path: Path = tmp_path / "tokens.db"
+    manager = TokenManager(db_path)
+    manager.bot_id = "bot-id"
+
+    monkeypatch.setattr(manager, "load_tokens", lambda: {"refresh_token": "r"})
+
+    assert manager.converted_load_tokens() == {}
+
+
+def test_converted_save_tokens_success(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    db_path: Path = tmp_path / "tokens.db"
+    manager = TokenManager(db_path)
+    manager.bot_id = "bot-id"
+    saved: dict[str, Any] = {}
+
+    def _save_tokens(data: dict[str, Any]) -> None:
+        saved.update(data)
+
+    monkeypatch.setattr(manager, "save_tokens", _save_tokens)
+    monkeypatch.setattr(tm.TimeUtils, "convert_iso8601_to_epoch", lambda _value: 123.0)
+
+    manager.converted_save_tokens(
+        {
+            "bot-id": {
+                "token": "a",
+                "refresh": "r",
+                "expires_in": 3600,
+                "last_validated": "2026-03-30T00:00:00",
+                "scopes": ["chat:read", "chat:edit"],
+            }
+        }
+    )
+
+    assert saved == {
+        "access_token": "a",
+        "refresh_token": "r",
+        "expires_in": 3600,
+        "obtained_at": 123.0,
+        "scope": ["chat:read", "chat:edit"],
+        "token_type": "bearer",
+    }
+
+
+def test_converted_save_tokens_skips_when_bot_id_mismatch(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    db_path: Path = tmp_path / "tokens.db"
+    manager = TokenManager(db_path)
+    manager.bot_id = "bot-id"
+
+    called: dict[str, bool] = {"saved": False}
+
+    def _save_tokens(_data: dict[str, Any]) -> None:
+        called["saved"] = True
+
+    monkeypatch.setattr(manager, "save_tokens", _save_tokens)
+
+    manager.converted_save_tokens(
+        {
+            "other-id": {
+                "token": "a",
+                "refresh": "r",
+                "expires_in": 3600,
+                "last_validated": "2026-03-30T00:00:00",
+                "scopes": ["chat:read"],
+            }
+        }
+    )
+
+    assert called["saved"] is False
+
+
+def test_converted_save_tokens_uses_time_now_when_last_validated_empty(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    db_path: Path = tmp_path / "tokens.db"
+    manager = TokenManager(db_path)
+    manager.bot_id = "bot-id"
+    saved: dict[str, Any] = {}
+
+    def _save_tokens(data: dict[str, Any]) -> None:
+        saved.update(data)
+
+    monkeypatch.setattr(manager, "save_tokens", _save_tokens)
+    monkeypatch.setattr(tm.time, "time", lambda: 456.0)
+
+    def _fail_convert(_value: str) -> float:
+        msg = "convert_iso8601_to_epoch must not be called when last_validated is empty"
+        raise AssertionError(msg)
+
+    monkeypatch.setattr(tm.TimeUtils, "convert_iso8601_to_epoch", _fail_convert)
+
+    manager.converted_save_tokens(
+        {
+            "bot-id": {
+                "token": "a",
+                "refresh": "r",
+                "expires_in": 3600,
+                "last_validated": "",
+                "scopes": ["chat:read"],
+            }
+        }
+    )
+
+    assert saved["obtained_at"] == 456.0
+
+
+def test_converted_save_tokens_skips_when_required_key_missing(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    db_path: Path = tmp_path / "tokens.db"
+    manager = TokenManager(db_path)
+    manager.bot_id = "bot-id"
+
+    called: dict[str, bool] = {"saved": False}
+
+    def _save_tokens(_data: dict[str, Any]) -> None:
+        called["saved"] = True
+
+    monkeypatch.setattr(manager, "save_tokens", _save_tokens)
+
+    manager.converted_save_tokens(
+        {
+            "bot-id": {
+                "token": "a",
+                "refresh": "r",
+                "last_validated": "2026-03-30T00:00:00",
+                "scopes": ["chat:read"],
+            }
+        }
+    )
+
+    assert called["saved"] is False
 
 
 def test_init_missing_env_vars_raises(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -210,10 +372,9 @@ async def test_start_authorization_flow_full(monkeypatch: pytest.MonkeyPatch, tm
 
     monkeypatch.setattr(manager, "_validate_access_token_user_id", async_validate_token)
 
-    token: TwitchBotToken = await manager.start_authorization_flow("owner", "bot")
-    assert isinstance(token, TwitchBotToken)
-    assert token.access_token == "a"
-    assert token.refresh_token == "r"
+    await manager.start_authorization_flow("owner", "bot")
+    assert manager.user_access_token == "a"
+    assert manager.refresh_token == "r"
     saved = manager.load_tokens()  # noqa: SLF001
     assert saved["access_token"] == "a"
 
@@ -251,9 +412,9 @@ async def test_start_authorization_flow_uses_cached_tokens(tmp_path: Path, monke
 
     monkeypatch.setattr(manager, "_validate_access_token_user_id", fake_validate_token)
 
-    token: TwitchBotToken = await manager.start_authorization_flow("owner", "bot")
-    assert token.access_token == "cached_a"
-    assert token.refresh_token == "cached_r"
+    await manager.start_authorization_flow("owner", "bot")
+    assert manager.user_access_token == "cached_a"
+    assert manager.refresh_token == "cached_r"
     saved = manager.load_tokens()  # noqa: SLF001
     assert saved["access_token"] == "cached_a"
 
@@ -498,8 +659,8 @@ async def test_start_authorization_flow_local_server_timeout_falls_back_to_brows
 
     monkeypatch.setattr(manager, "_validate_access_token_user_id", fake_validate_token)
 
-    token: TwitchBotToken = await manager.start_authorization_flow("owner", "bot")
-    assert token.access_token == "a"
+    await manager.start_authorization_flow("owner", "bot")
+    assert manager.user_access_token == "a"
 
 
 # ---------------------------------------------------------------------------
@@ -608,9 +769,9 @@ async def test_start_authorization_flow_refreshes_expired_token(
 
     monkeypatch.setattr(manager, "_run_oauth_for_bot", fail_oauth)
 
-    token: TwitchBotToken = await manager.start_authorization_flow("owner", "bot")
-    assert token.access_token == "new_a"
-    assert token.refresh_token == "new_r"
+    await manager.start_authorization_flow("owner", "bot")
+    assert manager.user_access_token == "new_a"
+    assert manager.refresh_token == "new_r"
     saved = manager.load_tokens()
     assert saved["access_token"] == "new_a"
 
@@ -652,8 +813,8 @@ async def test_start_authorization_flow_falls_back_to_oauth_when_refresh_fails(
 
     monkeypatch.setattr(manager, "_run_oauth_for_bot", fake_oauth)
 
-    token: TwitchBotToken = await manager.start_authorization_flow("owner", "bot")
-    assert token.access_token == "oauth_a"
+    await manager.start_authorization_flow("owner", "bot")
+    assert manager.user_access_token == "oauth_a"
     assert oauth_called
 
 
@@ -694,6 +855,6 @@ async def test_start_authorization_flow_skips_refresh_when_refreshed_token_owner
 
     monkeypatch.setattr(manager, "_run_oauth_for_bot", fake_oauth)
 
-    token: TwitchBotToken = await manager.start_authorization_flow("owner", "bot")
-    assert token.access_token == "oauth_a"
+    await manager.start_authorization_flow("owner", "bot")
+    assert manager.user_access_token == "oauth_a"
     assert oauth_called

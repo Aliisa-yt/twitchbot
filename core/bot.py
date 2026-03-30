@@ -48,7 +48,7 @@ if TYPE_CHECKING:
     from config.loader import Config
     from core.stt.recorder import LevelEventCallback
     from core.stt.stt_manager import STTManager
-    from core.token_manager import TokenManager, TwitchBotToken
+    from core.token_manager import TokenManager
 
 
 __all__: list[str] = ["Bot"]
@@ -72,14 +72,12 @@ class Bot(commands.Bot):
     def __init__(
         self,
         config: Config,
-        token_data: TwitchBotToken,
         token_manager: TokenManager,
     ) -> None:
         """Initialise the TwitchIO bot with configuration and token data.
 
         Args:
             config (Config): The configuration object containing bot settings.
-            token_data (TwitchBotToken): The token data containing authentication information.
             token_manager (TokenManager): The token manager for handling token operations.
 
         Note:
@@ -90,7 +88,6 @@ class Bot(commands.Bot):
 
         self.config: Config = config
         self._token_manager: TokenManager = token_manager
-        self._token_data: TwitchBotToken = token_data
 
         self.shared_data: SharedData = SharedData(config)
         self._closed: bool = False
@@ -112,32 +109,37 @@ class Bot(commands.Bot):
     @property
     def client_id(self) -> str:
         """Return the client ID."""
-        return self._token_data.client_id
+        return self._token_manager.client_id
 
     @property
     def client_secret(self) -> str:
         """Return the client secret."""
-        return self._token_data.client_secret
+        return self._token_manager.client_secret
 
     @property
     def bot_id(self) -> str:
         """Return the bot's user ID."""
-        return self._token_data.bot_id
+        return self._token_manager.bot_id
 
     @property
     def owner_id(self) -> str:
         """Return the owner's user ID."""
-        return self._token_data.owner_id
+        return self._token_manager.owner_id
 
     @property
     def access_token(self) -> str:
         """Return the user's access token."""
-        return self._token_data.access_token
+        return self._token_manager.user_access_token
 
     @property
     def refresh_token(self) -> str:
         """Return the refresh token."""
-        return self._token_data.refresh_token
+        return self._token_manager.refresh_token
+
+    @property
+    def last_validated(self) -> str:
+        """Return the timestamp of when the token was last validated."""
+        return self._token_manager.last_validated
 
     def _setup_twitchio_logger(self, log_level: int) -> None:
         """Set up the TwitchIO logger with the LoggerUtils configuration.
@@ -389,25 +391,8 @@ class Bot(commands.Bot):
         Args:
             payload (twitchio.TokenRefreshedPayload): The payload containing new token information.
         """
-        await self.add_token(payload.token, payload.refresh_token)
-        logger.info("OAuth token refreshed successfully")
-
-    async def add_token(self, token: str, refresh: str) -> ValidateTokenPayload:
-        """Add or update the bot's OAuth token.
-
-        Only updates the token database when the validated token belongs to the bot account.
-        This prevents the bot's stored token from being overwritten by the owner's token
-        when owner token refreshes occur via TwitchIO's internal token management.
-
-        Args:
-            token (str): The new access token.
-            refresh (str): The new refresh token.
-
-        Returns:
-            ValidateTokenPayload: The payload containing validation information.
-        """
-        logger.debug("Adding/updating OAuth token")
-        validation_payload: ValidateTokenPayload = await super().add_token(token, refresh)
+        logger.info("OAuth token refresh detected, updating stored tokens")
+        validation_payload: ValidateTokenPayload = await self.add_token(payload.token, payload.refresh_token)
 
         # Only update the token database for the bot account.
         # Owner tokens are managed by TwitchIO internally and must not overwrite the bot's stored token.
@@ -417,22 +402,83 @@ class Bot(commands.Bot):
                 validation_payload.user_id,
                 self.bot_id,
             )
-            return validation_payload
+            return
 
         # After super().add_token(), the token may have been refreshed internally by TwitchIO.
         # Retrieve the latest token from TwitchIO's internal storage to ensure the current value is saved.
         bot_token_data: Any = self.tokens.get(self.bot_id)
-        actual_token: str = bot_token_data["token"] if bot_token_data else token
-        actual_refresh: str = bot_token_data["refresh"] if bot_token_data else refresh
+        try:
+            actual_token: str = bot_token_data["token"] if bot_token_data else payload.token
+            actual_refresh: str = bot_token_data["refresh"] if bot_token_data else payload.refresh_token
 
-        _tokens: dict[str, Any] = self._token_manager.load_tokens()
-        _tokens["access_token"] = actual_token
-        _tokens["refresh_token"] = actual_refresh
-        _tokens["expires_in"] = validation_payload.expires_in
-        self._token_manager.save_tokens(_tokens)
+            _bot_tokens: dict[str, dict[str, Any]] = {}
+            _bot_tokens[self.bot_id] = {
+                "token": actual_token,
+                "refresh": actual_refresh,
+                "expires_in": validation_payload.expires_in,
+                "last_validated": bot_token_data["last_validated"],
+                "scopes": validation_payload.scopes,
+            }
+        except KeyError as err:
+            logger.error("Failed to retrieve token information for bot ID %s: %s", self.bot_id, err)
+            return
+        else:
+            self._token_manager.converted_save_tokens(_bot_tokens)
+            logger.debug("Token validated and saved successfully for bot user ID: %s", validation_payload.user_id)
+            logger.info("OAuth token refreshed successfully")
 
-        logger.debug("Token validated and saved successfully for bot user ID: %s", validation_payload.user_id)
-        return validation_payload
+    async def load_tokens(self, path: str | None = None, /) -> None:
+        """Load tokens from the token manager.
+
+        Args:
+            path (str | None): Optional path to load tokens from. If None, uses default path.
+
+        Raises:
+            RuntimeError: If no tokens are found or if the token data structure is invalid.
+        """
+        _ = path
+        logger.debug("Loading tokens from TokenManager")
+        token_data: dict[str, dict[str, Any]] = self._token_manager.converted_load_tokens()
+        if not token_data:
+            msg = "No tokens found in TokenManager"
+            logger.error(msg)
+            raise RuntimeError(msg)
+
+        bot_token_data: dict[str, Any] | None = token_data.get(self.bot_id)
+
+        if bot_token_data is None:
+            msg = f"No token found for bot ID {self.bot_id} in TokenManager"
+            logger.error(msg)
+            raise RuntimeError(msg)
+
+        try:
+            if bot_token_data["user_id"] != self.bot_id:
+                msg = f"Loaded token bot_id {bot_token_data['user_id']} does not match expected bot_id {self.bot_id}"
+                logger.error(msg)
+                raise RuntimeError(msg)
+
+            # Since calling 'add_token()' saves the token information to the 'tokens' dictionary,
+            # there is no need to reflect the token information read from the 'TokenManager' in
+            # the 'tokens' dictionary.
+            await self.add_token(bot_token_data["token"], bot_token_data["refresh"])
+        except KeyError as err:
+            logger.error("Failed to load tokens for bot ID %s from TokenManager: missing key %s", self.bot_id, err)
+            msg = "Invalid token data structure in TokenManager"
+            raise RuntimeError(msg) from err
+        except RuntimeError:
+            raise
+        logger.info("Tokens loaded successfully for bot user ID: %s", self.bot_id)
+
+    async def save_tokens(self, path: str | None = None, /) -> None:
+        """Save tokens to the token manager.
+
+        Args:
+            path (str | None): Optional path to save tokens to. If None, uses default path.
+        """
+        # Override the method to skip the save process.
+        # This simply lays the groundwork for adding a custom save process in the future.
+        _ = path
+        logger.debug("Saving tokens to TokenManager")
 
     async def close(self, **kwargs) -> None:
         """Close the bot and perform any necessary cleanup.
@@ -495,7 +541,11 @@ class Bot(commands.Bot):
                 return
 
         max_len: int = 450
-        content = ChatUtils.truncate_message(content, max_len, header=header, footer=footer)
+        try:
+            content = ChatUtils.truncate_message(content, max_len, header=header, footer=footer)
+        except ValueError as err:
+            logger.warning("Failed to truncate message: %s", err)
+            return
 
         logger.debug("Send message: %s", content)
         logger.debug("Send channel: %s", chatter.name)
@@ -541,7 +591,11 @@ class Bot(commands.Bot):
                 return
 
             max_len = int(max_len / length_ratio)
-            content = ChatUtils.truncate_message(content, max_len, header=header, footer=footer)
+            try:
+                content = ChatUtils.truncate_message(content, max_len, header=header, footer=footer)
+            except ValueError as err:
+                logger.warning("Failed to truncate message for console output: %s", err)
+                return
             print(content)
 
     def pause_exit(self) -> None:

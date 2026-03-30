@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
-from unittest.mock import AsyncMock, MagicMock, call, patch
+from unittest.mock import AsyncMock, MagicMock, PropertyMock, call, patch
 
 import pytest
 from twitchio.ext.commands import ComponentLoadError
@@ -11,7 +11,6 @@ from twitchio.ext.commands import ComponentLoadError
 from config.loader import Config
 from core.bot import Bot
 from core.components import ComponentBase, ComponentDescriptor
-from core.token_manager import TwitchBotToken
 
 if TYPE_CHECKING:
     from collections.abc import AsyncGenerator
@@ -37,31 +36,31 @@ def mock_config() -> Config:
 
 
 @pytest.fixture
-def mock_token_data() -> TwitchBotToken:
-    """Create a mock token data object."""
-    return TwitchBotToken(
-        access_token="test_access_token",
-        refresh_token="test_refresh_token",
-        client_id="test_client_id",
-        client_secret="test_client_secret",
-        bot_id="123456789",
-        owner_id="987654321",
-    )
+def mock_token_manager() -> MagicMock:
+    """Create a mock token manager."""
+    tm = MagicMock()
+    tm.client_id = "test_client_id"
+    tm.client_secret = "test_client_secret"
+    tm.bot_id = "123456789"
+    tm.owner_id = "987654321"
+    tm.user_access_token = "test_access_token"
+    tm.refresh_token = "test_refresh_token"
+    return tm
 
 
 @pytest.fixture
-async def bot_instance(mock_config: Config, mock_token_data: TwitchBotToken) -> AsyncGenerator[Bot]:
+async def bot_instance(mock_config: Config, mock_token_manager: MagicMock) -> AsyncGenerator[Bot]:
     """Create a Bot instance for testing."""
     shared_data = MagicMock(spec_set=["async_init"])
     shared_data.async_init = AsyncMock()
-    token_manager = MagicMock()
+    token_manager = mock_token_manager
 
     with (
         patch("core.bot.commands.Bot.__init__", return_value=None),
         patch("core.bot.LoggerUtils.get_logger"),
         patch("core.bot.SharedData", return_value=shared_data),
     ):
-        bot = Bot(mock_config, mock_token_data, token_manager)
+        bot = Bot(mock_config, token_manager)
         bot.add_component = AsyncMock()
         bot.remove_component = AsyncMock()
         bot.add_token = AsyncMock()
@@ -74,7 +73,7 @@ async def bot_instance(mock_config: Config, mock_token_data: TwitchBotToken) -> 
 class TestBotInitialization:
     """Test Bot initialization."""
 
-    def test_bot_init_sets_properties(self, mock_config: Config, mock_token_data: TwitchBotToken) -> None:
+    def test_bot_init_sets_properties(self, mock_config: Config) -> None:
         """Test that Bot initialization sets required properties."""
         shared_data = MagicMock()
         token_manager = MagicMock()
@@ -84,21 +83,21 @@ class TestBotInitialization:
             patch("core.bot.LoggerUtils.get_logger"),
             patch("core.bot.SharedData", return_value=shared_data),
         ):
-            bot = Bot(mock_config, mock_token_data, token_manager)
+            bot = Bot(mock_config, token_manager)
 
         assert bot.config == mock_config
-        assert bot._token_data == mock_token_data
+        assert bot._token_manager == token_manager
         assert bot._closed is False
         assert bot.attached_components == []
 
-    def test_bot_properties(self, bot_instance: Bot, mock_token_data: TwitchBotToken) -> None:
+    def test_bot_properties(self, bot_instance: Bot, mock_token_manager: MagicMock) -> None:
         """Test that Bot properties return correct values."""
-        assert bot_instance.client_id == mock_token_data.client_id
-        assert bot_instance.client_secret == mock_token_data.client_secret
-        assert bot_instance.bot_id == mock_token_data.bot_id
-        assert bot_instance.owner_id == mock_token_data.owner_id
-        assert bot_instance.access_token == mock_token_data.access_token
-        assert bot_instance.refresh_token == mock_token_data.refresh_token
+        assert bot_instance.client_id == mock_token_manager.client_id
+        assert bot_instance.client_secret == mock_token_manager.client_secret
+        assert bot_instance.bot_id == mock_token_manager.bot_id
+        assert bot_instance.owner_id == mock_token_manager.owner_id
+        assert bot_instance.access_token == mock_token_manager.user_access_token
+        assert bot_instance.refresh_token == mock_token_manager.refresh_token
 
 
 class TestBotSetupHook:
@@ -400,6 +399,176 @@ class TestEventHandlers:
 
         add_token.assert_called_once_with("new_access_token", "new_refresh_token")
         subscribe_websocket.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_event_token_refreshed_skips_non_bot_user(self, bot_instance: Bot) -> None:
+        """Test token refresh skips persistence when token owner is not the bot."""
+        payload = MagicMock()
+        payload.token = "payload_access"
+        payload.refresh_token = "payload_refresh"
+
+        validation_payload = MagicMock()
+        validation_payload.user_id = "other_user"
+        validation_payload.expires_in = 3600
+        validation_payload.scopes = ["chat:read"]
+
+        add_token = AsyncMock(return_value=validation_payload)
+        bot_instance.add_token = add_token
+        bot_instance._token_manager.converted_save_tokens = MagicMock()
+
+        await bot_instance.event_token_refreshed(payload)
+
+        add_token.assert_awaited_once_with("payload_access", "payload_refresh")
+        bot_instance._token_manager.converted_save_tokens.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_event_token_refreshed_skips_when_last_validated_missing(self, bot_instance: Bot) -> None:
+        """Test token refresh skips persistence when last_validated is missing from TwitchIO token cache."""
+        payload = MagicMock()
+        payload.token = "payload_access"
+        payload.refresh_token = "payload_refresh"
+
+        validation_payload = MagicMock()
+        validation_payload.user_id = bot_instance.bot_id
+        validation_payload.expires_in = 3600
+        validation_payload.scopes = ["chat:read"]
+
+        add_token = AsyncMock(return_value=validation_payload)
+        bot_instance.add_token = add_token
+        bot_instance._token_manager.converted_save_tokens = MagicMock()
+
+        with patch.object(
+            Bot,
+            "tokens",
+            new_callable=PropertyMock,
+            return_value={bot_instance.bot_id: {"token": "actual_access", "refresh": "actual_refresh"}},
+        ):
+            await bot_instance.event_token_refreshed(payload)
+
+        add_token.assert_awaited_once_with("payload_access", "payload_refresh")
+        bot_instance._token_manager.converted_save_tokens.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_event_token_refreshed_saves_latest_bot_tokens(self, bot_instance: Bot) -> None:
+        """Test token refresh persists the latest token values for the bot account."""
+        payload = MagicMock()
+        payload.token = "payload_access"
+        payload.refresh_token = "payload_refresh"
+
+        validation_payload = MagicMock()
+        validation_payload.user_id = bot_instance.bot_id
+        validation_payload.expires_in = 7200
+        validation_payload.scopes = ["chat:read", "chat:edit"]
+
+        add_token = AsyncMock(return_value=validation_payload)
+        bot_instance.add_token = add_token
+        bot_instance._token_manager.converted_save_tokens = MagicMock()
+
+        with patch.object(
+            Bot,
+            "tokens",
+            new_callable=PropertyMock,
+            return_value={
+                bot_instance.bot_id: {
+                    "token": "actual_access",
+                    "refresh": "actual_refresh",
+                    "last_validated": "2026-03-30T00:00:00Z",
+                }
+            },
+        ):
+            await bot_instance.event_token_refreshed(payload)
+
+        add_token.assert_awaited_once_with("payload_access", "payload_refresh")
+        bot_instance._token_manager.converted_save_tokens.assert_called_once_with(
+            {
+                bot_instance.bot_id: {
+                    "token": "actual_access",
+                    "refresh": "actual_refresh",
+                    "expires_in": 7200,
+                    "last_validated": "2026-03-30T00:00:00Z",
+                    "scopes": ["chat:read", "chat:edit"],
+                }
+            }
+        )
+
+
+class TestTokenMethods:
+    """Test token load/save related behavior."""
+
+    def test_last_validated_delegates_to_token_manager(self, bot_instance: Bot, mock_token_manager: MagicMock) -> None:
+        """Test last_validated property delegates to token manager state."""
+        mock_token_manager.last_validated = "2026-03-30T12:00:00Z"
+
+        assert bot_instance.last_validated == "2026-03-30T12:00:00Z"
+
+    @pytest.mark.asyncio
+    async def test_load_tokens_success(self, bot_instance: Bot) -> None:
+        """Test load_tokens loads and adds the bot token successfully."""
+        bot_instance._token_manager.converted_load_tokens = MagicMock(
+            return_value={
+                bot_instance.bot_id: {
+                    "user_id": bot_instance.bot_id,
+                    "token": "stored_access",
+                    "refresh": "stored_refresh",
+                }
+            }
+        )
+        bot_instance.add_token = AsyncMock()
+
+        await bot_instance.load_tokens()
+
+        bot_instance.add_token.assert_awaited_once_with("stored_access", "stored_refresh")
+
+    @pytest.mark.asyncio
+    async def test_load_tokens_raises_when_empty(self, bot_instance: Bot) -> None:
+        """Test load_tokens raises RuntimeError when no tokens exist."""
+        bot_instance._token_manager.converted_load_tokens = MagicMock(return_value={})
+
+        with pytest.raises(RuntimeError, match="No tokens found in TokenManager"):
+            await bot_instance.load_tokens()
+
+    @pytest.mark.asyncio
+    async def test_load_tokens_raises_when_user_id_mismatch(self, bot_instance: Bot) -> None:
+        """Test load_tokens raises RuntimeError when loaded token user_id mismatches bot_id."""
+        bot_instance._token_manager.converted_load_tokens = MagicMock(
+            return_value={
+                bot_instance.bot_id: {
+                    "user_id": "different_bot_id",
+                    "token": "stored_access",
+                    "refresh": "stored_refresh",
+                }
+            }
+        )
+        bot_instance.add_token = AsyncMock()
+
+        with pytest.raises(RuntimeError, match="does not match expected bot_id"):
+            await bot_instance.load_tokens()
+
+        bot_instance.add_token.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_load_tokens_raises_when_required_key_missing(self, bot_instance: Bot) -> None:
+        """Test load_tokens raises RuntimeError when token data structure is invalid."""
+        bot_instance._token_manager.converted_load_tokens = MagicMock(
+            return_value={
+                bot_instance.bot_id: {
+                    "user_id": bot_instance.bot_id,
+                    "token": "stored_access",
+                }
+            }
+        )
+
+        with pytest.raises(RuntimeError, match="Invalid token data structure in TokenManager"):
+            await bot_instance.load_tokens()
+
+    @pytest.mark.asyncio
+    async def test_save_tokens_is_noop(self, bot_instance: Bot) -> None:
+        """Test save_tokens does not persist tokens by design."""
+        bot_instance._token_manager.converted_save_tokens = MagicMock()
+
+        await bot_instance.save_tokens()
+
+        bot_instance._token_manager.converted_save_tokens.assert_not_called()
 
 
 class TestSubscribeEvents:
