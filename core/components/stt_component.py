@@ -4,13 +4,14 @@ import asyncio
 from contextlib import suppress
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, ClassVar
+from typing import TYPE_CHECKING, ClassVar, Final
 from uuid import uuid4
 
 from core.components.base import ComponentBase
 from models.message_models import ChatMessageAuthorDTO, ChatMessageDTO, ChatMessageFragmentDTO
 from utils.file_utils import FileUtils
 from utils.logger_utils import LoggerUtils
+from utils.string_utils import StringUtils
 
 if TYPE_CHECKING:
     import logging
@@ -22,8 +23,10 @@ __all__: list[str] = ["STTServiceComponent"]
 
 logger: logging.Logger = LoggerUtils.get_logger(__name__)
 
-STT_CONSOLE_PREFIX: str = "[STT] "
-STT_RESULT_IGNORE_WORDS_DIC_FILENAME: str = "stt_result_ignore_words.dic"
+STT_CONSOLE_PREFIX: Final[str] = "[STT] "
+STT_RESULT_IGNORE_WORDS_DIC_FILENAME: Final[str] = "stt_result_ignore_words.dic"
+
+STT_LOGGING_CHAR_LIMIT: Final[int] = 50  # Record characters in the log sparingly.
 
 
 class STTServiceComponent(ComponentBase):
@@ -87,9 +90,13 @@ class STTServiceComponent(ComponentBase):
         if not text:
             return
 
-        logger.debug("STT result: %s, confidence: %s", result.text[:20], result.confidence)
+        logger.debug(
+            "STT result: %s, confidence: %s",
+            StringUtils.truncate_string(text, STT_LOGGING_CHAR_LIMIT),
+            result.confidence,
+        )
 
-        if self._should_discard_by_confidence(result.confidence):
+        if self._should_discard_by_confidence(result):
             return
 
         if self._contains_ignored_phrase(text):
@@ -128,28 +135,49 @@ class STTServiceComponent(ComponentBase):
 
         return FileUtils.resolve_path(Path(dic_base_path) / STT_RESULT_IGNORE_WORDS_DIC_FILENAME)
 
-    def _should_discard_by_confidence(self, confidence: float | None) -> bool:
-        """Check whether STT result should be discarded by confidence score."""
+    def _should_discard_by_confidence(self, result: STTResult) -> bool:
+        """Check whether STT result should be discarded by confidence score.
+
+        Args:
+            result (STTResult): The STT result containing the transcribed text and confidence score.
+
+        Returns:
+            bool: True if the result should be discarded based on confidence threshold, False otherwise.
+        """
+        text: str = result.text
+        confidence: float | None = result.confidence
         if confidence is None or self._confidence_threshold is None:
             return False
 
         if confidence < self._confidence_threshold:
-            logger.warning(
-                "STT result discarded by confidence threshold: confidence=%s threshold=%s",
+            logger.debug(
+                "STT result discarded by confidence threshold: confidence=%s threshold=%s text=%s",
                 confidence,
                 self._confidence_threshold,
+                StringUtils.truncate_string(text, STT_LOGGING_CHAR_LIMIT),
             )
             return True
         return False
 
     def _contains_ignored_phrase(self, text: str) -> bool:
-        """Check whether text contains any configured ignored phrases."""
+        """Check whether text contains any configured ignored phrases.
+
+        Args:
+            text (str): The transcribed text from the STT result to be checked against ignored phrases.
+
+        Returns:
+            bool: True if the text contains any ignored phrases, False otherwise.
+
+        Note:
+            Although the computational complexity is O(n), a simple loop is more efficient in terms of processing
+            because the list to be registered usually contains no more than 10 items.
+        """
         ignore_words: list[str] = getattr(self, "_stt_result_ignore_words", [])
         for ignore_word in ignore_words:
             if ignore_word in text:
                 logger.warning(
                     "The STT result is incomprehensible and will be disregarded as a misrecognition: %s",
-                    text,
+                    StringUtils.truncate_string(text, STT_LOGGING_CHAR_LIMIT),
                 )
                 return True
         return False
@@ -199,6 +227,8 @@ class STTServiceComponent(ComponentBase):
             broadcaster=True,
         )
         return ChatMessageDTO(
+            # Used as an in-process correlation key for wait_for; generated from uuid4 so no additional runtime
+            # or schema validation is required.
             message_id=f"stt-{uuid4().hex}",
             content=text,
             text=text,
