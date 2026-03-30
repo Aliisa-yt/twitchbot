@@ -391,7 +391,8 @@ class ChatEventsManager(ComponentBase):
             return True
 
         return (
-            payload.source_broadcaster is not None
+            payload.chatter.id == self.bot.bot_id
+            or payload.source_broadcaster is not None
             or payload.text is None
             or payload.text.strip() == ""
             or payload.text.startswith("!")
