@@ -61,3 +61,57 @@ class TimeUtils:
             datetime: A timezone-aware datetime object representing the cutoff time.
         """
         return datetime.now().astimezone() - timedelta(days=days)
+
+    @staticmethod
+    def get_iso8601_current_time(*, with_timezone: bool = True) -> str:
+        """Get the current time formatted as an ISO 8601 string.
+
+        According to TwitchIO specifications, the format must not include the timezone.
+
+        Args:
+            with_timezone (bool): Whether to include timezone information.
+
+        Returns:
+            str: The current time in ISO 8601 format.
+        """
+        if with_timezone:
+            return datetime.now().astimezone().isoformat()
+        return datetime.now().isoformat()  # noqa: DTZ005
+
+    @staticmethod
+    def convert_epoch_to_iso8601(time: float, *, with_timezone: bool = True) -> str:
+        """Convert a given epoch time to an ISO 8601 formatted string.
+
+        Args:
+            time (float): The epoch time to convert.
+            with_timezone (bool): Whether to include timezone information in the output.
+
+        Returns:
+            str: The given epoch time formatted as an ISO 8601 string.
+
+        Raises:
+            ValueError: If the provided time cannot be converted to a float.
+        """
+        try:
+            time = float(time)
+        except (TypeError, ValueError) as err:
+            msg: str = f"Invalid epoch time: {time}"
+            raise ValueError(msg) from err
+
+        dt: datetime = datetime.fromtimestamp(time, tz=UTC).astimezone()
+        if with_timezone:
+            return dt.isoformat()
+        return dt.replace(tzinfo=None).isoformat()  # noqa: DTZ005
+
+    @staticmethod
+    def convert_iso8601_to_epoch(time_str: str) -> float:
+        """Convert an ISO 8601 formatted string to an epoch timestamp.
+
+        Args:
+            time_str (str): The ISO 8601 formatted string to convert.
+
+        Returns:
+            float: The corresponding epoch timestamp.
+        """
+        dt: datetime = datetime.fromisoformat(time_str)
+        return dt.timestamp()
