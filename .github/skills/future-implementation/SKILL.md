@@ -1,6 +1,6 @@
 ---
 name: future-implementation
-description: TwitchBot の将来の実装に関する情報を提供する。イベント駆動型処理の構築やリファクタリング時に参考にするためのドキュメント。
+description: TwitchBot の将来の実装に関する情報を提供する。イベント駆動型処理の構築やリファクタリング計画のレビュー時に参考にするためのドキュメント。
 keywords: [TwitchIO, API, future implementation, event driven, refactoring, design decisions, architecture]
 ---
 
@@ -32,7 +32,8 @@ TwitchIO の API に関する情報を整理することで、将来の実装に
 
 ### 1.1 認証に関する API
 
-TwitchIO には、トークンの保存・読み込みや Bot の起動に関する API が用意されており、これらを活用することで認証関連の処理を効率的に実装できる可能性があります。
+~~TwitchIO には、トークンの保存・読み込みや Bot の起動に関する API が用意されており、これらを活用することで認証関連の処理を効率的に実装できる可能性があります。~~
+現在は、`Bot.load_tokens` と `Bot.save_tokens` をオーバーライドしてトークンの保存・読み込みをカスタマイズする方式を実装済みです。将来的に DCF 認証をサポートする場合は、`start_dcf` と `login_dcf` を組み合わせて使用する実装も検討する必要があります。
 
 #### 1.1.1 トークン保存 API: `Bot.save_tokens`
 
@@ -51,23 +52,24 @@ async def save_tokens(self, path: str | None = None, /) -> None:
 - パスが `None` の場合はデフォルトの保存先 `.tio.tokens.json` を使用する。
 - TwitchIO 内部で終了処理（`close()` が呼び出されたとき）に呼び出される。
 - このメソッドをオーバーライドすることで、終了時のトークン保存をカスタマイズすることができる。
-- Bot 起動中のトークンリフレッシュでは、このメソッドは呼び出されないため、リフレッシュ後のトークンを保存するには `add_token` 内で行う必要がある。
+- Bot 起動中のトークンリフレッシュでは、このメソッドは呼び出されないため、リフレッシュ後のトークンを保存するには `event_token_refreshed` 内で行う必要がある。
+  - `add_token` 内ではトークン保存を行わないこと。いくつかの処理から `add_token` が呼び出されるため、無駄なトークン保存が発生してしまうためである。
 
-**使用例**
+**現在の実装**
+
+- 現在は、`save_tokens()` をオーバーライドして何も処理しないようにすることで、終了時のトークン保存を抑制している。
 
 ```python
-class MyBot(commands.Bot):
-    async def save_tokens(self, path: str | None = None) -> None:
-        # トークンを DB に保存するカスタム実装
-        token_data = {
-            "access_token": self.access_token,
-            "refresh_token": self.refresh_token,
-            "expires_in": self.token_expires_in,
-            "obtained_at": self.token_obtained_at,
-            "scope": self.token_scope,
-            "token_type": self.token_type,
-        }
-        # DB に保存する処理をここに実装する
+async def save_tokens(self, path: str | None = None, /) -> None:
+    """Save tokens to the token manager.
+
+    Args:
+        path (str | None): Optional path to save tokens to. If None, uses default path.
+    """
+    # Override the method to skip the save process.
+    # This simply lays the groundwork for adding a custom save process in the future.
+    _ = path
+    logger.debug("Saving tokens to TokenManager")
 ```
 
 #### 1.1.2 トークン読み込み API: `Bot.load_tokens`
@@ -87,29 +89,54 @@ async def load_tokens(self, path: str | None = None, /) -> None:
 - パスが `None` の場合はデフォルトの保存先 `.tio.tokens.json` を使用する。
 - TwitchIO 内部で Bot 起動時にトークンを読み込むため、このメソッドをオーバーライドすることで、起動時のトークン読み込みをカスタマイズすることができる。
 - 現在は `setup_tokens.py` 内でトークンを取得して `Bot` のコンストラクタに渡す実装になっているが、`load_tokens` をオーバーライドして DB からトークンを読み込む実装に変更することで、Bot 起動時のトークン読み込みを一元化できる。
-- `save_tokens` と `load_tokens` の両方をオーバーライドして DB に保存・読み込みする実装に変更した場合は、`setup_tokens.py` 内で `TokenManager` を使用してトークンを取得し DB に保存する処理のみに限定できる。また `.tio.tokens.json` を使用せず DB のみでトークン管理を行う実装に変更することもできる（現在は二重管理状態）。
+- ~~`save_tokens` と `load_tokens` の両方をオーバーライドして DB に保存・読み込みする実装に変更した場合は、`setup_tokens.py` 内で `TokenManager` を使用してトークンを取得し DB に保存する処理のみに限定できる。また `.tio.tokens.json` を使用せず DB のみでトークン管理を行う実装に変更することもできる（現在は二重管理状態）。~~
 
-**使用例**
+**現在の実装**
+
+- 現在は、`load_tokens()` をオーバーライドして `TokenManager` からトークンを読み込む実装に変更している。これにより、Bot 起動時のトークン読み込みが一元化され、DB からのトークン管理が可能になる。
 
 ```python
-class MyBot(commands.Bot):
-    async def load_tokens(self, path: str | None = None) -> None:
-        # DB からトークンを読み込むカスタム実装
-        # DB からトークンを取得する処理をここに実装する
-        token_data = {
-            "access_token": ...,
-            "refresh_token": ...,
-            "expires_in": ...,
-            "obtained_at": ...,
-            "scope": ...,
-            "token_type": ...,
-        }
-        self.access_token = token_data["access_token"]
-        self.refresh_token = token_data["refresh_token"]
-        self.token_expires_in = token_data["expires_in"]
-        self.token_obtained_at = token_data["obtained_at"]
-        self.token_scope = token_data["scope"]
-        self.token_type = token_data["token_type"]
+async def load_tokens(self, path: str | None = None, /) -> None:
+    """Load tokens from the token manager.
+
+    Args:
+        path (str | None): Optional path to load tokens from. If None, uses default path.
+
+    Raises:
+        RuntimeError: If no tokens are found or if the token data structure is invalid.
+    """
+    _ = path
+    logger.debug("Loading tokens from TokenManager")
+    token_data: dict[str, dict[str, Any]] = self._token_manager.converted_load_tokens()
+    if not token_data:
+        msg = "No tokens found in TokenManager"
+        logger.error(msg)
+        raise RuntimeError(msg)
+
+    bot_token_data: dict[str, Any] | None = token_data.get(self.bot_id)
+
+    if bot_token_data is None:
+        msg = f"No token found for bot ID {self.bot_id} in TokenManager"
+        logger.error(msg)
+        raise RuntimeError(msg)
+
+    try:
+        if bot_token_data["user_id"] != self.bot_id:
+            msg = f"Loaded token bot_id {bot_token_data['user_id']} does not match expected bot_id {self.bot_id}"
+            logger.error(msg)
+            raise RuntimeError(msg)
+
+        # Since calling 'add_token()' saves the token information to the 'tokens' dictionary,
+        # there is no need to reflect the token information read from the 'TokenManager' in
+        # the 'tokens' dictionary.
+        await self.add_token(bot_token_data["token"], bot_token_data["refresh"])
+    except KeyError as err:
+        logger.error("Failed to load tokens for bot ID %s from TokenManager: missing key %s", self.bot_id, err)
+        msg = "Invalid token data structure in TokenManager"
+        raise RuntimeError(msg) from err
+    except RuntimeError:
+        raise
+    logger.info("Tokens loaded successfully for bot user ID: %s", self.bot_id)
 ```
 
 #### 1.1.3 Bot 起動 API: `Bot.start`
@@ -127,23 +154,21 @@ async def start(token: str | None = None, *, with_adapter: bool = True, load_tok
 
 - `token`: 起動時に使用するアクセストークン。`None` の場合は `load_tokens` が `True` のときに `load_tokens()` を呼び出してトークンを読み込む。
 - `with_adapter`: 内蔵アダプターを使用して WebSocket 接続を行うかどうか。デフォルトでは`True`。
-  本アプリでは、独自の接続管理を行っているため `False` に設定している。
 - `load_tokens`: 起動時に `load_tokens()` を呼び出してトークンを読み込むかどうか。デフォルトでは `True`。
 - `save_tokens`: 終了時（`close()` が呼び出されたとき）に `save_tokens()` を呼び出してトークンを保存するかどうか。デフォルトでは `True`。
 
 **動作**
 
-- **現在使用しているメソッド**。
 - Bot を起動するための非同期メソッドであり、内部でイベントループを開始し、Bot の接続やイベント処理を行う。
 - 起動後、`event_ready` が発行されるため、このイベント内で `add_token` を呼び出してトークンを登録するのが一般的なパターンである。
 - `start` メソッドは通常、Bot のエントリーポイントとして使用され、コマンドの登録やイベントリスナーの定義など、Bot の初期化処理を行った後に呼び出される。
 
-**使用例**
+**現在の実装**
+
+- 認証処理は内蔵アダプターを使用せず、独自の接続管理（`TokenManager`）を行っている。
 
 ```python
-if __name__ == "__main__":
-    bot = MyBot(...)
-    asyncio.run(bot.start())
+await bot.start(with_adapter=False)
 ```
 
 #### 1.1.4 Bot 起動（DCF認証） API: `Bot.start_dcf`
