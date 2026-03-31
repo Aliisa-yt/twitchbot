@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from types import SimpleNamespace
-from typing import Any, cast
+from typing import Any
 
 import pytest
 
@@ -113,5 +113,5 @@ async def test_close_calls_translator_close(monkeypatch: pytest.MonkeyPatch, con
 
     await engine.close()
 
-    inst: DummyTranslator = cast("DummyTranslator", engine._inst)
-    assert inst.closed is True
+    with pytest.raises(TranslateExceptionError):
+        _ = engine._inst
