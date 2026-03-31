@@ -32,6 +32,7 @@
 - Google Cloud 認証: [.github/skills/google-cloud-api-auth/SKILL.md](skills/google-cloud-api-auth/SKILL.md)
 - Google Cloud 例外処理: [.github/skills/google-cloud-api-exception/SKILL.md](skills/google-cloud-api-exception/SKILL.md)
 - GUI デザイン: [.github/skills/gui-design/SKILL.md](skills/gui-design/SKILL.md)
+- コード生成ガイドライン: [.github/skills/code-generator/SKILL.md](skills/code-generator/SKILL.md)
 - 命名規則: [.github/skills/naming-rules/SKILL.md](skills/naming-rules/SKILL.md)
 - 単体テスト規約: [.github/skills/unit-test/SKILL.md](skills/unit-test/SKILL.md)
 - Windows 実行フロー: [.github/skills/windows-workflow/SKILL.md](skills/windows-workflow/SKILL.md)
@@ -46,29 +47,10 @@
 - Windows の詳細なコマンド手順は `windows-workflow` SKILL を参照する。
 
 ## プロジェクト規約
-- **Python 3.13 のみ**: 各モジュールの先頭に常に `from __future__ import annotations` を配置する。
-- **非推奨 API 禁止**: Python 3.13 時点で非推奨となっているメソッド・クラス・関数は使用しない（例: `asyncio.TimeoutError` → `TimeoutError`）。
-- **ファイル形式**: UTF-8 + LF 改行、行長は 120（ruff で強制）。
-  - ログファイル等のテキストファイルも UTF-8 + LF 改行で保存する。
-- **ロギング**: モジュールごとに `logger = LoggerUtils.get_logger(__name__)` を 1 回だけ使用し、`LoggerUtils` を再初期化しない。
-- **例外**: 送出前にエラーメッセージを `msg` 変数へ代入する（例: `msg = "error"; raise ValueError(msg)`）。
-- **未使用引数**: Lint 抑制のため、docstring 直後に `_ = arg1, arg2` を置く。
-- **Docstring**: Google スタイルを使用し、モジュール docstring → `from __future__ import annotations` → import の順序を守る。
-- **Docstring/コメント保持**: 互換性情報やバグ回避策に関する記述は削除しない。簡潔化は許可されるが保持が必須。
-- **インラインコメント**: 非自明またはバグを生みやすいロジックに限定し、自明なコードへのコメントは避ける。
-- **型ヒント**: すべての関数・メソッドには可能な限り完全な型ヒントを付与する。未使用引数は `_` で始める。
-  - **例外**: 非常に複雑な表記になる場合や、テストコードについては省略してもよい。
-- **非同期コード**: `asyncio.create_task` で作成するタスクには、可能な限り `name` を付与し、タスク例外をログで可視化する。
-- **安全停止**: 例外・ログ・非同期終了処理は失敗系を先に考慮し、異常時でも安全停止できる状態を維持する。
-- **機密情報保護**: APIキー、トークン、認証情報、秘密鍵はログや例外文字列に出力しない。
-- **実行環境**: Windows 10/11 + Python 3.13 を前提とし、Windows 固有実装はその旨をコメントで明示する。
-- **配布前提**: PyInstaller 実行を前提に、ファイルパスと外部依存の扱いを明示する。
-- **設定ファイル**: 設定ファイルである `twitchbot.ini` はリードオンリーとして扱うこと。設定値を動的に変更するなどファイルへの書き込みは禁止とする。
+コードの記述規約（Python バージョン、ファイル形式、Docstring、型ヒント、ロギング、例外処理、実行環境等）の詳細は [code-generator SKILL](skills/code-generator/SKILL.md) を参照すること。
 
 ## 使用言語ルール
-- コメント（docstring・インラインコメント含む）は英語のみで記述する。
-  - 機能要件上必要な場合（辞書エントリ、かな変換表、ユーザー向け日本語文言、I/O サンプルなど）を除き、日本語コメントは禁止。
-  - `NOTE:` や `TODO:` で始まるコメントは使用言語を問わない。（他の言語に翻訳しない。簡潔化は可）
+- コメント（docstring・インラインコメント含む）の詳細規則は [code-generator SKILL](skills/code-generator/SKILL.md) を参照すること。
 - ドキュメントは原則として日本語で記載し、必要に応じて英語での記述も許可する（例: ユーザー向け文言、外部仕様の引用、コードサンプルなど）。
 - チャットは原則として日本語で行い、必要に応じて英語での記述も許可する（例: ユーザー向け文言、外部仕様の引用、コードサンプルなど）。
 - コミットメッセージは英語で、且つ簡潔に記述する。
