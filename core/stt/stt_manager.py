@@ -35,7 +35,19 @@ logger: logging.Logger = LoggerUtils.get_logger(__name__)
 
 
 class STTManager:
-    """Manager responsible for STT pipeline lifecycle."""
+    """Manager responsible for STT pipeline lifecycle.
+
+    This class initializes the STT engine, manages the recorder and processor components,
+    and provides methods to control the STT system (e.g., mute, set thresholds).
+
+    Attributes:
+        _FIXED_SAMPLE_RATE (int): The fixed sample rate for recording (16000 Hz).
+        _FIXED_CHANNELS (int): The fixed number of audio channels for recording (1).
+        _TMP_DIR_REQUIRED_MSG (str): Error message when TMP_DIR configuration is missing.
+        enabled (bool): Indicates whether the STT manager is initialized and enabled.
+        recorder (STTRecorder | None): The STTRecorder instance if initialized, else None.
+        is_muted (bool): Indicates whether the STT input monitoring is currently muted.
+    """
 
     _FIXED_SAMPLE_RATE: int = 16000
     _FIXED_CHANNELS: int = 1

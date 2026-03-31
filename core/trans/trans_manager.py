@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import time
-from typing import TYPE_CHECKING, ClassVar
+from typing import TYPE_CHECKING, ClassVar, Final
 
 from core.trans.engines import (
     DeeplTranslation,  # noqa: F401
@@ -37,11 +37,11 @@ __all__: list[str] = ["TransManager"]
 
 logger: logging.Logger = LoggerUtils.get_logger(__name__)
 
-ADAPTIVE_LIMITER_ENABLED: bool = True
-ADAPTIVE_LIMITER_BASE_COOLDOWN_SEC: float = 1.0
-ADAPTIVE_LIMITER_MAX_COOLDOWN_SEC: float = 30.0
-ADAPTIVE_LIMITER_RESET_SEC: float = 60.0
-ADAPTIVE_LIMITER_LOG_INTERVAL_SEC: float = 5.0
+ADAPTIVE_LIMITER_ENABLED: Final[bool] = True
+ADAPTIVE_LIMITER_BASE_COOLDOWN_SEC: Final[float] = 1.0
+ADAPTIVE_LIMITER_MAX_COOLDOWN_SEC: Final[float] = 30.0
+ADAPTIVE_LIMITER_RESET_SEC: Final[float] = 60.0
+ADAPTIVE_LIMITER_LOG_INTERVAL_SEC: Final[float] = 5.0
 
 
 class TransManager:

@@ -17,7 +17,7 @@ from enum import StrEnum
 from os import urandom
 from pathlib import Path
 from tempfile import NamedTemporaryFile
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Final
 
 import numpy as np
 import sounddevice as sd
@@ -32,21 +32,21 @@ if TYPE_CHECKING:
 
 logger: logging.Logger = LoggerUtils.get_logger(__name__)
 
-INT16_SAMPLE_WIDTH_BYTES: int = 2
-DEFAULT_SEGMENT_SEC: float = 1.0
-DEFAULT_LEVEL_INTERVAL_MS: int = 100
-INT16_DIVISOR: float = 32768.0
-DEFAULT_START_LEVEL_dB: float = -20.0
-DEFAULT_STOP_LEVEL_dB: float = -40.0
-DEFAULT_MIN_LEVEL_dB: float = -60.0
-DEFAULT_PRE_BUFFER_MS: int = 300
-DEFAULT_POST_BUFFER_MS: int = 500
-DEFAULT_MAX_SEGMENT_SEC: int = 20
-DEFAULT_INPUT_STALL_TIMEOUT_SEC: float = 2.0
-DEFAULT_RECONNECT_BACKOFF_SEC: float = 3.0
-DEFAULT_VAD_MODE: str = "level"
-DEFAULT_SILERO_ONNX_MODEL_PATH: str = "data/stt/silero/silero_vad.onnx"
-DEFAULT_SILERO_VAD_THRESHOLD: float = 0.5
+INT16_SAMPLE_WIDTH_BYTES: Final[int] = 2
+DEFAULT_SEGMENT_SEC: Final[float] = 1.0
+DEFAULT_LEVEL_INTERVAL_MS: Final[int] = 100
+INT16_DIVISOR: Final[float] = 32768.0
+DEFAULT_START_LEVEL_dB: Final[float] = -20.0
+DEFAULT_STOP_LEVEL_dB: Final[float] = -40.0
+DEFAULT_MIN_LEVEL_dB: Final[float] = -60.0
+DEFAULT_PRE_BUFFER_MS: Final[int] = 300
+DEFAULT_POST_BUFFER_MS: Final[int] = 500
+DEFAULT_MAX_SEGMENT_SEC: Final[int] = 20
+DEFAULT_INPUT_STALL_TIMEOUT_SEC: Final[float] = 2.0
+DEFAULT_RECONNECT_BACKOFF_SEC: Final[float] = 3.0
+DEFAULT_VAD_MODE: Final[str] = "level"
+DEFAULT_SILERO_ONNX_MODEL_PATH: Final[str] = "data/stt/silero/silero_vad.onnx"
+DEFAULT_SILERO_VAD_THRESHOLD: Final[float] = 0.5
 
 
 class VADMode(StrEnum):
@@ -95,7 +95,24 @@ type LevelEventCallback = Callable[[STTLevelEvent], Awaitable[None] | None]
 
 
 class STTRecorder:
-    """Recorder façade used by STT manager."""
+    """Recorder façade used by STT manager.
+
+    The STT Recorder manages the microphone input stream, performs VAD-based segmentation and queues
+    the recorded segments for processing. The recorder supports the adjustment of dynamic thresholds,
+    muting and the generation of synthetic segments.
+
+    Attributes:
+        input_device (str | int | None): Configured audio input device.
+        sample_rate (int): Configured audio sample rate.
+        channels (int): Configured audio channel count.
+        current_level (float): Current input level in 0.0-1.0.
+        is_monitoring (bool): Whether input monitoring is active.
+        muted (bool): Whether recorder is muted.
+        start_level_db (float): Start threshold in dB.
+        stop_level_db (float): Stop threshold in dB.
+        vad_mode (VADMode): VAD mode used for segmentation.
+        vad_threshold (float): VAD probability threshold for probability-based VAD modes.
+    """
 
     def __init__(
         self,

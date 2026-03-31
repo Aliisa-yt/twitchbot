@@ -45,7 +45,6 @@ class TranslationCacheManager:
         TTL_TRANSLATION_DAYS_DEFAULT (ClassVar[int]): Default TTL for translation cache entries.
         TTL_LANGUAGE_DETECTION_DAYS_DEFAULT (ClassVar[int]): Default TTL for language detection cache entries.
         MAX_ENTRIES_PER_ENGINE_DEFAULT (ClassVar[int]): Default maximum cache entries per engine.
-        INFLIGHT_TIMEOUT_SEC (ClassVar[float]): In-flight request timeout in seconds.
         DB_SCHEMA_VERSION (ClassVar[int]): Cache database schema version.
     """
 

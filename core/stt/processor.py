@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Final
 
 from core.stt.stt_interface import (
     STTExceptionError,
@@ -28,8 +28,8 @@ __all__: list[str] = ["ProcessorOptions", "STTProcessor"]
 
 logger: logging.Logger = LoggerUtils.get_logger(__name__)
 
-DEFAULT_RETRY_MAX: int = 3
-DEFAULT_RETRY_BACKOFF_MS: int = 500
+DEFAULT_RETRY_MAX: Final[int] = 3
+DEFAULT_RETRY_BACKOFF_MS: Final[int] = 500
 
 
 @dataclass(frozen=True)

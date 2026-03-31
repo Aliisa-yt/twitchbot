@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import time
-from typing import TYPE_CHECKING, ClassVar
+from typing import TYPE_CHECKING, ClassVar, Final
 
 from twitchio.ext.commands import Component
 
@@ -32,9 +32,9 @@ __all__: list[str] = ["ChatEventsManager"]
 
 logger: logging.Logger = LoggerUtils.get_logger(__name__)
 
-MESSAGE_QUEUE_MAX_SIZE: int = 50
-MESSAGE_QUEUE_USAGE_DEBUG_THRESHOLD: float = 0.9
-MESSAGE_CONCURRENCY_DEFAULT: int = 3
+MESSAGE_QUEUE_MAX_SIZE: Final[int] = 50
+MESSAGE_QUEUE_USAGE_DEBUG_THRESHOLD: Final[float] = 0.9
+MESSAGE_CONCURRENCY_DEFAULT: Final[int] = 3
 
 
 class ChatEventsManager(ComponentBase):
