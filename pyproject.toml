@@ -78,7 +78,8 @@ convention = "google"
 
 [tool.mypy]
 python_version = "3.13"
-exclude = "dic/.*"
+exclude = ["dic/.*", "tests/.*"]
+explicit_package_bases = true
 warn_redundant_casts = true
 warn_return_any = true
 warn_unreachable = false
@@ -86,9 +87,16 @@ warn_unused_configs = true
 warn_unused_ignores = true
 
 [[tool.mypy.overrides]]
-module = ["soundfile.*", "sounddevice.*", "gtts.*", "onnxruntime.*"]
+module = [
+    "soundfile.*",
+    "sounddevice.*",
+    "gtts.*",
+    "google.cloud.*",
+    "onnxruntime.*",
+]
 ignore_missing_imports = true
-follow_untyped_imports = true
+# follow_untyped_imports = true
+# follow_imports = "silent"
 
 [tool.pytest.ini_options]
 addopts = "-ra"
