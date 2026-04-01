@@ -13,7 +13,7 @@ pyinstaller==6.19.0
 pyinstaller-hooks-contrib==2026.3
 dataclasses-json==0.6.7
 google-cloud-translate==3.25.0
-google-cloud-speech==2.37.0
+google-cloud-speech==2.38.0
 google-api-python-client-stubs==1.34.0
 onnxruntime==1.24.4
 coverage==7.13.5
