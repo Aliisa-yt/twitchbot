@@ -44,7 +44,7 @@ class _JSONLoader:
             dict[str, str]: Dictionary with conversion mappings.
         """
         with dic_name.open(mode="r", encoding="utf-8") as fhdl:
-            return json.load(fhdl)
+            return json.load(fhdl)  # type: ignore  # noqa: PGH003
 
 
 class Romaji:

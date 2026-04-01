@@ -47,7 +47,7 @@ class TTSManager:
         self.background_tasks: set[asyncio.Task[None]] = set()
 
         # Interface.configure_audio_save_path(config.GENERAL.TMP_DIR)
-        Interface.audio_save_directory = config.GENERAL.TMP_DIR
+        Interface.audio_save_directory = config.GENERAL.TMP_DIR  # type: ignore  # noqa: PGH003
         logger.debug("Registered TTS classes: %s", Interface.get_registered())
 
     def _reset_runtime_managers(self) -> None:
@@ -67,7 +67,7 @@ class TTSManager:
         self.playback_manager = AudioPlaybackManager(
             self.config, self.file_manager, self.playback_queue, self.task_terminate_event
         )
-        Interface.play_callback = self.synthesis_manager.add_to_playback_queue
+        Interface.play_callback = self.synthesis_manager.add_to_playback_queue  # type: ignore  # noqa: PGH003
 
     async def initialize(self) -> None:
         """Initialize the TTSManager and start background tasks."""

@@ -385,6 +385,9 @@ class ChatEventsManager(ComponentBase):
         Returns:
             bool: True if the message should be ignored, False otherwise.
         """
+        # Avoid lint errors caused by Twitchio not defining types correctly.
+        if not isinstance(payload.id, str):
+            return True
         # echo messages sent by the bot itself should be ignored to prevent loops
         if payload.id in self.bot.send_message_cache:
             self.bot.send_message_cache.remove(payload.id)

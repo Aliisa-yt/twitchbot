@@ -137,6 +137,7 @@ class CacheServiceComponent(ComponentBase):
             return
 
         cfg_cache: Cache | None = getattr(self.config, "CACHE", None)
+        export_path: str | None
         if cfg_cache is None:
             logger.warning("Cache configuration section is missing. Using default export path.")
             export_path = CACHE_EXPORT_PATH

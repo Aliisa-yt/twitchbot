@@ -118,7 +118,7 @@ class ChatMessageDTO:
             )
 
         return cls(
-            message_id=StringUtils.ensure_str(twitch_message.id),
+            message_id=StringUtils.ensure_str(twitch_message.id),  # type: ignore  # noqa: PGH003
             content=content,
             text="".join(text_parts),
             fragments=fragments,

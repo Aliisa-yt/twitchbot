@@ -20,7 +20,7 @@ if TYPE_CHECKING:
 try:
     from tkinter import TclError
 except ImportError:
-    TclError = RuntimeError
+    TclError = RuntimeError  # type: ignore  # noqa: PGH003
 
 logger: logging.Logger = LoggerUtils.get_logger(__name__)
 
