@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import asyncio
-from typing import TYPE_CHECKING, ClassVar
+from typing import TYPE_CHECKING, ClassVar, Final, Literal
 
 from deepl import DeepLClient, Language, TextResult, Usage
 from deepl.exceptions import (
@@ -34,6 +34,10 @@ __all__: list[str] = ["DeeplTranslation"]
 
 logger: logging.Logger = LoggerUtils.get_logger(__name__)
 
+_DEEPL_DEFAULT_CHAR_LIMIT: Final[int] = 500000  # Default character limit for DeepL if not provided by the API
+_DEFAULT_ENGLISH_CODE: Final[Literal["en-US", "en-GB"]] = "en-US"
+_DEFAULT_PORTUGUESE_CODE: Final[Literal["pt-BR", "pt-PT"]] = "pt-PT"
+
 
 class DeeplTranslation(TransInterface):
     _source_codes: ClassVar[dict[str, str]] = {}  # Mapping of source language codes to DeepL's format
@@ -46,43 +50,69 @@ class DeeplTranslation(TransInterface):
         self.__available: bool = False
         self._generate_langcode_mappings()
 
-    def _generate_langcode_mappings(self) -> None:
+    @classmethod
+    def _generate_langcode_mappings(cls) -> None:
         """Generate language code mappings for DeepL source and target codes.
 
-        This method populates the _source_codes and _target_codes class variables
-        with mappings from the Language constants provided by the DeepL library.
-        It maps the first two characters of each language code to DeepL's format,
-        ensuring that the codes are in uppercase as required by DeepL.
-        It also handles specific cases for Chinese language variations.
+        This method retrieves the mappings from language constants provided by the DeepL library and stores the
+        values in the `_source_codes` and `_target_codes` class variables.
+        It maps language codes (ISO639-1) to the DeepL format, ensuring the codes are capitalized according to
+        DeepL requirements.
+        It also handles special processing for English, Portuguese, and Chinese, including region codes.
+
+        Example:
+            For English:
+            - 'en' (generic) and 'en-US' / 'en-GB' variants are normalised to the single key 'en'.
+            - _target_codes["en"] is set to _DEFAULT_ENGLISH_CODE.upper() (currently "EN-US").
+
+            For Portuguese:
+            - 'pt' (generic) and 'pt-PT' / 'pt-BR' variants are normalised to the single key 'pt'.
+            - _target_codes["pt"] is set to _DEFAULT_PORTUGUESE_CODE.upper() (currently "PT-PT").
+
+            For Chinese:
+            - 'zh-CN' and 'zh-TW' both map to 'ZH' (DeepL uses a unified code for Chinese)
         """
-        language_constants: dict[str, str] = self._get_language_constants(Language)
+
+        def _get_language_constants(target_cls: type) -> dict[str, str]:
+            """Get language constants from the given class.
+
+            This method retrieves all uppercase string constants from the target_cls,
+            which are typically used for language codes in DeepL.
+
+            Args:
+                target_cls: The class from which to retrieve language constants.
+
+            Returns:
+                A dictionary mapping constant names to their values, where the names are uppercase.
+            """
+            return {
+                name: value for name, value in vars(target_cls).items() if isinstance(value, str) and name.isupper()
+            }
+
+        if cls._source_codes and cls._target_codes:
+            logger.debug("Language code mappings already generated. Skipping regeneration.")
+            return
+
+        language_constants: dict[str, str] = _get_language_constants(Language)
 
         for code in language_constants.values():
-            # Normalize code to base form (e.g., 'en-US' -> 'en')
-            base_code: str = code.split("-")[0].lower()
-            DeeplTranslation._source_codes[base_code] = base_code.upper()
-            DeeplTranslation._target_codes[base_code] = code.upper()
+            if "-" in code:
+                continue  # Skip codes with region specifiers for now; they will be handled separately.
+            cls._source_codes[code] = code.upper()
+            cls._target_codes[code] = code.upper()
 
+        # Handle English and Portuguese with region codes explicitly, as DeepL uses a unified code for these languages.
+        if cls._source_codes.get("en") is not None:
+            cls._target_codes["en"] = _DEFAULT_ENGLISH_CODE.upper()
+        if cls._source_codes.get("pt") is not None:
+            cls._target_codes["pt"] = _DEFAULT_PORTUGUESE_CODE.upper()
         # Handle Chinese variations explicitly (DeepL uses unified 'ZH')
-        for zh_variant in ("zh-CN", "zh-TW"):
-            DeeplTranslation._source_codes[zh_variant] = "ZH"
-            DeeplTranslation._target_codes[zh_variant] = "ZH"
+        if cls._source_codes.get("zh") is not None:
+            for zh_variant in ("zh-CN", "zh-TW"):
+                cls._source_codes[zh_variant] = "ZH"
+                cls._target_codes[zh_variant] = "ZH"
 
         logger.debug("Language code mapping generated for DeepL.")
-
-    def _get_language_constants(self, cls) -> dict[str, str]:
-        """Get language constants from the given class.
-
-        This method retrieves all uppercase string constants from the class,
-        which are typically used for language codes in DeepL.
-
-        Args:
-            cls: The class from which to retrieve language constants.
-
-        Returns:
-            A dictionary mapping constant names to their values, where the names are uppercase.
-        """
-        return {name: value for name, value in vars(cls).items() if isinstance(value, str) and name.isupper()}
 
     @property
     def _inst(self) -> DeepLClient:
@@ -93,17 +123,20 @@ class DeeplTranslation(TransInterface):
 
     @_inst.setter
     def _inst(self, inst: DeepLClient | None) -> None:
-        if inst is not None:
+        if isinstance(inst, DeepLClient):
             self.__inst = inst
             # self.__available = True
             # Do not unconditionally set 'self.__available' to 'True' when registering an instance.
             # 'self.__available' will be set to 'True' if 'self._get_usage()' has not reached its upper limit.
             self._get_usage()
+            logger.debug("DeepL client instance set successfully.")
         else:
             self.__inst = None
             self.__available = False
             self.__usage = None
-        logger.debug("Set instance: '%s'", inst)
+            logger.debug(
+                "DeepL client instance set to None or invalid type. Availability set to False and usage reset."
+            )
 
     @property
     def _usage(self) -> Usage:
@@ -132,7 +165,7 @@ class DeeplTranslation(TransInterface):
     def limit(self) -> int:
         if self._usage.character.limit is not None:
             return self._usage.character.limit
-        return 500000
+        return _DEEPL_DEFAULT_CHAR_LIMIT
 
     @property
     def limit_reached(self) -> bool:
@@ -174,7 +207,11 @@ class DeeplTranslation(TransInterface):
             msg = "An error occurred while creating the DeepL client instance"
             raise RuntimeError(msg) from err
         except AuthorizationException:
-            self._inst = None
+            # Do not set 'self._inst' to 'None' as this will cause an error in the 'Mypy Type Checker' extension.
+            # self._inst = None
+            self.__inst = None
+            self.__available = False
+            self.__usage = None
             msg = "Authorisation failed. Please check your authentication key"
             raise TranslateExceptionError(msg) from None
 
@@ -189,9 +226,10 @@ class DeeplTranslation(TransInterface):
             Result: A Result object containing the detected source language and the original text.
 
         Raises:
-            NotSupportedLanguagesError: If the specified target language is not supported by DeepL.
+            NotSupportedLanguagesError: If the specified languages are not supported by DeepL.
             TranslationQuotaExceededError: If the translation quota has been exceeded.
-            TranslateExceptionError: If an error occurs during the detection process.
+            TranslateExceptionError: If an error occurs during the translation process.
+            TranslationRateLimitError: If the DeepL rate limit has been reached.
         """
         result: Result = await self.translation(content, tgt_lang=tgt_lang)
         logger.debug("Detected language: '%s'", result.detected_source_lang)
@@ -213,7 +251,9 @@ class DeeplTranslation(TransInterface):
             NotSupportedLanguagesError: If the specified languages are not supported by DeepL.
             TranslationQuotaExceededError: If the translation quota has been exceeded.
             TranslateExceptionError: If an error occurs during the translation process.
+            TranslationRateLimitError: If the DeepL rate limit has been reached.
         """
+        logger.info("'%s': 'start translation'", self.__class__.__name__)
         logger.debug("'content': '%s', 'src_lang': '%s', 'tgt_lang': '%s'", content, src_lang, tgt_lang)
         try:
             _src_lang: str | None = (
@@ -296,6 +336,7 @@ class DeeplTranslation(TransInterface):
 
         Raises:
             TranslateExceptionError: If an error occurs while fetching usage statistics.
+            TranslationRateLimitError: If the DeepL rate limit has been reached.
         """
         try:
             self._usage = self._inst.get_usage()
@@ -336,4 +377,4 @@ class DeeplTranslation(TransInterface):
         self.__available = False
         self.__usage = None
         self.__inst = None
-        logger.debug("'%s' process termination", self.__class__.__name__)
+        logger.info("'%s' process termination", self.__class__.__name__)

@@ -11,6 +11,7 @@ from core.trans.trans_interface import (
     Result,
     TranslateExceptionError,
     TranslationQuotaExceededError,
+    TranslationRateLimitError,
 )
 
 if TYPE_CHECKING:
@@ -23,6 +24,16 @@ class DummyLanguage:
     JA: str = "ja"
     ZH: str = "zh"
     EN_US: str = "en-US"
+
+
+class DummyLanguageExtended:
+    EN: str = "en"
+    EN_US: str = "en-US"
+    EN_GB: str = "en-GB"
+    PT: str = "pt"
+    PT_PT: str = "pt-PT"
+    PT_BR: str = "pt-BR"
+    JA: str = "ja"
 
 
 class DummyTextResult:
@@ -169,3 +180,106 @@ async def test_close_resets_instance_and_usage(config: Config) -> None:
         _ = engine._inst
     with pytest.raises(TranslateExceptionError):
         _ = engine._usage
+
+
+@pytest.mark.asyncio
+async def test_translation_raises_rate_limit_error(monkeypatch: pytest.MonkeyPatch, config: Config) -> None:
+    async def fake_to_thread(func, *args, **kwargs):
+        return func(*args, **kwargs)
+
+    monkeypatch.setattr(trans_deepl_module.asyncio, "to_thread", fake_to_thread)
+    DummyClient.translate_error = trans_deepl_module.TooManyRequestsException("rate limit")
+    engine = trans_deepl_module.DeeplTranslation()
+    engine.initialize(config)
+
+    with pytest.raises(TranslationRateLimitError):
+        await engine.translation("hello", tgt_lang="ja", src_lang="en")
+
+
+def test_get_usage_raises_rate_limit_error(monkeypatch: pytest.MonkeyPatch, config: Config) -> None:
+    engine = trans_deepl_module.DeeplTranslation()
+    engine.initialize(config)
+
+    class RateLimitClient(DummyClient):
+        def get_usage(self) -> DummyUsage:
+            msg = "rate limit"
+            raise trans_deepl_module.TooManyRequestsException(msg)
+
+    monkeypatch.setattr(engine, "_DeeplTranslation__inst", RateLimitClient(""))
+
+    with pytest.raises(TranslationRateLimitError):
+        engine._get_usage()
+
+
+@pytest.mark.asyncio
+async def test_get_quota_status_raises_rate_limit_error(monkeypatch: pytest.MonkeyPatch, config: Config) -> None:
+    async def fake_to_thread(func, *args, **kwargs):
+        return func(*args, **kwargs)
+
+    monkeypatch.setattr(trans_deepl_module.asyncio, "to_thread", fake_to_thread)
+    engine = trans_deepl_module.DeeplTranslation()
+    engine.initialize(config)
+
+    class RateLimitClient(DummyClient):
+        def get_usage(self) -> DummyUsage:
+            msg = "rate limit"
+            raise trans_deepl_module.TooManyRequestsException(msg)
+
+    monkeypatch.setattr(engine, "_DeeplTranslation__inst", RateLimitClient(""))
+
+    with pytest.raises(TranslationRateLimitError):
+        await engine.get_quota_status()
+
+
+def test_initialize_raises_when_authorization_fails(monkeypatch: pytest.MonkeyPatch, config: Config) -> None:
+    class AuthFailClient:
+        def __init__(self, auth_key: str) -> None:
+            _ = auth_key
+            msg = "auth failed"
+            raise trans_deepl_module.AuthorizationException(msg)
+
+    monkeypatch.setattr(trans_deepl_module, "DeepLClient", AuthFailClient)
+    engine = trans_deepl_module.DeeplTranslation()
+
+    with pytest.raises(TranslateExceptionError):
+        engine.initialize(config)
+
+
+def test_target_codes_match_default_language_codes(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(trans_deepl_module, "Language", DummyLanguageExtended)
+    trans_deepl_module.DeeplTranslation._source_codes = {}
+    trans_deepl_module.DeeplTranslation._target_codes = {}
+    trans_deepl_module.DeeplTranslation._generate_langcode_mappings()
+
+    target_codes = trans_deepl_module.DeeplTranslation._target_codes
+    assert target_codes["en"].upper() == trans_deepl_module._DEFAULT_ENGLISH_CODE.upper()
+    assert target_codes["pt"].upper() == trans_deepl_module._DEFAULT_PORTUGUESE_CODE.upper()
+
+
+def test_target_codes_follow_changed_default_language_codes(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(trans_deepl_module, "Language", DummyLanguageExtended)
+    monkeypatch.setattr(trans_deepl_module, "_DEFAULT_ENGLISH_CODE", "en-GB")
+    monkeypatch.setattr(trans_deepl_module, "_DEFAULT_PORTUGUESE_CODE", "pt-BR")
+    trans_deepl_module.DeeplTranslation._source_codes = {}
+    trans_deepl_module.DeeplTranslation._target_codes = {}
+    trans_deepl_module.DeeplTranslation._generate_langcode_mappings()
+
+    target_codes = trans_deepl_module.DeeplTranslation._target_codes
+    assert target_codes["en"].upper() == trans_deepl_module._DEFAULT_ENGLISH_CODE.upper()
+    assert target_codes["pt"].upper() == trans_deepl_module._DEFAULT_PORTUGUESE_CODE.upper()
+
+
+def test_unknown_regional_language_code_skipped(monkeypatch: pytest.MonkeyPatch) -> None:
+    class DummyLanguageWithUnknownRegional:
+        FR: str = "fr"
+        FR_FR: str = "fr-FR"
+        FR_CA: str = "fr-CA"
+
+    monkeypatch.setattr(trans_deepl_module, "Language", DummyLanguageWithUnknownRegional)
+    trans_deepl_module.DeeplTranslation._source_codes = {}
+    trans_deepl_module.DeeplTranslation._target_codes = {}
+    trans_deepl_module.DeeplTranslation._generate_langcode_mappings()
+
+    assert "FR" in trans_deepl_module.DeeplTranslation._target_codes.values()
+    assert "FR-FR" not in trans_deepl_module.DeeplTranslation._target_codes.values()
+    assert "FR-CA" not in trans_deepl_module.DeeplTranslation._target_codes.values()

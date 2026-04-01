@@ -54,27 +54,28 @@ class GoogleTranslation(TransInterface):
 
     @_inst.setter
     def _inst(self, inst: AsyncTranslator | None) -> None:
-        if inst is not None:
+        if isinstance(inst, AsyncTranslator):
             self.__inst = inst
+            logger.debug("Google Translate client instance set successfully.")
         else:
             self.__inst = None
-        logger.debug("Set instance: '%s'", inst)
+            logger.debug("Google Translate client instance set to None or invalid type.")
 
     @property
     def count(self) -> int:
-        return 0  # The free version of Google has no character limit, meaning it always returns the same value.
+        return 0
 
     @property
     def limit(self) -> int:
-        return 500000  # The free version of Google has no character limit, so it always returns the same value.
+        return 0
 
     @property
     def limit_reached(self) -> bool:
-        return False  # The free version of Google has no character limit, so it always returns the same value.
+        return False
 
     @property
     def is_available(self) -> bool:
-        return True  # The free version of Google has no character limit, meaning it always returns the same value.
+        return True
 
     @staticmethod
     def fetch_engine_name() -> str:
@@ -95,9 +96,8 @@ class GoogleTranslation(TransInterface):
             raise RuntimeError(msg) from err
 
     async def detect_language(self, content: str, tgt_lang: str) -> Result:
-        logger.debug("'%s': 'detect language'", self.__class__.__name__)
         result: Result = await self.translation(content, tgt_lang=tgt_lang)
-        logger.debug("%s", result)
+        logger.debug("Detected language: '%s'", result.detected_source_lang)
         return result
 
     async def translation(self, content: str, tgt_lang: str, src_lang: str | None = None) -> Result:

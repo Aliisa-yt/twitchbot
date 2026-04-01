@@ -101,7 +101,7 @@ async def test_get_quota_status_uses_engine_defaults(monkeypatch: pytest.MonkeyP
 
     assert isinstance(quota, CharacterQuota)
     assert quota.count == 0
-    assert quota.limit == 500000
+    assert quota.limit == 0
     assert quota.is_quota_valid is False
 
 

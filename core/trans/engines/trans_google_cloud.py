@@ -107,11 +107,12 @@ class GoogleCloudTranslation(TransInterface):
         Args:
             inst: Google Cloud Translate client instance or None.
         """
-        if inst is not None:
+        if isinstance(inst, translate.Client):
             self.__inst = inst
+            logger.debug("Google Cloud Translate client instance set successfully.")
         else:
             self.__inst = None
-        logger.debug("Set instance: '%s'", inst)
+            logger.debug("Google Cloud Translate client instance set to None or invalid type.")
 
     @property
     def count(self) -> int:
@@ -119,7 +120,7 @@ class GoogleCloudTranslation(TransInterface):
 
     @property
     def limit(self) -> int:
-        return 500000
+        return 0
 
     @property
     def limit_reached(self) -> bool:
