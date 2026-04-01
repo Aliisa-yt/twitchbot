@@ -2,7 +2,7 @@ aiohttp==3.13.3
 deepl==1.28.0
 emoji==2.15.0
 gTTS==2.5.4
-numpy==2.4.3
+numpy==2.4.4
 sounddevice==0.5.5
 pywin32==311
 soundfile==0.13.1
