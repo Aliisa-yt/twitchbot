@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 from dataclasses import dataclass
 from io import BytesIO
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 import numpy as np
 import soundfile
@@ -105,10 +105,12 @@ class GoogleText2Speech(Interface):
             # https://github.com/bastibe/python-soundfile/issues/333
             mp3_data.seek(0)
 
-            # Disable type checking because the type checker detects that the data type is float64,
-            # even though the data type is float32 and the actual data is also float32.
-            result = await asyncio.to_thread(soundfile.read, mp3_data, dtype="float32")
-            raw_pcm, samplerate = result
+            # soundfile.read overloads are not resolved correctly through asyncio.to_thread.
+            # cast is used to tell the type checker the actual runtime type.
+            raw_pcm, samplerate = cast(
+                "tuple[np.ndarray[Any, dtype[np.float32]], int]",
+                await asyncio.to_thread(soundfile.read, mp3_data, dtype="float32"),
+            )
             logger.debug("mp3 decoded: samplerate=%d, type=%s, frames=%d", samplerate, raw_pcm.dtype, raw_pcm.shape[0])
 
             # Validate and cast to float32 ndarray with proper type hints

@@ -7,6 +7,7 @@ from core.tts.audio_playback_manager import AudioPlaybackManager
 from core.tts.file_manager import TTSFileManager
 from core.tts.parameter_manager import ParameterManager
 from core.tts.synthesis_manager import SynthesisManager
+from core.tts.text_preprocessor import TextPreprocessor
 from core.tts.tts_interface import Interface
 from utils.excludable_queue import ExcludableQueue
 from utils.logger_utils import LoggerUtils
@@ -40,6 +41,7 @@ class TTSManager:
         logger.debug("Initializing TTSManager with config")
         self.config: Config = config
         self.parameter_manager = ParameterManager(config)
+        self.text_preprocessor = TextPreprocessor(config)
         self._reset_runtime_managers()
 
         # Set to keep track of background tasks
@@ -144,7 +146,7 @@ class TTSManager:
         return self.parameter_manager.get_voice_param(lang, is_system=is_system)
 
     def prepare_tts_content(self, ttsparam: TTSParam) -> TTSParam | None:
-        return self.synthesis_manager.prepare_tts_content(ttsparam)
+        return self.text_preprocessor.process(ttsparam)
 
     async def enqueue_tts_synthesis(self, ttsparam: TTSParam) -> None:
         await self.synthesis_manager.enqueue_tts_synthesis(ttsparam)

@@ -1,30 +1,36 @@
 from __future__ import annotations
 
-import asyncio
-import contextlib
-import os
-import re
 import uuid
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from io import BytesIO
 from pathlib import Path
-from typing import TYPE_CHECKING, ClassVar, Final, Literal, cast
+from typing import TYPE_CHECKING, ClassVar, Final
 
-from models.re_models import SERVER_CONFIG_PATTERN
-from utils.file_utils import FileUtils
+from core.tts._tts_engine_config import (
+    DEFAULT_PORT_RANGE,
+    DEFAULT_PROTOCOL,
+    DEFAULT_TIMEOUT,
+    TTSExceptionError,
+    _TTSConfig,
+    protocol_type,
+)
+from core.tts._tts_process_mixin import ProcessMixin
 from utils.logger_utils import LoggerUtils
 
 if TYPE_CHECKING:
+    import asyncio
     import logging
     from collections.abc import Awaitable, Callable
-    from re import Match
 
     from models.config_models import TTSEngine
     from models.voice_models import TTSParam, UserTypeInfo
 
 
 __all__: list[str] = [
+    "DEFAULT_PORT_RANGE",
+    "DEFAULT_PROTOCOL",
+    "DEFAULT_TIMEOUT",
     "EngineHandler",
     "Interface",
     "TTSExceptionError",
@@ -32,34 +38,13 @@ __all__: list[str] = [
     "TTSFileError",
     "TTSFileExistsError",
     "TTSNotSupportedError",
+    "_TTSConfig",
 ]
 
 logger: logging.Logger = LoggerUtils.get_logger(__name__)
 
-WINDOWS: Final[bool] = os.name == "nt"
-KILL_TIMEOUT: Final[float] = 3.0  # Timeout for process termination
-
-protocol_type = Literal["http", "https"]
-
-DEFAULT_PROTOCOL: Final[protocol_type] = "http"
-DEFAULT_HOST: Final[str] = "127.0.0.1"
-DEFAULT_PORT: Final[int] = 65535
-DEFAULT_TIMEOUT: Final[float] = 10.0
-
-# Port range for TTS server
-# The default range is 49152-65535, which is the range for dynamic/private ports
-DEFAULT_PORT_RANGE: Final[tuple[int, int]] = (49152, 65535)
 # Supported audio formats
 SUPPORTED_FORMATS: Final[list[str]] = ["wav", "mp3"]
-
-
-class TTSExceptionError(Exception):
-    """Base class for TTS exceptions.
-
-    This class is used as a base for all exceptions related to TTS operations.
-    It inherits from the built-in Exception class and does not add any additional functionality.
-    It serves as a common parent class for more specific TTS-related exceptions.
-    """
 
 
 class TTSFileError(TTSExceptionError):
@@ -94,108 +79,6 @@ class TTSNotSupportedError(TTSExceptionError):
     """
 
 
-@dataclass
-class _TTSConfig:
-    """Configuration for TTS engine
-
-    This class holds the configuration settings for a TTS engine, including server settings,
-    timeout, early speech, linked startup, and executable path.
-
-    Attributes:
-        protocol (protocol_type): Protocol used for the TTS server (http or https)
-        host (str): Host address of the TTS server
-        port (int): Port number of the TTS server
-        timeout (float): Timeout for TTS requests in seconds
-        earlyspeech (bool): Whether early speech is enabled
-        linkedstartup (bool): Whether linked startup is enabled
-        exec_path (Path | None): Path to the TTS engine executable
-    """
-
-    protocol: protocol_type = DEFAULT_PROTOCOL
-    host: str = DEFAULT_HOST
-    port: int = DEFAULT_PORT
-    timeout: float = DEFAULT_TIMEOUT
-    earlyspeech: bool = False
-    linkedstartup: bool = False
-    exec_path: Path | None = None
-
-    @classmethod
-    def from_config(cls, tts_engine: TTSEngine) -> _TTSConfig:
-        """Create a TTSConfig instance from TTSEngine configuration.
-
-        Reads the configuration from the TTSEngine model and initializes a _TTSConfig instance.
-        """
-        tts_config: _TTSConfig = cls()
-        # SERVER setting
-        server_str: str | None = getattr(tts_engine, "SERVER", None)
-        if server_str:
-            try:
-                tts_config.protocol, tts_config.host, tts_config.port = cls._parse_server_config(server_str)
-            except TTSExceptionError as err:
-                logger.error("Invalid server configuration: %s", err)
-                raise
-
-        # TIMEOUT setting
-        tts_config.timeout = cls._parse_timeout(getattr(tts_engine, "TIMEOUT", DEFAULT_TIMEOUT))
-
-        # Other settings
-        tts_config.earlyspeech = getattr(tts_engine, "EARLY_SPEECH", False)
-        tts_config.linkedstartup = getattr(tts_engine, "AUTO_STARTUP", False)
-
-        exec_path_str: str | None = getattr(tts_engine, "EXECUTE_PATH", None)
-        if exec_path_str:
-            tts_config.exec_path = FileUtils.resolve_path(exec_path_str)
-
-        return tts_config
-
-    @staticmethod
-    def _parse_server_config(
-        server_str: str, port_range: tuple[int, int] = DEFAULT_PORT_RANGE
-    ) -> tuple[protocol_type, str, int]:
-        """Parse server settings and retrieve host and port"""
-        try:
-            match: Match[str] | None = re.match(SERVER_CONFIG_PATTERN, server_str)
-            if not match:
-                msg = "Invalid server configuration format."
-                raise ValueError(msg)
-
-            protocol_str: str = match.group("protocol")
-            host: str = match.group("host")
-            port: int = int(match.group("port"))
-
-            if protocol_str:
-                if protocol_str not in ("http", "https"):
-                    msg = f"Invalid protocol '{protocol_str}'. Expected 'http' or 'https'."
-                    raise ValueError(msg)
-            else:
-                protocol_str = DEFAULT_PROTOCOL
-
-            protocol: protocol_type = cast("protocol_type", protocol_str.lower())
-
-            if not (port_range[0] <= port <= port_range[1]):
-                msg = f"Port number must be in range {port_range}."
-                raise ValueError(msg)
-        except (ValueError, TypeError) as err:
-            msg = "Invalid server configuration."
-            raise TTSExceptionError(msg) from err
-        else:
-            return protocol, host, port
-
-    @staticmethod
-    def _parse_timeout(timeout_value: float) -> float:
-        """Parse timeout value and retrieve the appropriate value"""
-        try:
-            timeout: float = float(timeout_value)
-            if timeout <= 0:
-                error_message = "Timeout must be a positive number."
-                raise ValueError(error_message)
-        except ValueError:
-            logger.warning("Invalid timeout setting; using default value %s", DEFAULT_TIMEOUT)
-            return DEFAULT_TIMEOUT
-        else:
-            return timeout
-
-
 @dataclass(frozen=True)
 class EngineHandler:
     """Handler for TTS engine operations
@@ -218,7 +101,7 @@ class EngineHandler:
     termination: Callable[[], Awaitable[None]]
 
 
-class Interface(ABC):
+class Interface(ProcessMixin, ABC):
     """Base class for TTS engine interface
 
     This class defines the interface for TTS engines, including methods for initialization,
@@ -236,10 +119,8 @@ class Interface(ABC):
     _play_callback: ClassVar[Callable[[TTSParam], Awaitable[None]]]
     _base_directory: ClassVar[Path | None] = None
 
-    process: asyncio.subprocess.Process | None
-
     def __init__(self) -> None:
-        self.process = None
+        self.process: asyncio.subprocess.Process | None = None
         self.__tts_config: _TTSConfig = _TTSConfig()
 
     async def async_init(self, _param: UserTypeInfo) -> None:
@@ -485,92 +366,3 @@ class Interface(ABC):
             msg = "Play callback is not set"
             raise RuntimeError(msg)
         await self.play_callback(ttsparam)
-
-    async def _execute(self) -> None:
-        """Asynchronously start an external process if linked startup setting is enabled
-
-        This method is invoked when the TTS engine starts up.
-        If the linked startup setting is enabled, it attempts to start the executable specified in the
-        exec_path variable. If exec_path is not set or the file does not exist, an error is logged.
-        If the process starts successfully, the subprocess object is assigned to self.process.
-        If the linked startup setting is disabled, this method does nothing.
-        """
-        if self.linkedstartup and self.exec_path is not None:
-            try:
-                self.process = await asyncio.create_subprocess_exec(
-                    str(self.exec_path), stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL
-                )
-                logger.debug("Execution '%s' started successfully.", self.exec_path)
-            except FileNotFoundError:
-                logger.error("Executable file not found: '%s'", self.exec_path)
-            except OSError as err:
-                logger.error("Failed to execute file '%s': %s", self.exec_path, err)
-
-    async def _kill(self) -> None:
-        """Asynchronously terminate the process started with linked startup.
-
-        If the process does not exit within the timeout period, it will be terminated forcefully.
-        This method is invoked when the TTS engine is shut down.
-        If the process is not running, the method simply returns.
-        """
-        if not (self.linkedstartup and self.process):
-            return
-
-        # Attempt to terminate the process gracefully
-        with contextlib.suppress(ProcessLookupError):
-            try:
-                logger.info("Terminating process %s", self.process.pid)
-                self.process.terminate()
-            except PermissionError as exc:
-                logger.error("Failed to terminate process %s: %s", self.process.pid, exc)
-                return
-
-        if await self._wait_for_exit(KILL_TIMEOUT):
-            self._cleanup()
-            return
-
-        if WINDOWS:
-            # In Windows, the terminate() and kill() functions perform the same operation,
-            # meaning the two-step termination process is not required.
-            logger.error("Timeout while terminating process %s on Windows", self.process.pid)
-            self._cleanup()
-            return
-
-        # If the process did not exit within the timeout, force kill it
-        with contextlib.suppress(ProcessLookupError):
-            try:
-                logger.warning("Termination timed out; force killing process %s", self.process.pid)
-                self.process.kill()
-            except PermissionError as exc:
-                logger.error("Failed to force kill process %s: %s", self.process.pid, exc)
-                self._cleanup()
-                return
-
-        if not await self._wait_for_exit(KILL_TIMEOUT):
-            logger.error("Force kill also timed out for process %s", self.process.pid)
-
-        self._cleanup()
-
-    def _cleanup(self) -> None:
-        """Cleanup after process termination"""
-        self.process = None
-
-    async def _wait_for_exit(self, wait_timeout: float) -> bool:
-        """Wait for the process to exit.
-
-        Args:
-            wait_timeout (float): Timeout in seconds to wait for the process to exit.
-
-        Returns:
-            bool: True if the process exited within the timeout, False otherwise.
-        """
-        if not self.process:
-            logger.debug("No process to wait for exit")
-            return True
-
-        try:
-            await asyncio.wait_for(self.process.wait(), timeout=wait_timeout)
-        except TimeoutError:
-            return False
-        else:
-            return True

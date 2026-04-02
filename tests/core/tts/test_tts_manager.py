@@ -144,11 +144,14 @@ def test_forwarding_methods_call_managers() -> None:
         patch("core.tts.tts_manager.ParameterManager") as param_cls,
         patch("core.tts.tts_manager.SynthesisManager") as synth_cls,
         patch("core.tts.tts_manager.AudioPlaybackManager"),
+        patch("core.tts.tts_manager.TextPreprocessor") as preprocessor_cls,
     ):
         param_inst = MagicMock()
         synth_inst = MagicMock()
+        preprocessor_inst = MagicMock()
         param_cls.return_value = param_inst
         synth_cls.return_value = synth_inst
+        preprocessor_cls.return_value = preprocessor_inst
 
         manager = TTSManager(config)
 
@@ -163,7 +166,7 @@ def test_forwarding_methods_call_managers() -> None:
     param_inst.get_voice_param.assert_called_once_with("en", is_system=False)
 
     manager.prepare_tts_content(MagicMock())
-    synth_inst.prepare_tts_content.assert_called_once()
+    preprocessor_inst.process.assert_called_once()
 
 
 @pytest.mark.asyncio

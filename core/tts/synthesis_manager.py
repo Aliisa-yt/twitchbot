@@ -22,8 +22,6 @@ from core.tts.engines import (  # noqa: F401
     VoiceVox,
 )
 from core.tts.tts_interface import EngineHandler, Interface
-from handlers.emoji import EmojiHandler
-from handlers.katakana import E2KConverter
 from models.config_models import TTSEngine
 from models.voice_models import TTSParam, UserTypeInfo
 from utils.excludable_queue import ExcludableQueue
@@ -75,9 +73,6 @@ class SynthesisManager:
         self.voice_parameters: UserTypeInfo = config.VOICE_PARAMETERS
         self.synthesis_queue: ExcludableQueue[TTSParam] = synthesis_queue
         self.playback_queue: ExcludableQueue[TTSParam] = playback_queue
-        self.emoji: EmojiHandler = EmojiHandler(
-            self.config.TRANSLATION.NATIVE_LANGUAGE, self.config.TRANSLATION.SECOND_LANGUAGE
-        )
 
     async def _create_handler_map(self) -> TTSEngineHandlerMap:
         """Create a map of TTS engine handlers.
@@ -227,44 +222,6 @@ class SynthesisManager:
         # Terminate TTS engines
         await dispatch("close")
         await dispatch("termination")
-
-    def prepare_tts_content(self, tts_param: TTSParam) -> TTSParam | None:
-        """Prepare the content for TTS synthesis.
-
-        This method processes the TTS parameters, including converting emojis to text,
-        converting alphabets to Katakana (for Japanese), and applying character limits.
-
-        Args:
-            tts_param (TTSParam): The TTS parameters containing the content and language.
-        Returns:
-            TTSParam | None: The processed TTS parameters, or None if the content is invalid or empty.
-        """
-        logger.debug("Convert content: %s", tts_param)
-        if tts_param.content_lang is None:
-            logger.error("No content language code specified")
-            return None
-
-        # If ENABLED_LANGUAGES is set and the specified language code is not included, skip text-to-speech.
-        if self.config.TTS.ENABLED_LANGUAGES and tts_param.content_lang not in self.config.TTS.ENABLED_LANGUAGES:
-            logger.debug("Language '%s' is not enabled for TTS", tts_param.content_lang)
-            return None
-
-        # Convert emojis to text.
-        tts_param.content = self.emoji.emojize_to_text(tts_param.content, tts_param.content_lang)
-        logger.debug("Converted emojis to text: '%s'", tts_param.content)
-
-        # Convert alphabets to Katakana (for Japanese).
-        if self.config.TTS.KATAKANAISE and tts_param.content_lang == "ja":
-            tts_param.content = E2KConverter.katakanaize(tts_param.content)
-
-        # Apply reading character limit if configured.
-        if self.config.TTS.LIMIT_CHARACTERS:
-            tts_param.content = tts_param.content[: self.config.TTS.LIMIT_CHARACTERS]
-
-        if not tts_param.content:
-            logger.warning("TTS content is empty after conversion")
-            return None
-        return tts_param
 
     async def enqueue_tts_synthesis(self, tts_param: TTSParam) -> None:
         """Enqueue the TTS parameters for synthesis.
