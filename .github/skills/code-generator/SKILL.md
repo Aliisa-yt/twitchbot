@@ -12,11 +12,6 @@ keywords: [code generation, coding guidelines, implementation rules]
 - Python 3.13 時点で非推奨となっているメソッド・クラス・関数は使用しないこと（例: `asyncio.TimeoutError` → `TimeoutError`）。
 - 各モジュールの先頭に常に `from __future__ import annotations` を配置する。
 
-# 使用言語ルール
-- コメント（docstring・インラインコメント含む）は英語のみで記述する。
-  - 機能要件上必要な場合（辞書エントリ、かな変換表、ユーザー向け日本語文言、I/O サンプルなど）を除き、日本語コメントは禁止。
-- `NOTE:` や `TODO:` で始まるコメントは使用言語を問わない。（他の言語に翻訳しない。簡潔化は可）
-
 # Docstring 共通規約
 - Google スタイルを使用し、モジュール docstring → `from __future__ import annotations` → import の順序を守る。
 - 可能な限り簡潔に、かつ必要な情報を網羅することを心がける。
