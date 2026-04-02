@@ -385,3 +385,102 @@ async def test_handle_message_skips_tts_when_translation_fails() -> None:
     bundle.cog._process_original_tts.assert_awaited_once()
     bundle.cog._process_translated_tts.assert_not_called()
     bundle.cog._output_and_send_translation.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# _should_ignore_message branch coverage
+# ---------------------------------------------------------------------------
+
+
+def _make_ignore_payload(
+    *,
+    msg_id: str = "msg-id",
+    chatter_id: str = "user-id",
+    source_broadcaster: object = None,
+    text: str = "hello",
+) -> MagicMock:
+    """Build a payload mock for _should_ignore_message tests."""
+    payload = MagicMock()
+    payload.id = msg_id
+    payload.chatter.id = chatter_id
+    payload.source_broadcaster = source_broadcaster
+    payload.text = text
+    return payload
+
+
+def test_should_ignore_message_returns_true_and_removes_id_when_in_send_cache() -> None:
+    """When payload.id is in send_message_cache, returns True and the id is removed from cache."""
+    bundle = _make_cog_bundle()
+    payload = _make_ignore_payload(msg_id="echo-id")
+    bundle.cog.bot.send_message_cache = {"echo-id", "other-id"}
+    bundle.cog.bot.bot_id = "bot-id"
+
+    result = bundle.cog._should_ignore_message(payload)
+
+    assert result is True
+    assert "echo-id" not in bundle.cog.bot.send_message_cache
+
+
+def test_should_ignore_message_returns_true_when_chatter_is_bot() -> None:
+    """When chatter.id matches bot_id and id is not in send_message_cache, returns True."""
+    bundle = _make_cog_bundle()
+    payload = _make_ignore_payload(msg_id="msg-1", chatter_id="bot-123")
+    bundle.cog.bot.send_message_cache = set()
+    bundle.cog.bot.bot_id = "bot-123"
+
+    result = bundle.cog._should_ignore_message(payload)
+
+    assert result is True
+
+
+def test_should_ignore_message_returns_true_when_source_broadcaster_is_set_and_text_starts_with_bang() -> None:
+    """When source_broadcaster is not None and text starts with '!', returns True."""
+    bundle = _make_cog_bundle()
+    payload = _make_ignore_payload(
+        msg_id="msg-2",
+        chatter_id="user-id",
+        source_broadcaster=MagicMock(),
+        text="!command",
+    )
+    bundle.cog.bot.send_message_cache = set()
+    bundle.cog.bot.bot_id = "bot-id"
+
+    result = bundle.cog._should_ignore_message(payload)
+
+    assert result is True
+
+
+def test_should_ignore_message_returns_true_when_is_ignore_users_is_true() -> None:
+    """When source_broadcaster is None, text is normal, and is_ignore_users returns True, returns True."""
+    bundle = _make_cog_bundle()
+    payload = _make_ignore_payload(
+        msg_id="msg-3",
+        chatter_id="user-id",
+        source_broadcaster=None,
+        text="hello",
+    )
+    bundle.cog.bot.send_message_cache = set()
+    bundle.cog.bot.bot_id = "bot-id"
+
+    with patch("core.components.chat_events.ChatUtils.is_ignore_users", return_value=True):
+        result = bundle.cog._should_ignore_message(payload)
+
+    assert result is True
+
+
+def test_should_ignore_message_returns_false_when_no_conditions_match() -> None:
+    """When no ignore condition is met, returns False."""
+    bundle = _make_cog_bundle()
+    payload = _make_ignore_payload(
+        msg_id="msg-4",
+        chatter_id="user-id",
+        source_broadcaster=None,
+        text="hello",
+    )
+    bundle.cog.bot.send_message_cache = set()
+    bundle.cog.bot.bot_id = "bot-id"
+
+    with patch("core.components.chat_events.ChatUtils.is_ignore_users", return_value=False):
+        result = bundle.cog._should_ignore_message(payload)
+
+    assert result is False
