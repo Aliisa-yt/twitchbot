@@ -14,6 +14,7 @@ import pytest
 from core.tts.tts_interface import (
     DEFAULT_PROTOCOL,
     DEFAULT_TIMEOUT,
+    EngineContext,
     Interface,
     TTSExceptionError,
     TTSFileExistsError,
@@ -23,7 +24,7 @@ from core.tts.tts_interface import (
 from models.voice_models import TTSParam
 
 if TYPE_CHECKING:
-    from collections.abc import Awaitable, Callable, Iterator
+    from collections.abc import Iterator
     from pathlib import Path
 
     from models.config_models import TTSEngine
@@ -32,23 +33,11 @@ if TYPE_CHECKING:
 @pytest.fixture
 def reset_interface_state() -> Iterator[None]:
     prev_registry: dict[str, type[Interface]] = dict(Interface._registered_engines)
-    prev_base_dir = getattr(Interface, "_base_directory", None)
-    had_callback: bool = hasattr(Interface, "_play_callback")
-    prev_callback: Callable[[TTSParam], Awaitable[None]] | None = getattr(Interface, "_play_callback", None)
-
     Interface._registered_engines = {}
-    Interface._base_directory = None
-    if hasattr(Interface, "_play_callback"):
-        delattr(Interface, "_play_callback")
 
     yield
 
     Interface._registered_engines = prev_registry
-    Interface._base_directory = prev_base_dir
-    if had_callback and prev_callback is not None:
-        Interface._play_callback = prev_callback
-    elif hasattr(Interface, "_play_callback"):
-        delattr(Interface, "_play_callback")
 
 
 class DummyEngine(Interface):
@@ -56,8 +45,8 @@ class DummyEngine(Interface):
     def fetch_engine_name() -> str:
         return "dummy"
 
-    def initialize_engine(self, tts_engine: TTSEngine) -> bool:
-        return super().initialize_engine(tts_engine)
+    def initialize_engine(self, tts_engine: TTSEngine, context: EngineContext) -> bool:
+        return super().initialize_engine(tts_engine, context)
 
     async def speech_synthesis(self, ttsparam: TTSParam) -> None:
         _ = ttsparam
@@ -106,7 +95,9 @@ def test_initialize_engine_reads_config(reset_interface_state: Iterator[None], t
         EXECUTE_PATH=str(exec_path),
     )
 
-    assert engine.initialize_engine(cast("TTSEngine", tts_engine)) is True
+    context = EngineContext(audio_save_directory=tmp_path, play_callback=AsyncMock())
+
+    assert engine.initialize_engine(cast("TTSEngine", tts_engine), context) is True
     assert engine.protocol == "https"
     assert engine.host == "example.com"
     assert engine.port == 50010
@@ -116,36 +107,53 @@ def test_initialize_engine_reads_config(reset_interface_state: Iterator[None], t
     assert engine.exec_path == exec_path.resolve()
 
 
-def test_audio_save_directory_set_once(reset_interface_state: Iterator[None], tmp_path: Path) -> None:
+def test_audio_save_directory_raises_before_initialize(reset_interface_state: Iterator[None]) -> None:
     _ = reset_interface_state
     engine = DummyEngine()
-    engine.audio_save_directory = tmp_path
-
-    assert engine.audio_save_directory == tmp_path
-    with pytest.raises(RuntimeError, match="already set"):
-        engine.audio_save_directory = tmp_path
-
-
-def test_play_callback_set_once(reset_interface_state: Iterator[None]) -> None:
-    _ = reset_interface_state
-    engine = DummyEngine()
-
-    async def callback(_param: TTSParam) -> None:
-        return None
-
-    engine.play_callback = callback
-    assert engine.play_callback is callback
-
-    with pytest.raises(RuntimeError, match="already set"):
-        engine.play_callback = callback
+    with pytest.raises(RuntimeError, match="context is not initialized"):
+        _ = engine.audio_save_directory
 
 
 @pytest.mark.asyncio
-async def test_play_delegates_to_callback(reset_interface_state: Iterator[None]) -> None:
+async def test_play_raises_before_initialize(reset_interface_state: Iterator[None]) -> None:
+    _ = reset_interface_state
+    engine = DummyEngine()
+    with pytest.raises(RuntimeError, match="context is not initialized"):
+        await engine.play(TTSParam(content="hello"))
+
+
+def test_initialize_engine_stores_context(reset_interface_state: Iterator[None], tmp_path: Path) -> None:
     _ = reset_interface_state
     engine = DummyEngine()
     callback = AsyncMock()
-    engine.play_callback = callback
+    context = EngineContext(audio_save_directory=tmp_path, play_callback=callback)
+    tts_engine = SimpleNamespace(
+        SERVER="http://localhost:50021",
+        TIMEOUT=2.0,
+        EARLY_SPEECH=False,
+        AUTO_STARTUP=False,
+        EXECUTE_PATH=None,
+    )
+
+    assert engine.initialize_engine(cast("TTSEngine", tts_engine), context) is True
+    assert engine.audio_save_directory == tmp_path
+    assert engine.play_callback is callback
+
+
+@pytest.mark.asyncio
+async def test_play_delegates_to_callback(reset_interface_state: Iterator[None], tmp_path: Path) -> None:
+    _ = reset_interface_state
+    engine = DummyEngine()
+    callback = AsyncMock()
+    tts_engine = SimpleNamespace(
+        SERVER="http://localhost:50021",
+        TIMEOUT=2.0,
+        EARLY_SPEECH=False,
+        AUTO_STARTUP=False,
+        EXECUTE_PATH=None,
+    )
+    context = EngineContext(audio_save_directory=tmp_path, play_callback=callback)
+    engine.initialize_engine(cast("TTSEngine", tts_engine), context)
 
     tts_param = TTSParam(content="hello")
     await engine.play(tts_param)
@@ -162,7 +170,15 @@ def test_get_engine_returns_registered_class(reset_interface_state: Iterator[Non
 def test_create_audio_filename_uses_prefix_and_suffix(reset_interface_state: Iterator[None], tmp_path: Path) -> None:
     _ = reset_interface_state
     engine = DummyEngine()
-    engine.audio_save_directory = tmp_path
+    tts_engine = SimpleNamespace(
+        SERVER="http://localhost:50021",
+        TIMEOUT=2.0,
+        EARLY_SPEECH=False,
+        AUTO_STARTUP=False,
+        EXECUTE_PATH=None,
+    )
+    context = EngineContext(audio_save_directory=tmp_path, play_callback=AsyncMock())
+    engine.initialize_engine(cast("TTSEngine", tts_engine), context)
 
     path = engine.create_audio_filename(prefix="custom", suffix="mp3")
 
@@ -174,7 +190,15 @@ def test_create_audio_filename_uses_prefix_and_suffix(reset_interface_state: Ite
 def test_create_audio_filename_rejects_format(reset_interface_state: Iterator[None], tmp_path: Path) -> None:
     _ = reset_interface_state
     engine = DummyEngine()
-    engine.audio_save_directory = tmp_path
+    tts_engine = SimpleNamespace(
+        SERVER="http://localhost:50021",
+        TIMEOUT=2.0,
+        EARLY_SPEECH=False,
+        AUTO_STARTUP=False,
+        EXECUTE_PATH=None,
+    )
+    context = EngineContext(audio_save_directory=tmp_path, play_callback=AsyncMock())
+    engine.initialize_engine(cast("TTSEngine", tts_engine), context)
 
     with pytest.raises(TTSNotSupportedError):
         engine.create_audio_filename(suffix="flac")

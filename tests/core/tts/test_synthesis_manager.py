@@ -1,10 +1,13 @@
 import asyncio
+from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, NoReturn, cast
+from unittest.mock import patch
 
 import pytest
 
 from core.tts.synthesis_manager import SynthesisManager, TTSEngineHandlerMap
+from core.tts.tts_interface import EngineContext, Interface
 from models.voice_models import TTSInfo, TTSParam
 from utils.excludable_queue import ExcludableQueue
 
@@ -180,3 +183,44 @@ async def test_tts_processing_task_consumes_queue_and_handles_shutdown() -> None
     await asyncio.wait_for(task, timeout=1.0)
 
     assert handler.close_event.is_set() or handler.term_event.is_set()
+
+
+async def test_create_handler_map_passes_context_to_engine() -> None:
+    """Verify EngineContext is created from config and passed to initialize_engine."""
+    config: Any = SimpleNamespace(
+        VOICE_PARAMETERS=SimpleNamespace(get_tts_engine_list=lambda: ["dummy_engine"]),
+        GENERAL=SimpleNamespace(TMP_DIR=Path("tmp")),
+        DUMMY_ENGINE=SimpleNamespace(
+            SERVER="http://localhost:50021",
+            TIMEOUT=2.0,
+            EARLY_SPEECH=False,
+            AUTO_STARTUP=False,
+            EXECUTE_PATH=None,
+        ),
+    )
+    synth_q: ExcludableQueue[TTSParam] = ExcludableQueue()
+    play_q: ExcludableQueue[TTSParam] = ExcludableQueue()
+    manager = SynthesisManager(config, synth_q, play_q)
+
+    captured_context: list[EngineContext] = []
+
+    class DummyEngine(Interface):
+        @staticmethod
+        def fetch_engine_name() -> str:
+            return "dummy_engine"
+
+        def initialize_engine(self, tts_engine, context: EngineContext) -> bool:
+            _ = tts_engine
+            captured_context.append(context)
+            return True
+
+        async def speech_synthesis(self, ttsparam) -> None:
+            _ = ttsparam
+
+    with patch.object(Interface, "get_engine", return_value=DummyEngine):
+        await manager._create_handler_map()  # noqa: SLF001
+
+    assert len(captured_context) == 1
+    assert captured_context[0].audio_save_directory == Path("tmp")
+    assert captured_context[0].play_callback.__self__ is manager  # pyright: ignore[reportFunctionMemberAccess]
+    assert captured_context[0].play_callback.__func__ is manager.add_to_playback_queue.__func__  # pyright: ignore[reportFunctionMemberAccess]

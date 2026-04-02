@@ -19,6 +19,7 @@ from utils.logger_utils import LoggerUtils
 if TYPE_CHECKING:
     import logging
 
+    from core.tts.tts_interface import EngineContext
     from models.config_models import TTSEngine
     from models.voice_models import TTSParam, UserTypeInfo
 
@@ -58,7 +59,7 @@ class VoiceVox(VVCore):
         """
         return "voicevox"
 
-    def initialize_engine(self, tts_engine: TTSEngine) -> bool:
+    def initialize_engine(self, tts_engine: TTSEngine, context: EngineContext) -> bool:
         """Initialize the VOICEVOX engine with configuration.
 
         Args:
@@ -67,7 +68,7 @@ class VoiceVox(VVCore):
         Returns:
             bool: True if initialization succeeded.
         """
-        super().initialize_engine(tts_engine)
+        super().initialize_engine(tts_engine, context)
         print("Loaded speech synthesis engine: VOICEVOX")
         return True
 

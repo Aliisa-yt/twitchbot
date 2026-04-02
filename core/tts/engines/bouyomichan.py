@@ -4,7 +4,7 @@ import contextlib
 import struct
 from typing import TYPE_CHECKING, Final
 
-from core.tts.tts_interface import Interface
+from core.tts.tts_interface import EngineContext, Interface
 from handlers.async_comm import AsyncCommError, AsyncSocket
 from utils.logger_utils import LoggerUtils
 
@@ -196,7 +196,7 @@ class BouyomiChanSocket(Interface):
         # causing the module to not be found in subsequent processing
         # return __name__
 
-    def initialize_engine(self, tts_engine: TTSEngine) -> bool:
+    def initialize_engine(self, tts_engine: TTSEngine, context: EngineContext) -> bool:
         """Setup the TTS engine with the given configuration
 
         Args:
@@ -205,7 +205,7 @@ class BouyomiChanSocket(Interface):
         Returns:
             bool: True if setup is successful, False otherwise.
         """
-        super().initialize_engine(tts_engine)
+        super().initialize_engine(tts_engine, context)
         # Output a message to the console
         print("Loaded speech synthesis engine: BouyomiChan")
         return True

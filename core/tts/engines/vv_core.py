@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING, Any, Final, Literal, NamedTuple, TypeVar, over
 from marshmallow.exceptions import ValidationError
 
 from core.tts.tts_interface import (
+    EngineContext,
     Interface,
     TTSFileError,
     TTSNotSupportedError,
@@ -107,7 +108,7 @@ class VVCore(Interface):
         """
         return ""
 
-    def initialize_engine(self, tts_engine: TTSEngine) -> bool:
+    def initialize_engine(self, tts_engine: TTSEngine, context: EngineContext) -> bool:
         """Initialize the TTS engine with the provided configuration.
 
         Args:
@@ -115,7 +116,7 @@ class VVCore(Interface):
         Returns:
             bool: True if the setup is successful, False otherwise.
         """
-        super().initialize_engine(tts_engine)
+        super().initialize_engine(tts_engine, context)
         return True
 
     async def async_init(self, param: UserTypeInfo) -> None:

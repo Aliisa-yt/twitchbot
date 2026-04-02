@@ -10,7 +10,7 @@ import soundfile
 from gtts import gTTS, gTTSError
 from numpy import dtype
 
-from core.tts.tts_interface import Interface, TTSExceptionError
+from core.tts.tts_interface import EngineContext, Interface, TTSExceptionError
 from utils.logger_utils import LoggerUtils
 
 if TYPE_CHECKING:
@@ -78,8 +78,8 @@ class GoogleText2Speech(Interface):
     def fetch_engine_name() -> str:
         return "gtts"
 
-    def initialize_engine(self, tts_engine: TTSEngine) -> bool:
-        super().initialize_engine(tts_engine)
+    def initialize_engine(self, tts_engine: TTSEngine, context: EngineContext) -> bool:
+        super().initialize_engine(tts_engine, context)
         # Output a message to the console
         print("Loaded speech synthesis engine: Google Text-to-Speech")
         return True

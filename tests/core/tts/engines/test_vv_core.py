@@ -12,6 +12,7 @@ import pytest
 from dataclasses_json import DataClassJsonMixin, dataclass_json
 
 from core.tts.engines import vv_core as vv_module
+from core.tts.tts_interface import EngineContext
 from handlers.async_comm import AsyncCommError, AsyncCommTimeoutError
 from models.voice_models import TTSParam
 
@@ -53,7 +54,8 @@ def engine(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> DummyVVCore:
         AUTO_STARTUP=False,
         EXECUTE_PATH=str(tmp_path / "dummy_engine.exe"),
     )
-    vv_core.initialize_engine(cast("TTSEngine", config))
+    context = EngineContext(audio_save_directory=tmp_path, play_callback=AsyncMock())
+    vv_core.initialize_engine(cast("TTSEngine", config), context)
     return vv_core
 
 

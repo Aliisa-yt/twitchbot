@@ -17,6 +17,7 @@ from utils.logger_utils import LoggerUtils
 if TYPE_CHECKING:
     import logging
 
+    from core.tts.tts_interface import EngineContext
     from models.config_models import TTSEngine
     from models.voice_models import TTSParam, UserTypeInfo
 
@@ -49,9 +50,9 @@ class CoeiroInk2(VVCore):
         """Return the engine identifier."""
         return "coeiroink2"
 
-    def initialize_engine(self, tts_engine: TTSEngine) -> bool:
+    def initialize_engine(self, tts_engine: TTSEngine, context: EngineContext) -> bool:
         """Initialize the engine with configuration settings."""
-        super().initialize_engine(tts_engine)
+        super().initialize_engine(tts_engine, context)
         print("Loaded speech synthesis engine: CoeiroInk2")
         return True
 

@@ -8,7 +8,7 @@ import pythoncom
 import win32com.client
 from win32.lib.pywintypes import com_error
 
-from core.tts.tts_interface import Interface
+from core.tts.tts_interface import EngineContext, Interface
 from models.voice_models import TTSParam, Voice
 from utils.logger_utils import LoggerUtils
 
@@ -53,9 +53,9 @@ class CevioCore(Interface):
         """Returns the distinguished name of CeVIO"""
         return "cevio"
 
-    def initialize_engine(self, tts_engine: TTSEngine) -> bool:
+    def initialize_engine(self, tts_engine: TTSEngine, context: EngineContext) -> bool:
         """Reads settings from the configuration module and connects to CeVIO"""
-        super().initialize_engine(tts_engine)
+        super().initialize_engine(tts_engine, context)
         if not self.connect_cevio(self.cevio_type):
             logger.critical("CeVIO %s is not available", self.cevio_type)
             return False

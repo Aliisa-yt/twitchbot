@@ -4,7 +4,6 @@ import uuid
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from io import BytesIO
-from pathlib import Path
 from typing import TYPE_CHECKING, ClassVar, Final
 
 from core.tts._tts_engine_config import (
@@ -22,6 +21,7 @@ if TYPE_CHECKING:
     import asyncio
     import logging
     from collections.abc import Awaitable, Callable
+    from pathlib import Path
 
     from models.config_models import TTSEngine
     from models.voice_models import TTSParam, UserTypeInfo
@@ -31,6 +31,7 @@ __all__: list[str] = [
     "DEFAULT_PORT_RANGE",
     "DEFAULT_PROTOCOL",
     "DEFAULT_TIMEOUT",
+    "EngineContext",
     "EngineHandler",
     "Interface",
     "TTSExceptionError",
@@ -101,6 +102,20 @@ class EngineHandler:
     termination: Callable[[], Awaitable[None]]
 
 
+@dataclass(frozen=True)
+class EngineContext:
+    """Runtime context passed to each TTS engine at initialization.
+
+    Attributes:
+        audio_save_directory (Path): Directory where audio files are saved.
+        play_callback (Callable[[TTSParam], Awaitable[None]]):
+            Coroutine to enqueue a synthesized TTSParam for playback.
+    """
+
+    audio_save_directory: Path
+    play_callback: Callable[[TTSParam], Awaitable[None]]
+
+
 class Interface(ProcessMixin, ABC):
     """Base class for TTS engine interface
 
@@ -110,18 +125,15 @@ class Interface(ProcessMixin, ABC):
 
     Attributes:
         _registered_engines (dict[str, type[Interface]]): Dictionary of registered TTS engine classes
-        _play_callback (Callable[[TTSParam], Awaitable[None]]):
-            Callback function for audio playback
-        _base_directory (Path): Base directory for saving audio files
+        _context (EngineContext | None): Runtime context for audio directory and playback callback
     """
 
     _registered_engines: ClassVar[dict[str, type[Interface]]] = {}
-    _play_callback: ClassVar[Callable[[TTSParam], Awaitable[None]]]
-    _base_directory: ClassVar[Path | None] = None
 
     def __init__(self) -> None:
         self.process: asyncio.subprocess.Process | None = None
         self.__tts_config: _TTSConfig = _TTSConfig()
+        self._context: EngineContext | None = None
 
     async def async_init(self, _param: UserTypeInfo) -> None:
         """Asynchronous initialization process (override if necessary)
@@ -139,48 +151,19 @@ class Interface(ProcessMixin, ABC):
 
     @property
     def audio_save_directory(self) -> Path:
-        """Get the base directory for saving audio files"""
-        if Interface._base_directory is None:
-            msg = "Base directory is not set"
+        """Get the base directory for saving audio files."""
+        if self._context is None:
+            msg = "Engine context is not initialized. Call initialize_engine() first."
             raise RuntimeError(msg)
-        return Interface._base_directory
-
-    @audio_save_directory.setter
-    def audio_save_directory(self, path: Path | None) -> None:
-        """Set the base directory for saving audio files (can only be set once)"""
-        if path is None or not isinstance(path, Path):
-            msg = f"Expected 'path' to be of type Path, got {type(path)}"
-            raise TypeError(msg)
-
-        if not path.is_dir():
-            msg = f"'{path}' is not a directory"
-            raise ValueError(msg)
-
-        if Interface._base_directory is not None:
-            msg = "'base_directory' is already set and cannot be changed"
-            raise RuntimeError(msg)
-
-        Interface._base_directory = path
-        logger.debug("Base directory set to: %s", path)
+        return self._context.audio_save_directory
 
     @property
     def play_callback(self) -> Callable[[TTSParam], Awaitable[None]]:
-        """Get the audio playback callback function"""
-        if not hasattr(Interface, "_play_callback"):
-            msg = "Play callback is not set"
+        """Get the audio playback callback function."""
+        if self._context is None:
+            msg = "Engine context is not initialized. Call initialize_engine() first."
             raise RuntimeError(msg)
-        return Interface._play_callback
-
-    @play_callback.setter
-    def play_callback(self, callback: Callable[[TTSParam], Awaitable[None]]) -> None:
-        """Set the audio playback callback function (can only be set once)"""
-        if not callable(callback):
-            msg = "Play callback must be a callable"
-            raise TypeError(msg)
-        if hasattr(Interface, "_play_callback"):
-            msg = "Play callback is already set and cannot be changed"
-            raise RuntimeError(msg)
-        Interface._play_callback = callback
+        return self._context.play_callback
 
     @property
     def handler(self) -> EngineHandler:
@@ -224,19 +207,21 @@ class Interface(ProcessMixin, ABC):
         # Therefore '__init_subclass__' must be used.
 
     @abstractmethod
-    def initialize_engine(self, tts_engine: TTSEngine) -> bool:
-        """Initialize the TTS engine with the given configuration
+    def initialize_engine(self, tts_engine: TTSEngine, context: EngineContext) -> bool:
+        """Initialize the TTS engine with the given configuration and runtime context.
 
         This method is called when the TTS engine is started.
         It reads the configuration from the TTSEngine model and sets up the TTS engine accordingly.
         This method must be implemented by subclasses.
 
         Args:
-            tts_engine (TTSEngine): Configuration for the TTS engine
+            tts_engine (TTSEngine): Configuration for the TTS engine.
+            context (EngineContext): Runtime context containing audio directory and playback callback.
         Returns:
-            bool: True if initialization is successful, False otherwise
+            bool: True if initialization is successful, False otherwise.
         """
         self.__tts_config = _TTSConfig.from_config(tts_engine)
+        self._context = context
         return True
 
     @property
@@ -355,14 +340,14 @@ class Interface(ProcessMixin, ABC):
             raise TTSFileCreateError(msg) from err
 
     async def play(self, ttsparam: TTSParam) -> None:
-        """Add audio playback request to the playback queue
+        """Add audio playback request to the playback queue.
 
         Args:
-            ttsparam (TTSParam): Parameters required for audio generation (only the file path is actually used)
+            ttsparam (TTSParam): Parameters required for audio generation.
         Raises:
-            RuntimeError: If the play callback is not set
+            RuntimeError: If the engine context is not initialized.
         """
-        if not hasattr(Interface, "play_callback"):
-            msg = "Play callback is not set"
+        if self._context is None:
+            msg = "Engine context is not initialized. Call initialize_engine() first."
             raise RuntimeError(msg)
-        await self.play_callback(ttsparam)
+        await self._context.play_callback(ttsparam)

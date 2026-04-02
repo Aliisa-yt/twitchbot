@@ -10,6 +10,7 @@ import pytest
 
 from core.tts.engines import voicevox as voicevox_module
 from core.tts.engines import vv_core as vv_core_module
+from core.tts.tts_interface import EngineContext
 from handlers.async_comm import AsyncCommError
 from models.voice_models import TTSInfo, TTSParam, UserTypeInfo, Voice
 from models.voicevox_models import AudioQueryType, Speaker
@@ -42,7 +43,8 @@ def engine(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> voicevox_module.V
         AUTO_STARTUP=False,
         EXECUTE_PATH=str(tmp_path / "voicevox_engine.exe"),
     )
-    voicevox.initialize_engine(cast("voicevox_module.TTSEngine", config))
+    context = EngineContext(audio_save_directory=tmp_path, play_callback=AsyncMock())
+    voicevox.initialize_engine(cast("voicevox_module.TTSEngine", config), context)
     return voicevox
 
 

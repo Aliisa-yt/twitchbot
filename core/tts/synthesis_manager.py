@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import inspect
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 # The TTS engine is invoked in such a way that it is recognised as an unused import.
@@ -21,7 +22,7 @@ from core.tts.engines import (  # noqa: F401
     GoogleText2Speech,
     VoiceVox,
 )
-from core.tts.tts_interface import EngineHandler, Interface
+from core.tts.tts_interface import EngineContext, EngineHandler, Interface
 from models.config_models import TTSEngine
 from models.voice_models import TTSParam, UserTypeInfo
 from utils.excludable_queue import ExcludableQueue
@@ -98,7 +99,17 @@ class SynthesisManager:
             # This allows for flexibility in engine configuration.
             tts_engine: TTSEngine = getattr(self.config, engine_name.upper(), TTSEngine())
 
-            if not engine_instance.initialize_engine(tts_engine):
+            tmp_dir = self.config.GENERAL.TMP_DIR
+            if tmp_dir is None:
+                logger.error("TMP_DIR is not configured; failed to initialize TTS engine '%s'", engine_name)
+                continue
+
+            context = EngineContext(
+                audio_save_directory=tmp_dir if isinstance(tmp_dir, Path) else Path(tmp_dir),
+                play_callback=self.add_to_playback_queue,
+            )
+
+            if not engine_instance.initialize_engine(tts_engine, context):
                 # If the engine initialization fails, log the error and continue to the next engine.
                 logger.error("Failed to initialize TTS engine '%s'", engine_name)
                 continue

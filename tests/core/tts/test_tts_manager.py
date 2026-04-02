@@ -7,17 +7,12 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from core.tts.tts_interface import Interface
 from core.tts.tts_manager import TTSManager
 from models.config_models import Config
 from utils.excludable_queue import ExcludableQueue
 
 if TYPE_CHECKING:
-    from collections.abc import Awaitable, Callable
-    from pathlib import Path
-
     from config.loader import Config
-    from models.voice_models import TTSParam
 
 
 def _make_config(tmp_dir: str = "tmp") -> Config:
@@ -33,8 +28,6 @@ def _make_config(tmp_dir: str = "tmp") -> Config:
 
 def test_init_sets_managers_and_interface_hooks() -> None:
     config: Config = _make_config("tmp_dir")
-    prev_callback: Callable[[TTSParam], Awaitable[None]] | None = getattr(Interface, "_play_callback", None)
-    prev_dir: Path | None = getattr(Interface, "_base_directory", None)
 
     with (
         patch("core.tts.tts_manager.ParameterManager") as param_cls,
@@ -61,14 +54,6 @@ def test_init_sets_managers_and_interface_hooks() -> None:
         playback_cls.assert_called_once_with(
             config, manager.file_manager, manager.playback_queue, manager.task_terminate_event
         )
-
-        assert Interface.play_callback is synth_inst.add_to_playback_queue
-        assert Interface.audio_save_directory == config.GENERAL.TMP_DIR
-
-    if prev_callback is not None:
-        Interface.play_callback = prev_callback
-    if prev_dir is not None:
-        Interface.audio_save_directory = prev_dir
 
 
 @pytest.mark.asyncio
