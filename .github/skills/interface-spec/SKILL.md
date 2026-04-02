@@ -19,7 +19,7 @@ interface クラス仕様を横断的に扱う実装ガイドです。
   - エンジン属性（`EngineAttributes`）を保持し、利用側が機能フラグを参照できる。
 - `Interface`（TTS）
   - TTS エンジン実装の共通契約（初期化、合成、再生連携、外部プロセス起動/終了）を定義する。
-  - 登録済みエンジン管理、保存先ディレクトリ、再生コールバックをクラス変数で共有する。
+  - 登録済みエンジン管理に加え、`EngineContext` を通じた実行時コンテキスト（保存先ディレクトリ、再生コールバック）を扱う。
 
 ## 2. 登録規約（`__init_subclass__`）
 
@@ -51,7 +51,7 @@ interface クラス仕様を横断的に扱う実装ガイドです。
 ### TTS (`Interface`)
 
 - `fetch_engine_name`（staticmethod）
-- `initialize_engine(tts_engine)`
+- `initialize_engine(tts_engine, context: EngineContext)`
 - `speech_synthesis(ttsparam)`
 
 ## 4. データモデル仕様
@@ -79,8 +79,8 @@ interface クラス仕様を横断的に扱う実装ガイドです。
 
 ## 6. TTS interface 固有の運用注意
 
-- `audio_save_directory` と `play_callback` は **一度だけ設定可能**。
-  - 再設定しようとすると `RuntimeError` になる。
+- `audio_save_directory` と `play_callback` は `EngineContext` 経由で `initialize_engine()` 時に設定される。
+- `initialize_engine()` 実行前に `audio_save_directory` / `play_callback` / `play()` を参照した場合は `RuntimeError` を送出する。
 - `create_audio_filename()` は `SUPPORTED_FORMATS` 以外の拡張子を拒否する。
 - `save_audio_file()` は `bytes | BytesIO` のみ受け付ける。
 - `linkedstartup` 有効時の `_execute()` / `_kill()` は外部プロセス管理を担う。
@@ -91,7 +91,7 @@ interface クラス仕様を横断的に扱う実装ガイドです。
 - サブクラス定義時の自動登録で重複名が `ValueError` になること。
 - 空名エンジンが登録対象外として扱われること（STT/翻訳）。
 - 抽象メソッド未実装クラスが実体化できないこと。
-- TTSの one-shot 設定（保存先/再生コールバック）が再設定時に失敗すること。
+- TTSでコンテキスト未設定時に `RuntimeError` が送出されること。
 - manager 側呼び出し経路で戻り型/例外契約が崩れていないこと。
 
 ## 8. 実装時チェックリスト
@@ -100,7 +100,7 @@ interface クラス仕様を横断的に扱う実装ガイドです。
 2. 抽象メソッドの戻り型・非同期同期の契約を守っているか。
 3. 例外を基底例外に正しく寄せているか。
 4. 初期化失敗時に部分状態（クラス変数やプロセス参照）が残らないか。
-5. TTS でクラス変数の one-shot 制約（保存先/再生コールバック）を破っていないか。
+5. TTS で `initialize_engine()` に `EngineContext` を渡し、実行時コンテキスト未設定を残していないか。
 
 ## 9. 拡張時の推奨手順
 

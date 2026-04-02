@@ -25,7 +25,7 @@ keywords: [tts-manager, synthesis-queue, playback-queue, file-cleanup, backgroun
   - `tts_processing_task`
   - `playback_queue_processor`
   - `audio_file_cleanup_task`
-- TTSエンジン登録は `Interface` の登録情報と保存先設定を使う。
+- TTSエンジン登録は `Interface` の登録情報を使い、`EngineContext` は `SynthesisManager._create_handler_map()` で生成して各エンジンへ渡す。
 
 ## 3. 終了処理
 

@@ -12,7 +12,7 @@ keywords: tts-engine, ttsinterface, exception-mapping, parameter-spec
 
 - すべてのエンジンは `Interface` を実装し、`fetch_engine_name()` で一意名を返す。
 - `Interface.__init_subclass__()` により、エンジンクラスは自動登録される。
-- `initialize_engine()` は必ず `super().initialize_engine(tts_engine)` を呼び、`SERVER/TIMEOUT/EARLY_SPEECH/AUTO_STARTUP/EXECUTE_PATH` を `_TTSConfig` に反映する。
+- `initialize_engine()` は必ず `super().initialize_engine(tts_engine, context)` を呼び、`SERVER/TIMEOUT/EARLY_SPEECH/AUTO_STARTUP/EXECUTE_PATH` を `_TTSConfig` に反映する。
 - `speech_synthesis()` の責務は「音声生成」+「必要なら `ttsparam.filepath` 設定」+「必要なら `play()` 呼び出し」。
 - ファイル生成型エンジンは `create_audio_filename()` と `save_audio_file()` を使用し、フォーマット制約と例外正規化を `Interface` 側へ委譲する。
 - `linkedstartup=True` の場合、`handler.execute` / `handler.termination` 経由で外部プロセス起動・停止が行われる。
@@ -24,12 +24,12 @@ keywords: tts-engine, ttsinterface, exception-mapping, parameter-spec
 	- `VVCore` の実装は空文字（抽象基底用途）であり、実運用クラスは必ずオーバーライドする。
 - `create_audio_filename(prefix=None, suffix="wav")`:
 	- `suffix` は `wav`/`mp3` のみ対応。未対応は `TTSNotSupportedError`。
-	- 保存先は `Interface.audio_save_directory`（`TTSManager` 初期化時に一度だけ設定）。
+	- 保存先は `EngineContext.audio_save_directory`（`core/tts/tts_interface.py` で定義）。
 - `save_audio_file(filepath, data)`:
 	- `bytes` または `BytesIO` のみ受理。
 	- 既存ファイルは `TTSFileExistsError`、作成失敗は `TTSFileCreateError` に正規化。
 - `play(ttsparam)`:
-	- `Interface.play_callback` が設定済みであることを前提に、再生キューへ連携する。
+	- `EngineContext.play_callback` が `initialize_engine()` で設定済みであることを前提に、再生キューへ連携する。
 - `_TTSConfig`:
 	- `SERVER` は `http(s)://host:port` を許容し、ポート範囲は `49152-65535`。
 	- `TIMEOUT<=0` や不正値はデフォルト `10.0` 秒へフォールバック。
@@ -129,8 +129,7 @@ keywords: tts-engine, ttsinterface, exception-mapping, parameter-spec
 ## 5. `TTSManager` 連携時の重要点
 
 - エンジン選択は `Interface.get_registered()` の登録情報を基準に行われる。
-- `Interface.play_callback` は `SynthesisManager.add_to_playback_queue` が設定される前提。
-- `Interface.audio_save_directory` は一度だけ設定可能で、再設定は `RuntimeError`。
+- `EngineContext` は `SynthesisManager._create_handler_map()` で生成され、`play_callback` と `audio_save_directory` を各エンジンへ渡す。
 - ファイル生成型エンジンは `ttsparam.filepath` を必ず設定してから `play()` を呼ぶ。
 - 非ファイル型（BouyomiChan）は `filepath` を使わない設計で、再生経路が別であることを前提にする。
 
