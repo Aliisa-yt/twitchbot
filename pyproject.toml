@@ -136,3 +136,26 @@ exclude_lines = [
 
 [tool.coverage.html]
 directory = "htmlcov"
+
+[tool.pylance]
+exclude = [
+    "**/.*",
+    "**/.venv/**",
+    "**/site-packages/**",
+    "**/__pycache__/**",
+    "**/node_modules/**",
+    "**/dist/**",
+    "**/build/**",
+    "**/lib/**",
+]
+
+typeCheckingMode = "basic"
+
+reportUnusedImport = true
+reportUnusedVariable = true
+reportGeneralTypeIssues = true
+
+reportMissingImports = true
+reportDuplicateImport = true
+
+extraPaths = ["."]
