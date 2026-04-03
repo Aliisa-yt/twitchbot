@@ -46,19 +46,12 @@ class ChatEventsManager(ComponentBase):
     Attributes:
         depends (ClassVar[list[str]]): List of component dependencies.
 
-    Internal Attributes:
-        _message_queue (ExcludableQueue[ChatMessageDTO]): Queue for incoming chat messages to be processed.
-        _message_worker_task (asyncio.Task[None] | None): Background task for processing messages from the queue.
-        _spawned_tasks (set[asyncio.Task[None]]): Set of currently active tasks spawned for message processing.
-        _concurrency_sem (asyncio.Semaphore | None): Semaphore to limit concurrent message processing tasks.
-        _is_available (bool): Flag indicating whether the component is available for processing messages.
-
-    listens to the following TwitchIO events:
-        - event_message: Triggered when a new chat message is received.
-        - event_message_delete: Triggered when a chat message is deleted.
-        - event_chat_clear: Triggered when the chat box is cleared.
-        - event_chat_clear_user: Triggered when all messages from a specific user are deleted.
-        - event_safe_enqueue_message: Triggered when a message is enqueued via safe_dispatch.
+    Event Listeners:
+        event_message: Triggered when a new chat message is received.
+        event_message_delete: Triggered when a chat message is deleted.
+        event_chat_clear: Triggered when the chat box is cleared.
+        event_chat_clear_user: Triggered when all messages from a specific user are deleted.
+        event_safe_enqueue_message: Triggered when a message is enqueued via safe_dispatch.
     """
 
     depends: ClassVar[list[str]] = []

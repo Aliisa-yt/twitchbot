@@ -41,12 +41,12 @@ class STTManager:
     and provides methods to control the STT system (e.g., mute, set thresholds).
 
     Attributes:
-        _FIXED_SAMPLE_RATE (int): The fixed sample rate for recording (16000 Hz).
-        _FIXED_CHANNELS (int): The fixed number of audio channels for recording (1).
-        _TMP_DIR_REQUIRED_MSG (str): Error message when TMP_DIR configuration is missing.
-        enabled (bool): Indicates whether the STT manager is initialized and enabled.
+        config (Config): Application configuration object.
+
+    Properties:
+        enabled (bool): Indicates if the STT manager is initialized and active.
         recorder (STTRecorder | None): The STTRecorder instance if initialized, else None.
-        is_muted (bool): Indicates whether the STT input monitoring is currently muted.
+        is_muted (bool): Current mute state of the STT input monitoring.
     """
 
     _FIXED_SAMPLE_RATE: int = 16000

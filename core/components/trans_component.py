@@ -24,6 +24,14 @@ class TranslationServiceComponent(ComponentBase):
 
     Manages translation functionalities including initialization and teardown of translation services,
     as well as providing commands for translation engine management and usage statistics.
+
+    Attributes:
+        trans_manager (TransManager): The translation manager instance responsible for handling translation services.
+
+    Commands:
+        !te [engine]: Display or change the current translation engine. If no engine is specified,
+            the current engine is displayed (broadcaster only).
+        !trans_usage: Display the current translation usage statistics (broadcaster only).
     """
 
     depends: ClassVar[list[str]] = ["ChatEventsManager"]

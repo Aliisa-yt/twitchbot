@@ -33,9 +33,13 @@ class ProcessMixin:
     Must not be used standalone; combine with Interface.
     Assumes the concrete class (Interface) provides the following:
 
-    - ``process``: Set by Interface.__init__.
-    - ``linkedstartup``: Property on Interface.
-    - ``exec_path``: Property on Interface.
+    Attributes:
+        process (asyncio.subprocess.Process | None): The subprocess object for the TTS engine process,
+            or None if not running.
+
+    Properties:
+        linkedstartup (bool): Whether linked startup is enabled. Must be implemented by Interface.
+        exec_path (Path | None): The path to the executable to launch. Must be implemented by Interface.
     """
 
     # Type annotation only; the actual value is provided by the concrete class (Interface)

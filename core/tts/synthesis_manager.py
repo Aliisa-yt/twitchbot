@@ -52,6 +52,12 @@ class SynthesisManager:
     them with the speech playback queue.
     The class is also responsible for converting text to speech using the various
     TTS engines and queuing the resulting speech files for playback.
+
+    Attributes:
+        config (Config): The configuration object containing TTS settings.
+        voice_parameters (UserTypeInfo): User-specific voice parameters.
+        synthesis_queue (ExcludableQueue[TTSParam]): Queue for TTS synthesis requests.
+        playback_queue (ExcludableQueue[TTSParam]): Queue for audio playback requests.
     """
 
     def __init__(

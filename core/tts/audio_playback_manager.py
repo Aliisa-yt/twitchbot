@@ -120,6 +120,18 @@ class AudioPlaybackManager:
     It uses sounddevice for audio output and soundfile for reading audio files.
 
     Supported WAV formats: PCM_16, PCM_32, FLOAT
+
+    Attributes:
+        config (Config): Configuration object.
+        file_manager (TTSFileManager): File manager for handling audio files.
+        playback_queue (ExcludableQueue[TTSParam]): Queue for TTS parameters.
+        task_terminate_event (asyncio.Event): Event to terminate the playback task.
+        cancel_playback_event (asyncio.Event): Event to signal cancellation of playback.
+        play_task (asyncio.Task[None] | None): Current playback task.
+        stream (sounddevice.OutputStream | None): Current audio output stream.
+
+    Properties:
+        is_playing (bool): Indicates whether audio is currently playing.
     """
 
     def __init__(
@@ -291,6 +303,7 @@ class AudioPlaybackManager:
         return True
 
     def _stop_stream_safely(self, stream: sounddevice.OutputStream) -> None:
+        """Stops the sounddevice stream safely, handling potential exceptions."""
         try:
             stream.stop()
         except (sounddevice.PortAudioError, OSError, RuntimeError) as err:
@@ -299,6 +312,7 @@ class AudioPlaybackManager:
             logger.warning("Unexpected error while stopping audio stream: %s", err)
 
     def _close_stream_safely(self, stream: sounddevice.OutputStream) -> None:
+        """Closes the sounddevice stream safely, handling potential exceptions."""
         try:
             stream.close()
         except (sounddevice.PortAudioError, OSError, RuntimeError) as err:

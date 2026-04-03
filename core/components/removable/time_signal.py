@@ -36,19 +36,18 @@ class TimeSignalManager(ComponentBase):
     Use the routine class to schedule events at regular intervals.
 
     Attributes:
-        depends (ClassVar[list[str]]): A list of component names that this component depends on.
+        No specific attributes are defined for this component.
 
-    Internal Attributes:
-        _time_signal (TimeSignal | None): The time signal configuration object.
-        _language (str): The language for time announcements.
-        _clock12 (bool): Whether to use 12-hour format.
-        _morning (str): The announcement for morning time.
-        _afternoon (str): The announcement for afternoon time.
-        _evening (str): The announcement for evening time.
-        _night (str): The announcement for night time.
-        _time_announcement (str): The announcement format for non-12-hour mode.
-        _is_text (bool): Whether to output text to the console.
-        _is_voice (bool): Whether to output speech.
+    Event Listeners:
+        No event listeners are currently defined for this component.
+
+    Commands:
+        No commands are currently defined for this component.
+
+    Routine Tasks:
+        event_time_signal: Executes at regular intervals to generate time announcements based on the current time and
+            configuration settings.
+        event_next_time: Executes after the completion of a time signal event to schedule the next event occurrence.
     """
 
     depends: ClassVar[list[str]] = ["TTSServiceComponent"]

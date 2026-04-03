@@ -26,6 +26,9 @@ class TTSFileManager:
 
     It uses a background worker task to delete files from a queue,
     ensuring that file deletion does not block other TTS operations.
+
+    Attributes:
+        deletion_queue (asyncio.Queue[Path]): Queue for file paths to be deleted.
     """
 
     def __init__(self, deletion_queue: asyncio.Queue[Path]) -> None:

@@ -46,6 +46,9 @@ class TranslationCacheManager:
         TTL_LANGUAGE_DETECTION_DAYS_DEFAULT (ClassVar[int]): Default TTL for language detection cache entries.
         MAX_ENTRIES_PER_ENGINE_DEFAULT (ClassVar[int]): Default maximum cache entries per engine.
         DB_SCHEMA_VERSION (ClassVar[int]): Cache database schema version.
+
+    Properties:
+        is_initialized (bool): Indicates whether the cache manager is initialized.
     """
 
     TTL_TRANSLATION_DAYS_DEFAULT: ClassVar[int] = 7

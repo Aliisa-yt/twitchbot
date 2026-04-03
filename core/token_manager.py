@@ -169,6 +169,7 @@ class TokenManager:
                     "user_id": self.bot_id,
                     "token": raw_tokens["access_token"],
                     "refresh": raw_tokens["refresh_token"],
+                    # There is no need to pass 'last_validated', as this is generated internally by TwitchIO.
                     # "last_validated": TimeUtils.convert_epoch_to_iso8601(
                     #     raw_tokens["obtained_at"], with_timezone=False
                     # ),

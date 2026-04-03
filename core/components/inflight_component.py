@@ -16,7 +16,18 @@ logger: logging.Logger = LoggerUtils.get_logger(__name__)
 
 
 class InFlightServiceComponent(ComponentBase):
-    """Component to manage in-flight translation requests and prevent duplicate processing."""
+    """Component to manage in-flight translation requests and prevent duplicate processing.
+
+    Attributes:
+        inflight_manager (InFlightManager): The in-flight manager instance responsible for handling in-flight
+            translation requests.
+
+    Event Listeners:
+        No event listeners are currently defined for this component.
+
+    Commands:
+        No commands are currently defined for this component.
+    """
 
     depends: ClassVar[list[str]] = ["TranslationServiceComponent", "CacheServiceComponent"]
 

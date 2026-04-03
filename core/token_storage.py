@@ -30,7 +30,9 @@ class TokenStorage:
 
     Attributes:
         db_path (Path): Path to the SQLite database file.
-        _connection (sqlite3.Connection | None): Active database connection.
+
+    Properties:
+        connection (sqlite3.Connection): Active database connection.
     """
 
     def __init__(self, db_path: str | Path) -> None:

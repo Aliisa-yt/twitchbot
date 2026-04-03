@@ -33,6 +33,21 @@ class TTSServiceComponent(ComponentBase):
 
     Manages TTS functionalities including initialization and teardown of TTS services,
     as well as providing commands for playback management.
+
+    Attributes:
+        tts_manager (TTSManager): The TTS manager instance responsible for handling TTS services.
+
+    Event Listeners:
+        event_safe_tts_message: Listens for safe TTS messages and enqueues them for synthesis and playback.
+        event_safe_time_signal_message: Listens for safe time signal messages and enqueues them for synthesis
+            and playback.
+        event_safe_tts_clear: Listens for safe TTS clear events and clears the playback queue, cancelling any
+            active playback.
+        event_safe_tts_voice_parameters: Listens for safe TTS voice parameter events and configures TTS voice
+            parameters based on message metadata.
+
+    Commands:
+        !skip: Skip the current TTS playback (broadcaster only).
     """
 
     depends: ClassVar[list[str]] = ["ChatEventsManager"]

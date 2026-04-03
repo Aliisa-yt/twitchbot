@@ -34,6 +34,15 @@ class STTServiceComponent(ComponentBase):
 
     This component manages the initialization and teardown of the STT service, processes STT results,
     and forwards valid transcriptions to the chat events manager for further handling (e.g., TTS processing).
+
+    Attributes:
+        stt_manager (STTManager): The STT manager instance responsible for handling STT services.
+
+    Event Listeners:
+        event_safe_stt_message: Listens for safe STT messages and forwards them to the chat events manager.
+
+    Commands:
+        No commands are currently defined for this component.
     """
 
     depends: ClassVar[list[str]] = ["ChatEventsManager", "TTSServiceComponent", "TranslationServiceComponent"]

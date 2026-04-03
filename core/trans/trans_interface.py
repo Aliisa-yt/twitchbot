@@ -103,6 +103,18 @@ class TransInterface(ABC):
     Attributes:
         registered (ClassVar[dict[str, type[TransInterface]]]): A class variable that holds a dictionary of
             registered translation engine classes, keyed by their distinguished names.
+
+    Properties:
+        engine_attributes (EngineAttributes): The attributes of the translation engine, set during initialization.
+        engine_name (str): The distinguished name of the translation engine, derived from engine_attributes.
+        has_dedicated_detection_api (bool): Whether the engine has a dedicated language detection API,
+            derived from engine_attributes.
+        has_quota_api (bool): Whether the engine provides an API to check character quota,
+            derived from engine_attributes.
+        count (int): The number of characters used. Must be implemented by subclasses.
+        limit (int): The maximum number of characters available. Must be implemented by subclasses.
+        limit_reached (bool): Whether the character limit has been reached. Must be implemented by subclasses.
+        is_available (bool): Whether the translation engine is available. Must be implemented by subclasses.
     """
 
     registered: ClassVar[dict[str, type[TransInterface]]] = {}

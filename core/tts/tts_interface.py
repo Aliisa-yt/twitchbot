@@ -124,8 +124,18 @@ class Interface(ProcessMixin, ABC):
     It also provides methods for managing TTS parameters and audio file handling.
 
     Attributes:
-        _registered_engines (dict[str, type[Interface]]): Dictionary of registered TTS engine classes
-        _context (EngineContext | None): Runtime context for audio directory and playback callback
+        process (asyncio.subprocess.Process | None): The subprocess running the TTS engine.
+
+    Properties:
+        protocol (protocol_type): The protocol used by the TTS engine (e.g., "http", "https").
+        host (str): The host address of the TTS engine.
+        port (int): The port number on which the TTS engine is listening.
+        url (str): The full URL of the TTS engine (constructed from protocol, host, and port).
+        address (tuple[str, int]): The host and port as a tuple.
+        timeout (float): The timeout duration for TTS engine operations.
+        earlyspeech (bool): Whether the TTS engine supports early speech playback.
+        linkedstartup (bool): Whether the TTS engine should be started with the main application.
+        exec_path (Path | None): The file path to the TTS engine executable, if applicable.
     """
 
     _registered_engines: ClassVar[dict[str, type[Interface]]] = {}

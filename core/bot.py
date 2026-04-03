@@ -67,6 +67,16 @@ class Bot(commands.Bot):
         config (Config): Bot configuration settings.
         shared_data (SharedData): Shared translation and TTS managers.
         attached_components (list[ComponentBase]): List of attached bot components.
+        send_message_cache (set[str]): Cache of recently sent message IDs to prevent echo handling.
+
+    Properties:
+        client_id (str): Twitch application client ID.
+        client_secret (str): Twitch application client secret.
+        bot_id (str): Twitch user ID of the bot account.
+        owner_id (str): Twitch user ID of the bot owner.
+        access_token (str): OAuth access token for Twitch API authentication.
+        refresh_token (str): OAuth refresh token for Twitch API authentication.
+        last_validated (str): Timestamp of when the token was last validated.
     """
 
     def __init__(
@@ -285,7 +295,10 @@ class Bot(commands.Bot):
         Args:
             payload (EventErrorPayload): The payload containing error information.
         """
-        logger.error("Event error: %s", payload.error)
+        # As the error messages within `payload.error` may contain tokens, the error messages themselves are not logged.
+        # Instead, the log records which listener caused the error.
+        listener_name: str = getattr(payload.listener, "__name__", str(payload.listener))
+        logger.error("Error occurred in listener: %s", listener_name)
 
     async def event_ready(self) -> None:
         """Called when the bot is ready and connected to Twitch.

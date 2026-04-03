@@ -101,7 +101,7 @@ class STTRecorder:
     the recorded segments for processing. The recorder supports the adjustment of dynamic thresholds,
     muting and the generation of synthetic segments.
 
-    Attributes:
+    Properties:
         input_device (str | int | None): Configured audio input device.
         sample_rate (int): Configured audio sample rate.
         channels (int): Configured audio channel count.

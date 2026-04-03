@@ -51,7 +51,12 @@ class TransManager:
     manages the active translation engine, and provides methods for language detection and translation.
 
     Attributes:
-        _trans_engine (ClassVar[list[str]]): List of available translation engine names.
+        config (Config): The configuration object containing translation engine settings.
+        cache_manager (TranslationCacheManager | None): Cache manager for translation caching.
+        inflight_manager (InFlightManager | None): In-flight manager for handling concurrent translation requests.
+
+    Properties:
+        current_engine_instance (TransInterface): The currently active translation engine instance.
     """
 
     # Class-level list of available engines; accessed via class methods for command handlers.

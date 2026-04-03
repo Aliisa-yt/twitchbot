@@ -29,6 +29,10 @@ class TextPreprocessor:
 
     Applies emoji-to-text conversion, alphabet-to-katakana transliteration
     (for Japanese), and character-count limiting.
+
+    Attributes:
+        config (Config): Configuration object containing TTS and translation settings.
+        emoji (EmojiHandler): Handler for converting emojis to text.
     """
 
     def __init__(self, config: Config) -> None:

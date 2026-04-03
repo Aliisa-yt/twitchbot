@@ -32,7 +32,21 @@ DELAYED_START_TIME: Final[float] = 20.0  # seconds
 
 
 class CacheServiceComponent(ComponentBase):
-    """Manage translation cache initialization, maintenance, and export."""
+    """Manage translation cache initialization, maintenance, and export.
+
+    Attributes:
+        cache_manager (TranslationCacheManager): The cache manager instance responsible for handling translation cache.
+
+    Event Listeners:
+        No event listeners are currently defined for this component.
+
+    Commands:
+        !cache_stats: Display translation cache statistics (broadcaster only).
+        !cache_export: Export detailed translation cache data to a file (broadcaster only).
+
+    Routine Tasks:
+        cache_maintenance: Perform routine maintenance on the translation cache at regular intervals.
+    """
 
     depends: ClassVar[list[str]] = ["TranslationServiceComponent"]
 

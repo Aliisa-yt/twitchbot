@@ -103,6 +103,11 @@ class StreamRedirector(io.StringIO):
 
     This class extends io.StringIO to capture text output and display it in a tkinter Text widget
     in real-time, while simultaneously writing to the original stdout/stderr stream.
+
+    Attributes:
+        text_widget (scrolledtext.ScrolledText): The tkinter Text widget to write to.
+        original_stream (Any): The original stdout/stderr stream to preserve.
+        max_lines (int): Maximum number of lines to keep in the buffer.
     """
 
     def __init__(self, text_widget: scrolledtext.ScrolledText, original_stream: Any, max_lines: int = 30) -> None:
@@ -182,6 +187,8 @@ class GUIApp:
         bot (Bot | None): The bot instance.
         running (bool): Whether the bot is currently running.
         gui_handler (GUILoggingHandler): The custom logging handler for GUI output.
+        stream_redirector (StreamRedirector | None): The stream redirector for stdout/stderr.
+        ema_alpha (float): The smoothing factor for STT level meter width update (EMA).
     """
 
     # Smoothing factor for STT level meter width update (EMA)

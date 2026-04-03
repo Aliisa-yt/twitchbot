@@ -20,6 +20,13 @@ logger: logging.Logger = LoggerUtils.get_logger(__name__)
 
 
 class ParameterManager:
+    """Manages TTS parameters based on user types and inline commands.
+
+    Attributes:
+        config (Config): The configuration object containing TTS settings.
+        voice_parameters (UserTypeInfo): The base voice parameters for different user types.
+    """
+
     def __init__(self, config: Config) -> None:
         self.config: Config = config
         self.voice_parameters: UserTypeInfo = config.VOICE_PARAMETERS

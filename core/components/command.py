@@ -27,6 +27,18 @@ class BotCommandManager(ComponentBase):
 
     This component provides basic commands for the bot, such as displaying version information
     and attaching/detaching components.
+
+    Attributes:
+        No specific attributes are defined for this component.
+
+    Event Listeners:
+        No event listeners are currently defined for this component.
+
+    Commands:
+        !ver: Display the current version of the bot.
+        !attach <component>: Attach a removable component to the bot (broadcaster only).
+        !detach <component>: Detach a removable component from the bot (broadcaster only).
+        !help [command]: Display available commands or help for a specific command.
     """
 
     depends: ClassVar[list[str]] = ["ChatEventsManager"]

@@ -30,6 +30,22 @@ class TTSManager:
     """TTSManager is responsible for managing the Text-to-Speech (TTS) system.
 
     It handles the initialization, synthesis, playback, and management of TTS parameters.
+
+    Attributes:
+        config (Config): The configuration object containing TTS settings.
+        parameter_manager (ParameterManager): Manager for TTS parameters and voice selection.
+        text_preprocessor (TextPreprocessor): Preprocessor for TTS text content.
+        synthesis_queue (ExcludableQueue[TTSParam]): Queue for TTS synthesis tasks.
+        playback_queue (ExcludableQueue[TTSParam]): Queue for TTS playback tasks.
+        deletion_queue (asyncio.Queue[Path]): Queue for audio file deletion tasks.
+        task_terminate_event (asyncio.Event): Event to signal termination of background tasks.
+        file_manager (TTSFileManager): Manager for TTS audio files.
+        synthesis_manager (SynthesisManager): Manager for TTS synthesis tasks.
+        playback_manager (AudioPlaybackManager): Manager for TTS audio playback.
+        background_tasks (set[asyncio.Task[None]]): Set of active background tasks.
+
+    Properties:
+        voice_parameters (UserTypeInfo): Property to access the current voice parameters.
     """
 
     def __init__(self, config: Config) -> None:
