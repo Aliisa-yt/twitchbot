@@ -27,7 +27,7 @@ google-cloud-translate==3.25.0
 googleapis-common-protos==1.74.0
 grpc-google-iam-v1==0.14.3
 grpcio==1.78.0
-grpcio-status==1.78.0
+grpcio-status==1.80.0
 gTTS==2.5.4
 h11==0.16.0
 httplib2==0.31.2
