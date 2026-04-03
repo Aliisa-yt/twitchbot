@@ -124,6 +124,6 @@ Get-Command python
 
 - runTests の代替: PowerShell で `python -m pytest <対象ファイル>` を直接実行する。例: `python -m pytest tests/core/tts/engines/test_voicevox.py -q`
 - tail の代替: PowerShell で `Get-Content -Wait -Tail` を使用する。例: `Get-Content -Path <ログファイル> -Wait -Tail 10`
-- シェル自体を PowerShell ではなく git bash に変更する。但し、別の問題が発生する可能性があるため注意すること。
+- シェル自体を PowerShell ではなく git bash に変更することも許可する。但し、別の問題が発生する可能性があるため注意すること。
   - git bash を使用する場合は、まず PowerShell で venv を有効化してから、git bash を起動してコマンドを実行する。
     例: `& .\.venv\Scripts\Activate.ps1; bash`
