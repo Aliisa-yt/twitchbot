@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 from typing import TYPE_CHECKING, ClassVar, Final, Literal
 
-from deepl import DeepLClient, Language, TextResult, Usage
+from deepl import DeepLClient, Language, TextResult, Usage, version
 from deepl.exceptions import (
     AuthorizationException,
     ConnectionException,
@@ -34,9 +34,14 @@ __all__: list[str] = ["DeeplTranslation"]
 
 logger: logging.Logger = LoggerUtils.get_logger(__name__)
 
+_EXPECTED_DEEPL_VERSION: Final[str] = "1.29.0"
+
 _DEEPL_DEFAULT_CHAR_LIMIT: Final[int] = 500000  # Default character limit for DeepL if not provided by the API
+
+_DEFAULT_SPANISH_CODE: Final[Literal["es", "es-419"]] = "es"
 _DEFAULT_ENGLISH_CODE: Final[Literal["en-US", "en-GB"]] = "en-US"
 _DEFAULT_PORTUGUESE_CODE: Final[Literal["pt-BR", "pt-PT"]] = "pt-PT"
+_DEFAULT_CHINESE_CODE: Final[Literal["zh", "zh-Hans", "zh-Hant"]] = "zh"
 
 
 class DeeplTranslation(TransInterface):
@@ -49,28 +54,35 @@ class DeeplTranslation(TransInterface):
         self.__usage: Usage | None = None
         self.__available: bool = False
         self._generate_langcode_mappings()
+        # If regional language codes have been added or changed in an update, it may not function correctly.
+        if version.VERSION != _EXPECTED_DEEPL_VERSION:
+            logger.warning(
+                "The version of the DeepL library is '%s', which may not be compatible with this implementation. "
+                "Please ensure you are using version '%s' for optimal performance.",
+                version.VERSION,
+                _EXPECTED_DEEPL_VERSION,
+            )
 
     @classmethod
-    def _generate_langcode_mappings(cls) -> None:
+    def _generate_langcode_mappings(cls) -> None:  # noqa: C901
         """Generate language code mappings for DeepL source and target codes.
 
         This method retrieves the mappings from language constants provided by the DeepL library and stores the
         values in the `_source_codes` and `_target_codes` class variables.
         It maps language codes (ISO639-1) to the DeepL format, ensuring the codes are capitalized according to
         DeepL requirements.
-        It also handles special processing for English, Portuguese, and Chinese, including region codes.
+        It also handles special processing for Spanish, English, Portuguese, and Chinese, including region codes.
 
-        Example:
-            For English:
-            - 'en' (generic) and 'en-US' / 'en-GB' variants are normalised to the single key 'en'.
-            - _target_codes["en"] is set to _DEFAULT_ENGLISH_CODE.upper() (currently "EN-US").
-
-            For Portuguese:
-            - 'pt' (generic) and 'pt-PT' / 'pt-BR' variants are normalised to the single key 'pt'.
-            - _target_codes["pt"] is set to _DEFAULT_PORTUGUESE_CODE.upper() (currently "PT-PT").
-
-            For Chinese:
-            - 'zh-CN' and 'zh-TW' both map to 'ZH' (DeepL uses a unified code for Chinese)
+        Special rules for language code handling:
+            - For Spanish, if `es` is detected as the source language,
+                it is mapped to the language set in `_DEFAULT_SPANISH_CODE` as the target language.
+            - For English, if `en` is detected as the source language,
+                it is mapped to the language set in `_DEFAULT_ENGLISH_CODE` as the target language.
+            - For Portuguese, if `pt` is detected as the source language,
+                it is mapped to the language set in `_DEFAULT_PORTUGUESE_CODE` as the target language.
+            - For Chinese, if `zh` is detected as the source language,
+                it is mapped to the language set in `_DEFAULT_CHINESE_CODE` as the target language,
+                and region-specific codes are also processed for both the source and target languages.
         """
 
         def _get_language_constants(target_cls: type) -> dict[str, str]:
@@ -101,16 +113,31 @@ class DeeplTranslation(TransInterface):
             cls._source_codes[code] = code.upper()
             cls._target_codes[code] = code.upper()
 
-        # Handle English and Portuguese with region codes explicitly, as DeepL uses a unified code for these languages.
+        # Handle special cases for Spanish to ensure they are included in the mappings.
+        if cls._source_codes.get("es") is not None:
+            cls._target_codes["es"] = _DEFAULT_SPANISH_CODE.upper()
+
+        # Handle special cases for English to ensure they are included in the mappings.
         if cls._source_codes.get("en") is not None:
             cls._target_codes["en"] = _DEFAULT_ENGLISH_CODE.upper()
+
+        # Handle special cases for Portuguese to ensure they are included in the mappings.
         if cls._source_codes.get("pt") is not None:
             cls._target_codes["pt"] = _DEFAULT_PORTUGUESE_CODE.upper()
-        # Handle Chinese variations explicitly (DeepL uses unified 'ZH')
+
+        # Handle special cases for Chinese to ensure they are included in the mappings.
         if cls._source_codes.get("zh") is not None:
-            for zh_variant in ("zh-CN", "zh-TW"):
-                cls._source_codes[zh_variant] = "ZH"
-                cls._target_codes[zh_variant] = "ZH"
+            cls._target_codes["zh"] = _DEFAULT_CHINESE_CODE.upper()
+
+            # Compatibility processing with the language codes used by Google.
+            code = language_constants.get("CHINESE_SIMPLIFIED", "").upper()
+            if code:
+                cls._source_codes["zh-CN"] = "zh".upper()
+                cls._target_codes["zh-CN"] = code
+            code = language_constants.get("CHINESE_TRADITIONAL", "").upper()
+            if code:
+                cls._source_codes["zh-TW"] = "zh".upper()
+                cls._target_codes["zh-TW"] = code
 
         logger.debug("Language code mapping generated for DeepL.")
 

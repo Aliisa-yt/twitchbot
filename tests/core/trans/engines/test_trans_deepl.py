@@ -20,20 +20,25 @@ if TYPE_CHECKING:
 
 
 class DummyLanguage:
-    EN: str = "en"
-    JA: str = "ja"
-    ZH: str = "zh"
-    EN_US: str = "en-US"
+    ENGLISH: str = "en"
+    JAPANESE: str = "ja"
+    CHINESE: str = "zh"
+    ENGLISH_AMERICAN: str = "en-US"
 
 
 class DummyLanguageExtended:
-    EN: str = "en"
-    EN_US: str = "en-US"
-    EN_GB: str = "en-GB"
-    PT: str = "pt"
-    PT_PT: str = "pt-PT"
-    PT_BR: str = "pt-BR"
-    JA: str = "ja"
+    SPANISH = "es"
+    SPANISH_LATIN_AMERICAN: str = "es-419"
+    ENGLISH: str = "en"
+    ENGLISH_AMERICAN: str = "en-US"
+    ENGLISH_BRITISH: str = "en-GB"
+    PORTUGUESE: str = "pt"
+    PORTUGUESE_EUROPEAN: str = "pt-PT"
+    PORTUGUESE_BRAZILIAN: str = "pt-BR"
+    CHINESE: str = "zh"
+    JAPANESE: str = "ja"
+    CHINESE_SIMPLIFIED = "zh-Hans"
+    CHINESE_TRADITIONAL = "zh-Hant"
 
 
 class DummyTextResult:
@@ -252,21 +257,33 @@ def test_target_codes_match_default_language_codes(monkeypatch: pytest.MonkeyPat
     trans_deepl_module.DeeplTranslation._generate_langcode_mappings()
 
     target_codes = trans_deepl_module.DeeplTranslation._target_codes
+    assert target_codes["es"].upper() == trans_deepl_module._DEFAULT_SPANISH_CODE.upper()
     assert target_codes["en"].upper() == trans_deepl_module._DEFAULT_ENGLISH_CODE.upper()
     assert target_codes["pt"].upper() == trans_deepl_module._DEFAULT_PORTUGUESE_CODE.upper()
+    assert target_codes["zh"].upper() == trans_deepl_module._DEFAULT_CHINESE_CODE.upper()
+    assert target_codes["zh-CN"].upper() == DummyLanguageExtended.CHINESE_SIMPLIFIED.upper()
+    assert target_codes["zh-TW"].upper() == DummyLanguageExtended.CHINESE_TRADITIONAL.upper()
 
 
 def test_target_codes_follow_changed_default_language_codes(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(trans_deepl_module, "Language", DummyLanguageExtended)
+    monkeypatch.setattr(trans_deepl_module, "_DEFAULT_SPANISH_CODE", "es-419")
     monkeypatch.setattr(trans_deepl_module, "_DEFAULT_ENGLISH_CODE", "en-GB")
     monkeypatch.setattr(trans_deepl_module, "_DEFAULT_PORTUGUESE_CODE", "pt-BR")
+    monkeypatch.setattr(trans_deepl_module, "_DEFAULT_CHINESE_CODE", "zh-Hans")
+
     trans_deepl_module.DeeplTranslation._source_codes = {}
     trans_deepl_module.DeeplTranslation._target_codes = {}
     trans_deepl_module.DeeplTranslation._generate_langcode_mappings()
 
     target_codes = trans_deepl_module.DeeplTranslation._target_codes
+    assert target_codes["es"].upper() == trans_deepl_module._DEFAULT_SPANISH_CODE.upper()
     assert target_codes["en"].upper() == trans_deepl_module._DEFAULT_ENGLISH_CODE.upper()
     assert target_codes["pt"].upper() == trans_deepl_module._DEFAULT_PORTUGUESE_CODE.upper()
+    assert target_codes["zh"].upper() == trans_deepl_module._DEFAULT_CHINESE_CODE.upper()
+    # Confirm that the _DEFAULT_CHINESE_CODE setting does not have any effect.
+    assert target_codes["zh-CN"].upper() == DummyLanguageExtended.CHINESE_SIMPLIFIED.upper()
+    assert target_codes["zh-TW"].upper() == DummyLanguageExtended.CHINESE_TRADITIONAL.upper()
 
 
 def test_unknown_regional_language_code_skipped(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -283,3 +300,81 @@ def test_unknown_regional_language_code_skipped(monkeypatch: pytest.MonkeyPatch)
     assert "FR" in trans_deepl_module.DeeplTranslation._target_codes.values()
     assert "FR-FR" not in trans_deepl_module.DeeplTranslation._target_codes.values()
     assert "FR-CA" not in trans_deepl_module.DeeplTranslation._target_codes.values()
+
+
+def test_init_does_not_warn_when_deepl_version_matches(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(trans_deepl_module.version, "VERSION", trans_deepl_module._EXPECTED_DEEPL_VERSION)
+
+    warning_calls: list[tuple[object, ...]] = []
+
+    def fake_warning(*args: object, **kwargs: object) -> None:
+        _ = kwargs
+        warning_calls.append(args)
+
+    monkeypatch.setattr(trans_deepl_module.logger, "warning", fake_warning)
+
+    trans_deepl_module.DeeplTranslation()
+
+    assert warning_calls == []
+
+
+def test_init_warns_when_expected_deepl_version_changed(monkeypatch: pytest.MonkeyPatch) -> None:
+    changed_expected_version = "0.1.2"
+    monkeypatch.setattr(trans_deepl_module, "_EXPECTED_DEEPL_VERSION", changed_expected_version)
+    monkeypatch.setattr(trans_deepl_module.version, "VERSION", "1.29.0")
+
+    warning_calls: list[tuple[object, ...]] = []
+
+    def fake_warning(*args: object, **kwargs: object) -> None:
+        _ = kwargs
+        warning_calls.append(args)
+
+    monkeypatch.setattr(trans_deepl_module.logger, "warning", fake_warning)
+
+    trans_deepl_module.DeeplTranslation()
+
+    assert len(warning_calls) == 1
+    warning_args = warning_calls[0]
+    warning_message_template = cast("str", warning_args[0])
+    warning_message = warning_message_template % warning_args[1:]
+    assert changed_expected_version in warning_message
+
+
+def test_generate_langcode_mappings_skips_on_second_call_with_debug_log(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Verify that the second call skips regeneration and emits exactly one debug log.
+    trans_deepl_module.DeeplTranslation._source_codes = {}
+    trans_deepl_module.DeeplTranslation._target_codes = {}
+
+    debug_calls: list[tuple[object, ...]] = []
+
+    def fake_debug(*args: object, **kwargs: object) -> None:
+        _ = kwargs
+        debug_calls.append(args)
+
+    monkeypatch.setattr(trans_deepl_module.logger, "debug", fake_debug)
+
+    trans_deepl_module.DeeplTranslation._generate_langcode_mappings()
+    debug_calls.clear()
+
+    trans_deepl_module.DeeplTranslation._generate_langcode_mappings()
+
+    assert len(debug_calls) == 1
+    skip_message = cast("str", debug_calls[0][0])
+    assert "already generated" in skip_message
+
+
+def test_generate_langcode_mappings_regenerates_when_only_source_codes_cleared() -> None:
+    # Verify that clearing only _source_codes triggers regeneration and produces the same result as the first run.
+    trans_deepl_module.DeeplTranslation._source_codes = {}
+    trans_deepl_module.DeeplTranslation._target_codes = {}
+    trans_deepl_module.DeeplTranslation._generate_langcode_mappings()
+
+    source_backup = dict(trans_deepl_module.DeeplTranslation._source_codes)
+    target_backup = dict(trans_deepl_module.DeeplTranslation._target_codes)
+
+    trans_deepl_module.DeeplTranslation._source_codes = {}
+
+    trans_deepl_module.DeeplTranslation._generate_langcode_mappings()
+
+    assert trans_deepl_module.DeeplTranslation._source_codes == source_backup
+    assert trans_deepl_module.DeeplTranslation._target_codes == target_backup
