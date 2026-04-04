@@ -1,6 +1,6 @@
 ---
-name: unit-test
-description: pytest/pytest-asyncio を前提とした単体テスト設計、実装、運用ルールのガイド
+name: test-code-generator
+description: pytest/pytest-asyncio を前提とした単体テスト設計、実装、運用ルールのガイドラインと規約
 keywords: [unit-test, pytest, pytest-asyncio, mocking, fixture, assertion, reproducibility, test-design]
 ---
 
@@ -16,6 +16,7 @@ keywords: [unit-test, pytest, pytest-asyncio, mocking, fixture, assertion, repro
 - 実行順序に依存させず、グローバル状態は各テストで初期化する。
 - 正常系・異常系・境界値をペアで用意し、片側だけの検証を避ける。
 - テストコードはドキュメントとしても機能するよう、命名と構造を整える。
+- 例外をキャッチして別の例外として再送出している箇所は、例外が正しく再送出されているかを検証する。
 
 ## 2. ファイル構造
 
@@ -49,6 +50,8 @@ keywords: [unit-test, pytest, pytest-asyncio, mocking, fixture, assertion, repro
 - 時刻・乱数・UUID・スレッド依存の挙動は固定化またはモック化して決定的にする。
 - ネットワークや実ファイルI/Oに依存する単体テストは作らない。
 - 警告を黙殺する前に、型整合（`cast` / プロトコル化）で局所的に解消できるかを優先する。
+- 特定の値がセットされないことを検証する場合は、正常に値がセットされるケースも同じテスト内にペアで用意する。
+  - セットされないだけの検証を行うと、正しく排除されているのか、そもそも値がセットされていないのかが不明瞭になるため、両方を用意することが望ましい。
 
 ## 7. アサーション指針
 

@@ -34,7 +34,7 @@
 - GUI デザイン: [.github/skills/gui-design/SKILL.md](skills/gui-design/SKILL.md)
 - コード生成ガイドライン: [.github/skills/code-generator/SKILL.md](skills/code-generator/SKILL.md)
 - 命名規則: [.github/skills/naming-rules/SKILL.md](skills/naming-rules/SKILL.md)
-- 単体テスト規約: [.github/skills/unit-test/SKILL.md](skills/unit-test/SKILL.md)
+- テストコード生成ガイドライン: [.github/skills/test-code-generator/SKILL.md](skills/test-code-generator/SKILL.md)
 - Windows 実行フロー: [.github/skills/windows-workflow/SKILL.md](skills/windows-workflow/SKILL.md)
 - レビュー: [.github/skills/code-review/SKILL.md](skills/code-review/SKILL.md)
 - リファクタリング方針: [.github/skills/refactoring-policy/SKILL.md](skills/refactoring-policy/SKILL.md)
@@ -76,7 +76,7 @@
 - 影響範囲に応じて `pytest tests/` もしくは対象テストを実行する。
 - ドキュメント変更を伴う場合は、関連する SKILL / `docs/` の記述整合を確認する。
 - Windows 実行手順に関わる変更では、`windows-workflow` SKILL との矛盾がないことを確認する。
-- テスト方針・作法の詳細確認が必要な場合は `unit-test` SKILL を参照する。
+- テスト方針・作法の詳細確認が必要な場合は `test-code-generator` SKILL を参照する。
 
 ## ドキュメント配置
 - ドキュメントは、プロジェクト全体で共通のルールや方針を記載する `copilot-instructions.md` と、ドメイン別の詳細仕様を記載する SKILL に分けて管理する。
