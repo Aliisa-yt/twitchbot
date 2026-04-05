@@ -4,6 +4,7 @@ __pycache__/
 *.log
 *.log.[0-9]*
 *.manifest
+requirements.in
 
 # User Configuration (keep example files)
 twitchbot.ini
