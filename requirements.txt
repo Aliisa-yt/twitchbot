@@ -111,7 +111,7 @@ iniconfig==2.3.0
     # via pytest
 librt==0.8.1
     # via mypy
-marshmallow==3.26.2
+marshmallow==4.3.0
     # via dataclasses-json
 mpmath==1.3.0
     # via sympy
