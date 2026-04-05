@@ -1,0 +1,80 @@
+# Coverage.py configuration file
+# https://coverage.readthedocs.io/en/latest/config.html
+
+[run]
+# Source code directories to measure
+source = 
+    core
+    handlers
+    utils
+    config
+    models
+
+# Files to omit from coverage measurement
+omit =
+    tests/*
+    */__pycache__/*
+    */.venv/*
+    */site-packages/*
+    twitchbot.py
+    */engines/__init__.py
+    */__init__.py
+
+# Enable branch coverage
+branch = True
+
+# Measure coverage in subprocesses
+parallel = False
+
+[report]
+# Precision for coverage percentage
+precision = 2
+
+# Show missing lines in the report
+show_missing = True
+
+# Skip fully covered files in the report (set to True to only show incomplete files)
+skip_covered = False
+
+# Lines to exclude from coverage
+exclude_lines =
+    # Default exclusions
+    pragma: no cover
+    
+    # Don't complain about missing debug-only code
+    def __repr__
+    def __str__
+    
+    # Don't complain if tests don't hit defensive assertion code
+    raise AssertionError
+    raise NotImplementedError
+    
+    # Don't complain if non-runnable code isn't run
+    if __name__ == .__main__.:
+    
+    # Don't complain about type checking blocks
+    if TYPE_CHECKING:
+    
+    # Don't complain about abstract methods
+    @(abc\.)?abstractmethod
+    
+    # Don't complain about protocol classes
+    class .*\bProtocol\):
+
+# Ignore errors from source code
+ignore_errors = False
+
+[html]
+# Directory for HTML report
+directory = htmlcov
+
+# Title for HTML report
+title = twitchbot Coverage Report
+
+[xml]
+# XML report output
+output = coverage.xml
+
+[json]
+# JSON report output
+output = coverage.json

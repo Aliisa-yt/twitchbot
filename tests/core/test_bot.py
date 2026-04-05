@@ -1,0 +1,685 @@
+"""Unit tests for core.bot module."""
+
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+from unittest.mock import AsyncMock, MagicMock, PropertyMock, call, patch
+
+import pytest
+from twitchio.ext.commands import ComponentLoadError
+
+from config.loader import Config
+from core.bot import Bot
+from core.components import ComponentBase, ComponentDescriptor
+
+if TYPE_CHECKING:
+    from collections.abc import AsyncGenerator
+
+
+class DummyComponent(ComponentBase):
+    """Minimal component for tests."""
+
+
+@pytest.fixture
+def mock_config() -> Config:
+    """Create a mock configuration object."""
+    config = MagicMock(spec=Config)
+    config.BOT = MagicMock()
+    config.BOT.COLOR = "blue"
+    config.BOT.LOGIN_MESSAGE = "Bot is ready"
+    config.BOT.DONT_LOGIN_MESSAGE = False
+    config.BOT.CONSOLE_OUTPUT = True
+    config.STT = MagicMock()
+    config.STT.ENABLED = False
+    config.STT.FORWARD_TO_TTS = None
+    return config
+
+
+@pytest.fixture
+def mock_token_manager() -> MagicMock:
+    """Create a mock token manager."""
+    tm = MagicMock()
+    tm.client_id = "test_client_id"
+    tm.client_secret = "test_client_secret"
+    tm.bot_id = "123456789"
+    tm.owner_id = "987654321"
+    tm.user_access_token = "test_access_token"
+    tm.refresh_token = "test_refresh_token"
+    return tm
+
+
+@pytest.fixture
+async def bot_instance(mock_config: Config, mock_token_manager: MagicMock) -> AsyncGenerator[Bot]:
+    """Create a Bot instance for testing."""
+    shared_data = MagicMock(spec_set=["async_init"])
+    shared_data.async_init = AsyncMock()
+    token_manager = mock_token_manager
+
+    with (
+        patch("core.bot.commands.Bot.__init__", return_value=None),
+        patch("core.bot.LoggerUtils.get_logger"),
+        patch("core.bot.SharedData", return_value=shared_data),
+    ):
+        bot = Bot(mock_config, token_manager)
+        bot.add_component = AsyncMock()
+        bot.remove_component = AsyncMock()
+        bot.add_token = AsyncMock()
+        bot.subscribe_websocket = AsyncMock()
+        bot.create_partialuser = MagicMock()
+        bot.shared_data = shared_data
+        yield bot
+
+
+class TestBotInitialization:
+    """Test Bot initialization."""
+
+    def test_bot_init_sets_properties(self, mock_config: Config) -> None:
+        """Test that Bot initialization sets required properties."""
+        shared_data = MagicMock()
+        token_manager = MagicMock()
+
+        with (
+            patch("core.bot.commands.Bot.__init__", return_value=None),
+            patch("core.bot.LoggerUtils.get_logger"),
+            patch("core.bot.SharedData", return_value=shared_data),
+        ):
+            bot = Bot(mock_config, token_manager)
+
+        assert bot.config == mock_config
+        assert bot._token_manager == token_manager
+        assert bot._closed is False
+        assert bot.attached_components == []
+
+    def test_bot_properties(self, bot_instance: Bot, mock_token_manager: MagicMock) -> None:
+        """Test that Bot properties return correct values."""
+        assert bot_instance.client_id == mock_token_manager.client_id
+        assert bot_instance.client_secret == mock_token_manager.client_secret
+        assert bot_instance.bot_id == mock_token_manager.bot_id
+        assert bot_instance.owner_id == mock_token_manager.owner_id
+        assert bot_instance.access_token == mock_token_manager.user_access_token
+        assert bot_instance.refresh_token == mock_token_manager.refresh_token
+
+
+class TestBotSetupHook:
+    """Test setup hook behavior."""
+
+    @pytest.mark.asyncio
+    async def test_setup_hook_attaches_components(self, bot_instance: Bot) -> None:
+        """Test that setup_hook attaches components from the priority list."""
+        shared_data = MagicMock()
+        shared_data.async_init = AsyncMock()
+        shared_data.stt_manager = MagicMock()
+        shared_data.stt_manager.set_level_event_callback = MagicMock()
+        bot_instance.shared_data = shared_data
+        attach_component = AsyncMock()
+        bot_instance.attach_component = attach_component
+        component_registry: dict[str, ComponentDescriptor] = {
+            "DummyComponent": ComponentDescriptor(
+                component=DummyComponent,
+                depends=[],
+                is_removable=False,
+            )
+        }
+        with (
+            patch.object(ComponentBase, "component_registry", component_registry),
+        ):
+            await bot_instance.setup_hook()
+
+        shared_data.async_init.assert_called_once()
+        assert attach_component.call_count == 1
+        attached = [call_args.args[0].__class__ for call_args in attach_component.call_args_list]
+        assert DummyComponent in attached
+
+    @pytest.mark.asyncio
+    async def test_setup_hook_validates_dependencies(self, bot_instance: Bot) -> None:
+        """Test that setup_hook validates dependencies before attaching components."""
+        shared_data = MagicMock()
+        shared_data.async_init = AsyncMock()
+        shared_data.stt_manager = MagicMock()
+        shared_data.stt_manager.set_level_event_callback = MagicMock()
+        bot_instance.shared_data = shared_data
+        validate_dependencies = MagicMock()
+        bot_instance.validate_dependencies = validate_dependencies
+
+        component_registry: dict[str, ComponentDescriptor] = {
+            "DummyComponent": ComponentDescriptor(
+                component=DummyComponent,
+                depends=[],
+                is_removable=False,
+            )
+        }
+        with (
+            patch.object(ComponentBase, "component_registry", component_registry),
+        ):
+            await bot_instance.setup_hook()
+
+        validate_dependencies.assert_called_once_with(component_registry)
+
+    @pytest.mark.asyncio
+    async def test_setup_hook_initializes_stt_when_enabled(self, bot_instance: Bot) -> None:
+        """Test that setup_hook initializes STT manager when STT is enabled."""
+        shared_data = MagicMock()
+        shared_data.async_init = AsyncMock()
+        shared_data.stt_manager = MagicMock()
+        shared_data.stt_manager.set_level_event_callback = MagicMock()
+        bot_instance.shared_data = shared_data
+        bot_instance.config.STT.ENABLED = True
+        bot_instance.attach_component = AsyncMock()
+
+        component_registry: dict[str, ComponentDescriptor] = {
+            "DummyComponent": ComponentDescriptor(
+                component=DummyComponent,
+                depends=[],
+                is_removable=False,
+            )
+        }
+        with patch.object(ComponentBase, "component_registry", component_registry):
+            await bot_instance.setup_hook()
+
+        shared_data.stt_manager.set_level_event_callback.assert_called_once_with(None)
+
+    @pytest.mark.asyncio
+    async def test_setup_hook_passes_stt_level_callback(self, bot_instance: Bot) -> None:
+        """Test that setup_hook forwards the STT level callback when configured."""
+        shared_data = MagicMock()
+        shared_data.async_init = AsyncMock()
+        shared_data.stt_manager = MagicMock()
+        shared_data.stt_manager.set_level_event_callback = MagicMock()
+        bot_instance.shared_data = shared_data
+        bot_instance.config.STT.ENABLED = True
+        bot_instance.attach_component = AsyncMock()
+
+        async def on_level(_event) -> None:
+            return None
+
+        bot_instance.set_stt_level_callback(on_level)
+
+        component_registry: dict[str, ComponentDescriptor] = {
+            "DummyComponent": ComponentDescriptor(
+                component=DummyComponent,
+                depends=[],
+                is_removable=False,
+            )
+        }
+        with patch.object(ComponentBase, "component_registry", component_registry):
+            await bot_instance.setup_hook()
+
+        shared_data.stt_manager.set_level_event_callback.assert_any_call(on_level)
+        assert shared_data.stt_manager.set_level_event_callback.call_count == 2
+
+
+class TestDependencyResolution:
+    """Test component dependency validation and ordering."""
+
+    def test_validate_dependencies_accepts_known(self, bot_instance: Bot) -> None:
+        """Test validate_dependencies with known components."""
+        deps: dict[str, ComponentDescriptor] = {
+            "A": ComponentDescriptor(component=DummyComponent, depends=[], is_removable=False),
+            "B": ComponentDescriptor(component=DummyComponent, depends=["A"], is_removable=False),
+        }
+
+        bot_instance.validate_dependencies(deps)
+
+    def test_validate_dependencies_rejects_unknown(self, bot_instance: Bot) -> None:
+        """Test validate_dependencies raises for missing components."""
+        deps: dict[str, ComponentDescriptor] = {
+            "A": ComponentDescriptor(component=DummyComponent, depends=["Missing"], is_removable=False)
+        }
+
+        with pytest.raises(RuntimeError, match="depends on unknown component"):
+            bot_instance.validate_dependencies(deps)
+
+    def test_resolve_dependencies_orders_components(self, bot_instance: Bot) -> None:
+        """Test resolve_dependencies returns a valid topological order."""
+        deps: dict[str, ComponentDescriptor] = {
+            "A": ComponentDescriptor(component=DummyComponent, depends=[], is_removable=False),
+            "B": ComponentDescriptor(component=DummyComponent, depends=["A"], is_removable=False),
+            "C": ComponentDescriptor(component=DummyComponent, depends=["B"], is_removable=False),
+        }
+
+        order: list[str] = bot_instance.resolve_dependencies(deps)
+
+        assert order == ["A", "B", "C"]
+
+    def test_resolve_dependencies_detects_cycle(self, bot_instance: Bot) -> None:
+        """Test resolve_dependencies raises for cycles."""
+        deps: dict[str, ComponentDescriptor] = {
+            "A": ComponentDescriptor(component=DummyComponent, depends=["B"], is_removable=False),
+            "B": ComponentDescriptor(component=DummyComponent, depends=["A"], is_removable=False),
+        }
+
+        with pytest.raises(RuntimeError, match="Circular dependency detected"):
+            bot_instance.resolve_dependencies(deps)
+
+
+class TestComponentAttachDetach:
+    """Test component attach and detach methods."""
+
+    @pytest.mark.asyncio
+    async def test_attach_component_success(self, bot_instance: Bot) -> None:
+        """Test attaching a component successfully."""
+        component = DummyComponent(bot_instance)
+        add_component = AsyncMock()
+        bot_instance.add_component = add_component
+
+        await bot_instance.attach_component(component)
+
+        add_component.assert_awaited_once_with(component)
+        assert component in bot_instance.attached_components
+
+    @pytest.mark.asyncio
+    async def test_attach_component_failure(self, bot_instance: Bot) -> None:
+        """Test attach_component handles load errors."""
+        component = DummyComponent(bot_instance)
+        add_component = AsyncMock()
+        add_component.side_effect = ComponentLoadError("duplicate")
+        bot_instance.add_component = add_component
+
+        await bot_instance.attach_component(component)
+
+        assert component not in bot_instance.attached_components
+
+    @pytest.mark.asyncio
+    async def test_detach_component_success(self, bot_instance: Bot) -> None:
+        """Test detaching a component successfully."""
+        component = DummyComponent(bot_instance)
+        bot_instance.attached_components.append(component)
+        remove_component = AsyncMock()
+        bot_instance.remove_component = remove_component
+
+        await bot_instance.detach_component(component)
+
+        remove_component.assert_awaited_once_with(component.__class__.__name__)
+        assert component not in bot_instance.attached_components
+
+    @pytest.mark.asyncio
+    async def test_detach_component_removes_on_error(self, bot_instance: Bot) -> None:
+        """Test detaching a component removes it even when unregister fails."""
+        component = DummyComponent(bot_instance)
+        bot_instance.attached_components.append(component)
+        remove_component = AsyncMock()
+        remove_component.side_effect = ValueError("missing")
+        bot_instance.remove_component = remove_component
+
+        await bot_instance.detach_component(component)
+
+        assert component not in bot_instance.attached_components
+
+
+class TestEventHandlers:
+    """Test event handler methods."""
+
+    @pytest.mark.asyncio
+    async def test_event_ready_sends_login_message(self, bot_instance: Bot) -> None:
+        """Test event_ready sends login message when enabled."""
+        bot_instance.config.BOT.DONT_LOGIN_MESSAGE = False
+        mock_chatter = AsyncMock()
+        mock_chatter.update_chatter_color = AsyncMock()
+        create_partialuser = MagicMock(return_value=mock_chatter)
+        subscribe_to_chat_events = AsyncMock()
+        send_chat_message = AsyncMock()
+        print_console_message = MagicMock()
+        bot_instance.create_partialuser = create_partialuser
+        bot_instance._subscribe_to_chat_events = subscribe_to_chat_events
+        bot_instance.send_chat_message = send_chat_message
+        bot_instance.print_console_message = print_console_message
+
+        await bot_instance.event_ready()
+
+        subscribe_to_chat_events.assert_called_once()
+        mock_chatter.update_chatter_color.assert_called_once_with(bot_instance.config.BOT.COLOR)
+        send_chat_message.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_event_ready_skips_login_message(self, bot_instance: Bot) -> None:
+        """Test event_ready skips login message when disabled."""
+        bot_instance.config.BOT.DONT_LOGIN_MESSAGE = True
+        mock_chatter = AsyncMock()
+        mock_chatter.update_chatter_color = AsyncMock()
+        create_partialuser = MagicMock(return_value=mock_chatter)
+        subscribe_to_chat_events = AsyncMock()
+        send_chat_message = AsyncMock()
+        print_console_message = MagicMock()
+        bot_instance.create_partialuser = create_partialuser
+        bot_instance._subscribe_to_chat_events = subscribe_to_chat_events
+        bot_instance.send_chat_message = send_chat_message
+        bot_instance.print_console_message = print_console_message
+
+        await bot_instance.event_ready()
+
+        send_chat_message.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_event_oauth_authorized_no_user_id(self, bot_instance: Bot) -> None:
+        """Test event_oauth_authorized with missing user ID."""
+        payload = MagicMock()
+        payload.access_token = "new_access_token"
+        payload.refresh_token = "new_refresh_token"
+        payload.user_id = None
+        add_token = AsyncMock()
+        subscribe_websocket = AsyncMock()
+        bot_instance.add_token = add_token
+        bot_instance.subscribe_websocket = subscribe_websocket
+
+        await bot_instance.event_oauth_authorized(payload)
+
+        add_token.assert_called_once_with("new_access_token", "new_refresh_token")
+        subscribe_websocket.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_event_oauth_authorized_bot_user_id(self, bot_instance: Bot) -> None:
+        """Test event_oauth_authorized with bot user ID."""
+        payload = MagicMock()
+        payload.access_token = "new_access_token"
+        payload.refresh_token = "new_refresh_token"
+        payload.user_id = bot_instance.bot_id
+        add_token = AsyncMock()
+        subscribe_websocket = AsyncMock()
+        bot_instance.add_token = add_token
+        bot_instance.subscribe_websocket = subscribe_websocket
+
+        await bot_instance.event_oauth_authorized(payload)
+
+        add_token.assert_called_once_with("new_access_token", "new_refresh_token")
+        subscribe_websocket.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_event_oauth_authorized_other_user_id(self, bot_instance: Bot) -> None:
+        """Test event_oauth_authorized subscribes for other user IDs."""
+        payload = MagicMock()
+        payload.access_token = "new_access_token"
+        payload.refresh_token = "new_refresh_token"
+        payload.user_id = "555555"
+        add_token = AsyncMock()
+        subscribe_websocket = AsyncMock()
+        bot_instance.add_token = add_token
+        bot_instance.subscribe_websocket = subscribe_websocket
+
+        await bot_instance.event_oauth_authorized(payload)
+
+        add_token.assert_called_once_with("new_access_token", "new_refresh_token")
+        subscribe_websocket.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_event_token_refreshed_skips_non_bot_user(self, bot_instance: Bot) -> None:
+        """Test token refresh skips persistence when token owner is not the bot."""
+        payload = MagicMock()
+        payload.token = "payload_access"
+        payload.refresh_token = "payload_refresh"
+
+        validation_payload = MagicMock()
+        validation_payload.user_id = "other_user"
+        validation_payload.expires_in = 3600
+        validation_payload.scopes = ["chat:read"]
+
+        add_token = AsyncMock(return_value=validation_payload)
+        bot_instance.add_token = add_token
+        bot_instance._token_manager.converted_save_tokens = MagicMock()
+
+        await bot_instance.event_token_refreshed(payload)
+
+        add_token.assert_awaited_once_with("payload_access", "payload_refresh")
+        bot_instance._token_manager.converted_save_tokens.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_event_token_refreshed_skips_when_last_validated_missing(self, bot_instance: Bot) -> None:
+        """Test token refresh skips persistence when last_validated is missing from TwitchIO token cache."""
+        payload = MagicMock()
+        payload.token = "payload_access"
+        payload.refresh_token = "payload_refresh"
+
+        validation_payload = MagicMock()
+        validation_payload.user_id = bot_instance.bot_id
+        validation_payload.expires_in = 3600
+        validation_payload.scopes = ["chat:read"]
+
+        add_token = AsyncMock(return_value=validation_payload)
+        bot_instance.add_token = add_token
+        bot_instance._token_manager.converted_save_tokens = MagicMock()
+
+        with patch.object(
+            Bot,
+            "tokens",
+            new_callable=PropertyMock,
+            return_value={bot_instance.bot_id: {"token": "actual_access", "refresh": "actual_refresh"}},
+        ):
+            await bot_instance.event_token_refreshed(payload)
+
+        add_token.assert_awaited_once_with("payload_access", "payload_refresh")
+        bot_instance._token_manager.converted_save_tokens.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_event_token_refreshed_saves_latest_bot_tokens(self, bot_instance: Bot) -> None:
+        """Test token refresh persists the latest token values for the bot account."""
+        payload = MagicMock()
+        payload.token = "payload_access"
+        payload.refresh_token = "payload_refresh"
+
+        validation_payload = MagicMock()
+        validation_payload.user_id = bot_instance.bot_id
+        validation_payload.expires_in = 7200
+        validation_payload.scopes = ["chat:read", "chat:edit"]
+
+        add_token = AsyncMock(return_value=validation_payload)
+        bot_instance.add_token = add_token
+        bot_instance._token_manager.converted_save_tokens = MagicMock()
+
+        with patch.object(
+            Bot,
+            "tokens",
+            new_callable=PropertyMock,
+            return_value={
+                bot_instance.bot_id: {
+                    "token": "actual_access",
+                    "refresh": "actual_refresh",
+                    "last_validated": "2026-03-30T00:00:00Z",
+                }
+            },
+        ):
+            await bot_instance.event_token_refreshed(payload)
+
+        add_token.assert_awaited_once_with("payload_access", "payload_refresh")
+        bot_instance._token_manager.converted_save_tokens.assert_called_once_with(
+            {
+                bot_instance.bot_id: {
+                    "token": "actual_access",
+                    "refresh": "actual_refresh",
+                    "expires_in": 7200,
+                    "last_validated": "2026-03-30T00:00:00Z",
+                    "scopes": ["chat:read", "chat:edit"],
+                }
+            }
+        )
+
+
+class TestTokenMethods:
+    """Test token load/save related behavior."""
+
+    def test_last_validated_delegates_to_token_manager(self, bot_instance: Bot, mock_token_manager: MagicMock) -> None:
+        """Test last_validated property delegates to token manager state."""
+        mock_token_manager.last_validated = "2026-03-30T12:00:00Z"
+
+        assert bot_instance.last_validated == "2026-03-30T12:00:00Z"
+
+    @pytest.mark.asyncio
+    async def test_load_tokens_success(self, bot_instance: Bot) -> None:
+        """Test load_tokens loads and adds the bot token successfully."""
+        bot_instance._token_manager.converted_load_tokens = MagicMock(
+            return_value={
+                bot_instance.bot_id: {
+                    "user_id": bot_instance.bot_id,
+                    "token": "stored_access",
+                    "refresh": "stored_refresh",
+                }
+            }
+        )
+        bot_instance.add_token = AsyncMock()
+
+        await bot_instance.load_tokens()
+
+        bot_instance.add_token.assert_awaited_once_with("stored_access", "stored_refresh")
+
+    @pytest.mark.asyncio
+    async def test_load_tokens_raises_when_empty(self, bot_instance: Bot) -> None:
+        """Test load_tokens raises RuntimeError when no tokens exist."""
+        bot_instance._token_manager.converted_load_tokens = MagicMock(return_value={})
+
+        with pytest.raises(RuntimeError, match="No tokens found in TokenManager"):
+            await bot_instance.load_tokens()
+
+    @pytest.mark.asyncio
+    async def test_load_tokens_raises_when_user_id_mismatch(self, bot_instance: Bot) -> None:
+        """Test load_tokens raises RuntimeError when loaded token user_id mismatches bot_id."""
+        bot_instance._token_manager.converted_load_tokens = MagicMock(
+            return_value={
+                bot_instance.bot_id: {
+                    "user_id": "different_bot_id",
+                    "token": "stored_access",
+                    "refresh": "stored_refresh",
+                }
+            }
+        )
+        bot_instance.add_token = AsyncMock()
+
+        with pytest.raises(RuntimeError, match="does not match expected bot_id"):
+            await bot_instance.load_tokens()
+
+        bot_instance.add_token.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_load_tokens_raises_when_required_key_missing(self, bot_instance: Bot) -> None:
+        """Test load_tokens raises RuntimeError when token data structure is invalid."""
+        bot_instance._token_manager.converted_load_tokens = MagicMock(
+            return_value={
+                bot_instance.bot_id: {
+                    "user_id": bot_instance.bot_id,
+                    "token": "stored_access",
+                }
+            }
+        )
+
+        with pytest.raises(RuntimeError, match="Invalid token data structure in TokenManager"):
+            await bot_instance.load_tokens()
+
+    @pytest.mark.asyncio
+    async def test_save_tokens_is_noop(self, bot_instance: Bot) -> None:
+        """Test save_tokens does not persist tokens by design."""
+        bot_instance._token_manager.converted_save_tokens = MagicMock()
+
+        await bot_instance.save_tokens()
+
+        bot_instance._token_manager.converted_save_tokens.assert_not_called()
+
+
+class TestSubscribeEvents:
+    """Test chat event subscription."""
+
+    @pytest.mark.asyncio
+    async def test_subscribe_to_chat_events(self, bot_instance: Bot) -> None:
+        """Test subscribing to chat events."""
+        add_token = AsyncMock()
+        subscribe_websocket = AsyncMock()
+        bot_instance.add_token = add_token
+        bot_instance.subscribe_websocket = subscribe_websocket
+
+        await bot_instance._subscribe_to_chat_events()
+
+        add_token.assert_called_once_with(bot_instance.access_token, bot_instance.refresh_token)
+        assert subscribe_websocket.call_count == 4
+
+
+class TestSendChatMessage:
+    """Test send_chat_message method."""
+
+    @pytest.mark.asyncio
+    async def test_send_chat_message_with_chatter(self, bot_instance: Bot) -> None:
+        """Test sending a message to a specific chatter."""
+        mock_chatter = AsyncMock()
+        mock_sent_message = MagicMock()
+        mock_sent_message.sent = True
+        mock_chatter.send_message = AsyncMock(return_value=mock_sent_message)
+
+        await bot_instance.send_chat_message("Test message", chatter=mock_chatter)
+
+        mock_chatter.send_message.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_send_chat_message_empty_content(self, bot_instance: Bot) -> None:
+        """Test that empty content is not sent."""
+        mock_chatter = AsyncMock()
+
+        await bot_instance.send_chat_message(None, chatter=mock_chatter)
+
+        mock_chatter.send_message.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_send_chat_message_no_chatter(self, bot_instance: Bot) -> None:
+        """Test handling failure to create partial user."""
+        create_partialuser = MagicMock(return_value=None)
+        pause_exit = MagicMock()
+        bot_instance.create_partialuser = create_partialuser
+        bot_instance.pause_exit = pause_exit
+
+        await bot_instance.send_chat_message("Test message")
+
+        pause_exit.assert_called_once()
+
+
+class TestPrintConsoleMessage:
+    """Test print_console_message method."""
+
+    def test_print_console_message_enabled(self, bot_instance: Bot, capsys) -> None:
+        """Test printing when console output is enabled."""
+        bot_instance.config.BOT.CONSOLE_OUTPUT = True
+
+        bot_instance.print_console_message("Test message")
+
+        captured = capsys.readouterr()
+        assert "Test message" in captured.out
+
+    def test_print_console_message_disabled(self, bot_instance: Bot, capsys) -> None:
+        """Test that console output is suppressed when disabled."""
+        bot_instance.config.BOT.CONSOLE_OUTPUT = False
+
+        bot_instance.print_console_message("Test message")
+
+        captured = capsys.readouterr()
+        assert captured.out == ""
+
+
+class TestBotClose:
+    """Test bot close behavior."""
+
+    @pytest.mark.asyncio
+    async def test_close_detaches_in_reverse_order(self, bot_instance: Bot) -> None:
+        """Test that close detaches components in reverse order."""
+        component_a = DummyComponent(bot_instance)
+        component_b = DummyComponent(bot_instance)
+        bot_instance.attached_components = [component_a, component_b]
+        detach_component = AsyncMock()
+        print_console_message = MagicMock()
+        bot_instance.detach_component = detach_component
+        bot_instance.print_console_message = print_console_message
+
+        with patch("core.bot.commands.Bot.close", new_callable=AsyncMock) as close_mock:
+            await bot_instance.close()
+
+        assert detach_component.call_args_list == [call(component_b), call(component_a)]
+        assert bot_instance._closed is True
+        close_mock.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_close_calls_stt_manager_close(self, bot_instance: Bot) -> None:
+        """Test that close does not directly invoke STT manager shutdown."""
+        shared_data = MagicMock()
+        shared_data.stt_manager = MagicMock()
+        shared_data.stt_manager.close = AsyncMock()
+        bot_instance.shared_data = shared_data
+        bot_instance.print_console_message = MagicMock()
+        bot_instance.detach_component = AsyncMock()
+        bot_instance.attached_components = []
+
+        with patch("core.bot.commands.Bot.close", new_callable=AsyncMock):
+            await bot_instance.close()
+
+        shared_data.stt_manager.close.assert_not_called()

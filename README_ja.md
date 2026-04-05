@@ -1,0 +1,99 @@
+# Twitchbot
+
+翻訳・TTS・STT・キャッシュ・GUI を備えたモジュール構成の Twitch チャットボットです。チャットイベントを購読し、メッセージ翻訳、読み上げ、必要に応じて音声認識結果の TTS 連携まで行えます。エントリーポイントは `src/twitchbot.py` で、設定、OAuth、各機能コンポーネントを統合します。
+
+## 機能モジュール
+- 翻訳モジュール: `google` / `deepl` / `google_cloud` の複数エンジンと言語判定フロー。
+- TTS モジュール: `CAST` によるロール別話者設定。対応エンジン: `gTTS`（Google TTS 無料版）、`棒読みちゃん`、`CeVIO AI`、`CeVIO Creative Studio 7`、`VOICEVOX`、`COEIROINK`（v1/v2）。
+- STT モジュール: `STT` セクションで有効化できる音声認識パイプライン（再試行・バックオフ・信頼度しきい値対応）。VAD は `level`（dBFS 閾値）と `silero_onnx`（Silero ONNX Runtime）の 2 モードを選択可能。
+- キャッシュモジュール: `CACHE` セクションで翻訳・言語判定キャッシュの TTL/件数上限を制御。キャッシュのエクスポートパスも設定可能。
+- GUI モジュール: ステータスバー・スクロールログ・STT レベルメーターを表示。STT 有効時は VAD 閾値スライダーとミュートボタンも表示。
+
+## セットアップ
+- Python 3.13 以上
+- 実行前に [Twitch Developers](https://dev.twitch.tv/) でアプリケーションを登録し、`CLIENT ID` と `CLIENT SECRET` を取得してください。登録手順はここでは説明しませんので、Twitch のドキュメントやセットアップガイドに従ってください。アプリ作成時には **OAuth Redirect URLs** に `http://localhost` を追加してください。
+- Twitch API 認証情報を環境変数として設定：
+  - `TWITCH_API_CLIENT_ID`
+  - `TWITCH_API_CLIENT_SECRET`
+- 依存関係をインストール: `pip install -r requirements.txt`
+- テンプレートから `twitchbot.ini` を準備：
+  1. `twitchbot.ini.example` を `twitchbot.ini` にコピー
+  2. `twitchbot.ini` を編集して、Twitch チャンネルオーナー名とボットアカウント名を設定
+  3. 必要に応じて他の設定をカスタマイズ（翻訳エンジン、TTS パラメータなど）
+- **Twitch にはボットアカウントでログインする**:
+  - OAuth トークンを取得する前に、ブラウザで Twitch にボットアカウントとしてログインしておいてください。
+  - ボットアカウント以外でログインしている場合は、一度ログアウトしてからボットアカウントで再度ログインしてください。
+  - ボット以外のアカウントでトークン取得を実行するとエラーメッセージが表示されます。その場合は、ボットアカウントで再ログイン後、再度実行してください。
+- OAuth トークンを取得：
+  - `python src/setup_tokens.py [--owner OWNER_NAME] [--bot BOT_NAME]` を実行
+    - `twitchbot.ini` にオーナー名とボット名が設定されている場合は、引数なしで `python src/setup_tokens.py` を実行しても構いません
+  - ブラウザで OAuth 認証が開き、トークンが `tokens.db` にキャッシュされます
+  - ボットの初回実行前に必要です。
+  - 一度認証済みでも `tokens.db` を削除してしまった場合や、ファイルの中身が壊れている場合は、実行時にエラーが表示されることがあります。その場合は、ボットアカウントでログインする所からやり直してください。
+
+## 実行
+
+### ローカル実行
+1) 上記の環境変数を設定します。
+2) まだ実行していない場合は `src/setup_tokens.py` を実行します（セットアップセクションを参照）。
+3) リポジトリのルートから実行: `python src/twitchbot.py [--owner OWNER_NAME] [--bot BOT_NAME] [--debug] [--gui|--no-gui]`
+   `twitchbot.ini` を設定済みであれば、引数なしで `python src/twitchbot.py` を実行しても構いません。
+   - `--owner OWNER_NAME`（オプション）: Twitch チャンネルオーナー名。`twitchbot.ini` の設定を上書きします
+   - `--bot BOT_NAME`（オプション）: ボットアカウント名。`twitchbot.ini` の設定を上書きします
+   - `-d`, `--debug`（オプション）: 詳細なログ出力を行うデバッグモードを有効にします
+   - `-g`, `--gui`（オプション）: GUI インターフェースで起動します（デフォルト）
+   - `--no-gui`（オプション）: コンソールのみのモードで起動します
+4) ボットはデフォルトで GUI モードで実行され、ステータスウィンドウが表示されます。コンソールのみのモードを使用するには `--no-gui` を指定してください。
+5) ボットを停止するには、`Ctrl+C`（コンソールモード）を押すか、GUI ウィンドウを閉じてください。
+
+### PyInstaller で実行ファイルをビルド
+`.spec` ファイルが提供されています。リポジトリのルートから EXE をビルドします：
+```powershell
+pyinstaller twitchbot.spec --clean
+```
+出力される実行ファイルは `dist/twitchbot/` ディレクトリに生成されます。
+
+## 設定
+
+詳細な設定項目については [CONFIGURATION_ja.md](docs/CONFIGURATION_ja.md) を参照してください。
+
+`twitchbot.ini` の主な設定セクション：
+- **[GENERAL], [TWITCH], [BOT]**: デバッグ動作、オーナー/BOT 情報、チャット出力動作。
+- **[TRANSLATION]**: 翻訳エンジン優先順位と言語ペア設定。
+- **[DICTIONARY]**: カタカナ変換・ローマ字変換用辞書。
+- **[TTS], [TTS_FORMAT], [CAST]**: 読み上げ有効条件、フォーマットテンプレート、ロール別話者設定。
+- **[STT]**: 音声認識エンジン（`google_cloud_stt` / `google_cloud_stt_v2`）、再試行・バックオフ設定、TTS 連携設定。
+- **[VAD]**: VAD モード（`level` / `silero_onnx`）、前後バッファ（ms）、最大セグメント時間。
+- **[LEVELS_VAD]**: レベルベース VAD の起動/停止しきい値（dBFS）。
+- **[SILERO_VAD]**: Silero ONNX VAD のモデルパス・検出しきい値・スレッド数。
+- **[CACHE]**: キャッシュ保持日数、エンジンごとの件数上限、エクスポートパス。
+- **[GUI]**: GUI メーター更新レート。
+- **[CEVIO_AI], [CEVIO_CS7], [BOUYOMICHAN], [VOICEVOX], [COEIROINK], [COEIROINK2]**: 各 TTS エンジンの接続・起動設定。
+- **[TIME_SIGNAL]**: 時報アナウンス設定。
+
+## 開発
+
+### テストの実行
+```powershell
+pytest -q
+```
+
+カバレッジレポートを生成する場合：
+```powershell
+coverage run -m pytest tests/ -v
+coverage report
+coverage html  # htmlcov/ に HTML レポートを生成
+```
+
+### リントと型チェック
+```powershell
+ruff check .
+ruff format .
+mypy .
+```
+
+すべての設定は [pyproject.toml](pyproject.toml) に記述されています。
+
+## ライセンス
+- コアプロジェクト: MIT License（[LICENSE](LICENSE) を参照）
+- バンドルされているアルファベットからカタカナへの変換辞書 [dic/bep-eng.dic](dic/bep-eng.dic) は [Bilingual Emacspeak Project](http://www.argv.org/bep/) 由来で、GPL v2 でライセンスされています（[LICENSE-GPL-v2](LICENSE-GPL-v2) を参照）
