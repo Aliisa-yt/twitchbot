@@ -163,11 +163,6 @@ class CacheServiceComponent(ComponentBase):
 
         try:
             output_path: Path = FileUtils.resolve_path(export_path)
-        # This exception will not be raised because `strict` is set to False.
-        # except FileNotFoundError:
-        #     msg = f"Invalid export path: {export_path}"
-        #     logger.error(msg)
-        #     return
         except RuntimeError as err:
             msg = f"Error resolving export path: {export_path} - {err}"
             logger.error(msg)

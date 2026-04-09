@@ -3,4 +3,4 @@
 This module defines the current version of the Twitchbot application.
 """
 
-VERSION = "1.8.3"
+VERSION = "1.8.4"

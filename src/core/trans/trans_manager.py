@@ -447,6 +447,7 @@ class TransManager:
         # Reuse translated text from detection if target language matches.
         if trans_info.translated_text and trans_info.tgt_lang == self.config.TRANSLATION.SECOND_LANGUAGE:
             logger.debug("Reusing previous translation, skipping process.")
+            await self.write_translation_cache(trans_info)
             return True
 
         if await self.fetch_cached_translation(trans_info):
