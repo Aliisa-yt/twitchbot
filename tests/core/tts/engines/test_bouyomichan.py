@@ -116,3 +116,59 @@ async def test_speech_synthesis_handles_socket_error(monkeypatch: pytest.MonkeyP
     assert instance.connected is False
     assert instance.sent is None
     assert instance.closed is True
+
+
+def test_check_voice_with_none_returns_zero() -> None:
+    command = bmc.BouyomiChanCommand()
+    assert command._check_voice(None) == 0
+
+
+def test_command_generation_talk_default_sentinels_pass_through() -> None:
+    # speed/tone/volume set to -1 (engine default sentinel): must NOT be clamped
+    voice = Voice(speed=-1, tone=-1, volume=-1)
+    tts_param: TTSParam = _make_tts_param(content="ok", voice=voice)
+
+    command = bmc.BouyomiChanCommand()
+    message: bytes = command.generation("talk", tts_param)
+
+    (_, speed, tone, volume, _, _, _) = struct.unpack("<HhhhHbI", message[:15])
+
+    assert speed == -1
+    assert tone == -1
+    assert volume == -1
+
+
+@pytest.mark.asyncio
+async def test_speech_synthesis_handles_bad_command_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Simulate BouyomiChanCommandError raised from generation()
+    # Reset class variable to isolate this test from previous socket tests
+    DummySocket.last_instance = None
+    monkeypatch.setattr(bmc, "AsyncSocket", DummySocket)
+    engine = bmc.BouyomiChanSocket()
+
+    def _raise_command_error(self, command: str, ttsparam: TTSParam) -> bytes:  # noqa: ARG001
+        raise bmc.BouyomiChanCommandError("bad command")
+
+    monkeypatch.setattr(bmc.BouyomiChanCommand, "generation", _raise_command_error)
+
+    tts_param: TTSParam = _make_tts_param(content="hello")
+
+    # Must not raise; error is logged and function returns early before any socket is created
+    await engine.speech_synthesis(tts_param)
+
+    assert DummySocket.last_instance is None
+
+
+@pytest.mark.asyncio
+async def test_speech_synthesis_never_calls_play(monkeypatch: pytest.MonkeyPatch) -> None:
+    from unittest.mock import AsyncMock
+
+    monkeypatch.setattr(bmc, "AsyncSocket", DummySocket)
+    engine = bmc.BouyomiChanSocket()
+    engine.play = AsyncMock()  # type: ignore[method-assign]
+
+    tts_param: TTSParam = _make_tts_param(content="hello", voice=Voice(cast="1"))
+
+    await engine.speech_synthesis(tts_param)
+
+    engine.play.assert_not_called()

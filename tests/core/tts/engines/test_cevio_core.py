@@ -204,3 +204,193 @@ def test_adjust_cevio_speed_caps_and_handles_short_text() -> None:
     engine = CevioCore(cevio_type="AI")
     assert engine._adjust_cevio_speed(10, 30) == 10
     assert engine._adjust_cevio_speed(50, 200) <= 60
+
+
+def test_adjust_cevio_speed_caps_at_60_for_long_content() -> None:
+    engine = CevioCore(cevio_type="AI")
+    # Even with very large content_length the result must not exceed 60
+    result = engine._adjust_cevio_speed(10, 10000)
+    assert result == 60
+
+
+def test_adjust_cevio_speed_content_length_31_gives_small_increment() -> None:
+    engine = CevioCore(cevio_type="AI")
+    base = 30
+    result = engine._adjust_cevio_speed(base, 31)
+    # Adjustment = int((31 - 30) ** 1.1 / 10.0) = int(1 / 10) = 0, so result equals base
+    assert result == base
+
+
+def test_connect_cevio_success_without_linkedstartup(monkeypatch: pytest.MonkeyPatch) -> None:
+    class DummyComError(Exception):
+        pass
+
+    engine = CevioCore(cevio_type="AI")
+    # Ensure linkedstartup is False (default)
+    assert not engine.linkedstartup
+
+    monkeypatch.setattr(cevio_core.platform, "system", lambda: "Windows")
+    monkeypatch.setattr(cevio_core, "com_error", DummyComError)
+    monkeypatch.setattr(pythoncom, "CoInitializeEx", MagicMock())
+    monkeypatch.setattr(pythoncom, "CoUninitialize", MagicMock())
+
+    fake_service = SimpleNamespace()
+    fake_talker_obj = SimpleNamespace()
+    dispatch_mock = MagicMock(side_effect=[fake_service, fake_talker_obj])
+    monkeypatch.setattr(cevio_core.win32com.client, "Dispatch", dispatch_mock)
+
+    result = engine.connect_cevio("AI")
+
+    assert result is True
+    assert engine.cevio is fake_service
+    assert engine.talker is fake_talker_obj
+    # StartHost must NOT be called since linkedstartup=False
+    assert dispatch_mock.call_count == 2
+
+
+def test_connect_cevio_talker_dispatch_failure(monkeypatch: pytest.MonkeyPatch) -> None:
+    class DummyComError(Exception):
+        pass
+
+    engine = CevioCore(cevio_type="AI")
+    monkeypatch.setattr(cevio_core.platform, "system", lambda: "Windows")
+    monkeypatch.setattr(cevio_core, "com_error", DummyComError)
+    init_mock = MagicMock()
+    uninit_mock = MagicMock()
+    monkeypatch.setattr(pythoncom, "CoInitializeEx", init_mock)
+    monkeypatch.setattr(pythoncom, "CoUninitialize", uninit_mock)
+
+    # First Dispatch (service) succeeds; second (talker) raises
+    dispatch_mock = MagicMock(side_effect=[SimpleNamespace(), DummyComError("talker failed")])
+    monkeypatch.setattr(cevio_core.win32com.client, "Dispatch", dispatch_mock)
+
+    result = engine.connect_cevio("AI")
+
+    assert result is False
+    uninit_mock.assert_called_once()
+
+
+def test_speech_synthesis_main_skips_when_host_not_started() -> None:
+    engine = CevioCore(cevio_type="AI")
+    engine.cevio = SimpleNamespace(IsHostStarted=False)
+    engine.talk_preset = {"alpha": SimpleNamespace()}
+
+    tts_info = TTSInfo(voice=Voice(cast="alpha"))
+    tts_param = TTSParam(content="hi", tts_info=tts_info)
+
+    engine._speech_synthesis_main(tts_param)
+
+    assert tts_param.filepath is None
+
+
+def test_speech_synthesis_main_skips_on_none_cast() -> None:
+    engine = CevioCore(cevio_type="AI")
+    engine.cevio = SimpleNamespace(IsHostStarted=True)
+    engine.talker = FakeTalker({})
+    engine.talk_preset = {}
+
+    tts_info = TTSInfo(voice=Voice(cast="none"))
+    tts_param = TTSParam(content="hello", tts_info=tts_info)
+
+    engine._speech_synthesis_main(tts_param)
+
+    assert tts_param.filepath is None
+
+
+def test_speech_synthesis_main_wave_file_generation_failure(monkeypatch: pytest.MonkeyPatch) -> None:
+    engine = CevioCore(cevio_type="AI")
+    engine.cevio = SimpleNamespace(IsHostStarted=True)
+
+    preset = Voice(cast="alpha", volume=50, tone=50, speed=30, alpha=50, intonation=50)
+    engine.talk_preset = {"alpha": preset}
+    talker = FakeTalker(engine.talk_preset)
+    talker.output_result = False  # Simulate OutputWaveToFile failure
+    engine.talker = talker
+
+    monkeypatch.setattr(engine, "create_audio_filename", lambda **_kwargs: Path("voice.wav"))
+
+    tts_info = TTSInfo(voice=Voice(cast="alpha"))
+    tts_param = TTSParam(content="hello", tts_info=tts_info)
+
+    engine._speech_synthesis_main(tts_param)
+
+    # filepath must remain None because wave file generation failed
+    assert tts_param.filepath is None
+
+
+def test_speech_synthesis_main_initializes_preset_when_empty(monkeypatch: pytest.MonkeyPatch) -> None:
+    engine = CevioCore(cevio_type="AI")
+    engine.cevio = SimpleNamespace(IsHostStarted=True)
+
+    preset = Voice(cast="alpha", volume=50, tone=50, speed=30, alpha=50, intonation=50)
+    talker = FakeTalker({"alpha": preset})
+    engine.talker = talker
+    engine.talk_preset = {}  # Initially empty to trigger _get_preset_parameters
+
+    get_preset_mock = MagicMock(return_value={"alpha": preset})
+    monkeypatch.setattr(engine, "_get_preset_parameters", get_preset_mock)
+    monkeypatch.setattr(engine, "create_audio_filename", lambda **_kwargs: Path("voice.wav"))
+
+    tts_info = TTSInfo(voice=Voice(cast="alpha"))
+    tts_param = TTSParam(content="hello", tts_info=tts_info)
+
+    engine._speech_synthesis_main(tts_param)
+
+    get_preset_mock.assert_called_once_with(engine.talker)
+    assert engine.talk_preset == {"alpha": preset}
+
+
+def test_speech_synthesis_main_no_speed_adjustment_for_short_content(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Speed is NOT adjusted when content length <= 30, regardless of earlyspeech."""
+    engine = CevioCore(cevio_type="AI")
+    engine.cevio = SimpleNamespace(IsHostStarted=True)
+    engine._Interface__tts_config.earlyspeech = True
+
+    preset = Voice(cast="alpha", volume=50, tone=50, speed=30, alpha=50, intonation=50)
+    engine.talk_preset = {"alpha": preset}
+    talker = FakeTalker(engine.talk_preset)
+    engine.talker = talker
+
+    adjust_mock = MagicMock()
+    monkeypatch.setattr(engine, "_adjust_cevio_speed", adjust_mock)
+    monkeypatch.setattr(engine, "create_audio_filename", lambda **_kwargs: Path("voice.wav"))
+
+    # Content is exactly 30 chars (boundary): no speed adjustment
+    tts_info = TTSInfo(voice=Voice(cast="alpha"))
+    tts_param = TTSParam(content="x" * 30, tts_info=tts_info)
+
+    engine._speech_synthesis_main(tts_param)
+
+    adjust_mock.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_close_calls_close_host_when_linkedstartup(monkeypatch: pytest.MonkeyPatch) -> None:
+    engine = CevioCore(cevio_type="AI")
+    engine._Interface__tts_config.linkedstartup = True
+
+    close_host_mock = MagicMock()
+    engine.cevio = SimpleNamespace(CloseHost=close_host_mock)
+    uninit_mock = MagicMock()
+    monkeypatch.setattr(pythoncom, "CoUninitialize", uninit_mock)
+
+    await engine.close()
+
+    close_host_mock.assert_called_once_with(0)
+    uninit_mock.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_close_does_not_call_close_host_without_linkedstartup(monkeypatch: pytest.MonkeyPatch) -> None:
+    engine = CevioCore(cevio_type="AI")
+    assert not engine.linkedstartup
+
+    close_host_mock = MagicMock()
+    engine.cevio = SimpleNamespace(CloseHost=close_host_mock)
+    uninit_mock = MagicMock()
+    monkeypatch.setattr(pythoncom, "CoUninitialize", uninit_mock)
+
+    await engine.close()
+
+    close_host_mock.assert_not_called()
+    uninit_mock.assert_called_once()

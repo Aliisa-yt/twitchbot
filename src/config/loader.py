@@ -10,11 +10,11 @@ import ast
 import configparser
 import re
 from configparser import ConfigParser
-from dataclasses import fields
+from dataclasses import dataclass, fields
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, ClassVar, cast
 
-from models.config_models import STT, VAD, Config, LevelsVAD, SileroVAD
+from models.config_models import Config
 from models.voice_models import TTSInfo, TTSInfoPerLanguage, UserTypeInfo, Voice
 from utils.logger_utils import LoggerUtils
 
@@ -75,6 +75,26 @@ CHAT_COMMAND_COLORS: list[str] = [
     "SpringGreen",
     "YellowGreen",
 ]
+
+
+@dataclass
+class _NumericRule:
+    """Numeric range validation rule."""
+
+    name: str
+    get_value: Callable[[], float]
+    min_value: float
+    max_value: float | None = None
+    condition: Callable[[], bool] | None = None
+
+
+@dataclass
+class _RequiredNotEmptyRule:
+    """Non-empty string validation rule."""
+
+    name: str
+    get_value: Callable[[], str]
+    condition: Callable[[], bool] | None = None
 
 
 class InternalError(Exception):
@@ -351,20 +371,27 @@ class ConfigLoader:
             self._validate_username("BOT", "BOT_NAME")
             self._inspect_defined_item("TRANSLATION", "ENGINE", ALLOWED_TRANSLATION_ENGINES)
             self._validate_color_setting("BOT", "COLOR")
-            self._validate_stt_settings()
+            self._apply_stt_validation_rules()
         except (NameError, SyntaxError, AttributeError, TypeError, ValueError) as err:
             msg: str = f"Invalid configuration value: {err}"
             raise ConfigFormatError(msg) from None
 
-    def _validate_stt_settings(self) -> None:
-        """Validate STT settings.
-
-        STT is optional. When disabled, relaxed validation is applied.
-        """
-        stt: STT = self.config.STT
-        if not stt.ENABLED:
+    def _apply_stt_validation_rules(self) -> None:
+        """Apply all STT/VAD validation rules when STT is enabled."""
+        if not self.config.STT.ENABLED:
             return
+        self._validate_stt_engine()
+        self._validate_vad_mode()
+        for rule in self._build_stt_validation_rules():
+            if rule.condition is not None and not rule.condition():
+                continue
+            self._apply_rule(rule)
+        if self.config.VAD.MODE == "level":
+            self._validate_level_vad_cross_field()
 
+    def _validate_stt_engine(self) -> None:
+        """Validate STT.ENGINE value."""
+        stt = self.config.STT
         if not stt.ENGINE:
             msg = "'STT.ENGINE' is required when STT is enabled."
             raise ConfigValueError(msg)
@@ -372,70 +399,69 @@ class ConfigLoader:
             msg = f"Unsupported value for 'STT.ENGINE': {stt.ENGINE}"
             raise ConfigValueError(msg)
 
-        if not stt.INPUT_DEVICE:
-            msg = "'STT.INPUT_DEVICE' must not be empty when STT is enabled."
-            raise ConfigValueError(msg)
-        if not stt.LANGUAGE:
-            msg = "'STT.LANGUAGE' must not be empty when STT is enabled."
-            raise ConfigValueError(msg)
-
-        self._validate_stt_numeric_range("STT.SAMPLE_RATE", stt.SAMPLE_RATE, min_value=8000)
-        self._validate_stt_numeric_range("STT.CHANNELS", stt.CHANNELS, min_value=1)
-        self._validate_vad_settings()
-
-        self._validate_stt_numeric_range("STT.RETRY_MAX", stt.RETRY_MAX, min_value=0)
-        self._validate_stt_numeric_range("STT.RETRY_BACKOFF_MS", stt.RETRY_BACKOFF_MS, min_value=0)
-
-    def _validate_vad_settings(self) -> None:
-        """Validate VAD settings used by STT segmentation."""
-        vad: VAD = self.config.VAD
-
-        self._validate_stt_numeric_range("VAD.PRE_BUFFER_MS", vad.PRE_BUFFER_MS, min_value=0)
-        self._validate_stt_numeric_range("VAD.POST_BUFFER_MS", vad.POST_BUFFER_MS, min_value=0)
-        self._validate_stt_numeric_range("VAD.MAX_SEGMENT_SEC", vad.MAX_SEGMENT_SEC, min_value=1)
+    def _validate_vad_mode(self) -> None:
+        """Validate VAD.MODE value."""
+        vad = self.config.VAD
         if vad.MODE not in ALLOWED_STT_VAD_MODES:
             msg = f"Unsupported value for 'VAD.MODE': {vad.MODE}"
             raise ConfigValueError(msg)
 
-        if vad.MODE == "level":
-            self._validate_level_vad_settings()
-        if vad.MODE == "silero_onnx":
-            self._validate_silero_vad_settings()
+    def _build_stt_validation_rules(self) -> list[_NumericRule | _RequiredNotEmptyRule]:
+        """Build the declarative validation rule list for all STT/VAD fields."""
+        stt = self.config.STT
+        vad = self.config.VAD
+        lvad = self.config.LEVELS_VAD
+        svad = self.config.SILERO_VAD
 
-    def _validate_level_vad_settings(self) -> None:
-        """Validate threshold settings for level-based VAD."""
-        levels_vad: LevelsVAD = self.config.LEVELS_VAD
+        def is_stt_enabled() -> bool:
+            return stt.ENABLED
 
-        self._validate_stt_numeric_range("LEVELS_VAD.START", levels_vad.START, min_value=-60.0, max_value=0.0)
-        self._validate_stt_numeric_range("LEVELS_VAD.STOP", levels_vad.STOP, min_value=-60.0, max_value=0.0)
+        def is_level_vad() -> bool:
+            return stt.ENABLED and vad.MODE == "level"
+
+        def is_silero_vad() -> bool:
+            return stt.ENABLED and vad.MODE == "silero_onnx"
+
+        return [
+            # STT
+            _NumericRule("STT.SAMPLE_RATE", lambda: stt.SAMPLE_RATE, 8000, condition=is_stt_enabled),
+            _NumericRule("STT.CHANNELS", lambda: stt.CHANNELS, 1, condition=is_stt_enabled),
+            _NumericRule("STT.RETRY_MAX", lambda: stt.RETRY_MAX, 0, condition=is_stt_enabled),
+            _NumericRule("STT.RETRY_BACKOFF_MS", lambda: stt.RETRY_BACKOFF_MS, 0, condition=is_stt_enabled),
+            _RequiredNotEmptyRule("STT.INPUT_DEVICE", lambda: stt.INPUT_DEVICE, condition=is_stt_enabled),
+            _RequiredNotEmptyRule("STT.LANGUAGE", lambda: stt.LANGUAGE, condition=is_stt_enabled),
+            # VAD
+            _NumericRule("VAD.PRE_BUFFER_MS", lambda: vad.PRE_BUFFER_MS, 0, condition=is_stt_enabled),
+            _NumericRule("VAD.POST_BUFFER_MS", lambda: vad.POST_BUFFER_MS, 0, condition=is_stt_enabled),
+            _NumericRule("VAD.MAX_SEGMENT_SEC", lambda: vad.MAX_SEGMENT_SEC, 1, condition=is_stt_enabled),
+            # LEVELS_VAD (level mode only)
+            _NumericRule("LEVELS_VAD.START", lambda: lvad.START, -60.0, 0.0, condition=is_level_vad),
+            _NumericRule("LEVELS_VAD.STOP", lambda: lvad.STOP, -60.0, 0.0, condition=is_level_vad),
+            # SILERO_VAD (silero_onnx mode only)
+            _NumericRule("SILERO_VAD.THRESHOLD", lambda: svad.THRESHOLD, 0.0, 1.0, condition=is_silero_vad),
+            _NumericRule("SILERO_VAD.ONNX_THREADS", lambda: svad.ONNX_THREADS, 0, 8, condition=is_silero_vad),
+            _RequiredNotEmptyRule("SILERO_VAD.MODEL_PATH", lambda: svad.MODEL_PATH, condition=is_silero_vad),
+        ]
+
+    def _apply_rule(self, rule: _NumericRule | _RequiredNotEmptyRule) -> None:
+        """Apply a single validation rule."""
+        if isinstance(rule, _NumericRule):
+            value: float = rule.get_value()
+            if value < rule.min_value:
+                msg = f"'{rule.name}' must be greater than or equal to {rule.min_value}."
+                raise ConfigValueError(msg)
+            if rule.max_value is not None and value > rule.max_value:
+                msg = f"'{rule.name}' must be less than or equal to {rule.max_value}."
+                raise ConfigValueError(msg)
+        elif not rule.get_value():
+            msg = f"'{rule.name}' must not be empty."
+            raise ConfigValueError(msg)
+
+    def _validate_level_vad_cross_field(self) -> None:
+        """Validate that LEVELS_VAD.START >= LEVELS_VAD.STOP."""
+        levels_vad = self.config.LEVELS_VAD
         if levels_vad.START < levels_vad.STOP:
             msg = "'LEVELS_VAD.START' must be greater than or equal to 'LEVELS_VAD.STOP'."
-            raise ConfigValueError(msg)
-
-    def _validate_silero_vad_settings(self) -> None:
-        """Validate model and threshold settings for Silero ONNX VAD."""
-        silero_vad: SileroVAD = self.config.SILERO_VAD
-
-        self._validate_stt_numeric_range("SILERO_VAD.THRESHOLD", silero_vad.THRESHOLD, min_value=0.0, max_value=1.0)
-        self._validate_stt_numeric_range("SILERO_VAD.ONNX_THREADS", silero_vad.ONNX_THREADS, min_value=0, max_value=8)
-        if not silero_vad.MODEL_PATH:
-            msg = "'SILERO_VAD.MODEL_PATH' must not be empty when VAD.MODE is silero_onnx."
-            raise ConfigValueError(msg)
-
-    def _validate_stt_numeric_range(
-        self,
-        field_name: str,
-        value: float,
-        *,
-        min_value: float,
-        max_value: float | None = None,
-    ) -> None:
-        """Validate numeric range for STT settings."""
-        if value < min_value:
-            msg = f"'{field_name}' must be greater than or equal to {min_value}."
-            raise ConfigValueError(msg)
-        if max_value is not None and value > max_value:
-            msg = f"'{field_name}' must be less than or equal to {max_value}."
             raise ConfigValueError(msg)
 
     def _validate_username(self, section_name: str, key_name: str) -> None:

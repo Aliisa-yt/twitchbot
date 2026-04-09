@@ -91,7 +91,7 @@ keywords: [refactoring, code quality, maintainability, readability, performance,
 
 6. 完了チェック
    - リファクタリング（およびテストコードの修正）が完了したら、以下を行うこと。
-     - `ruff check .` / `mypy .` を実行し、lint・型エラーがないことを確認すること。
+     - `ruff check .` / `mypy .` を実行し、対象ファイルだけではなく全ファイルで lint・型エラーがないことを確認すること。
      - `pytest tests/` を実行し、既存テストがすべて通ることを確認すること。
      - リファクタリングで振る舞い変更を伴う箇所が存在する場合、関連する SKILL や `docs/` の記述との整合を確認し、必要であれば更新すること。
 

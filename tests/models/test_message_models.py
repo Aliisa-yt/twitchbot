@@ -46,7 +46,6 @@ def test_chat_message_dto_from_twitch_message() -> None:
 
     assert dto.message_id == "msg-1"
     assert dto.content == "Hello Kappa world"
-    assert dto.text == "Hello world"
     assert [frag.type for frag in dto.fragments] == ["text", "emote", "text"]
     assert dto.author.name == "alice"
     assert dto.author.display_name == "Alice"

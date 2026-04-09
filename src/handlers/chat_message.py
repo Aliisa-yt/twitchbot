@@ -11,9 +11,6 @@ from utils.logger_utils import LoggerUtils
 if TYPE_CHECKING:
     import logging
 
-    from twitchio import ChatMessage as TwitchMessage
-    from twitchio import Chatter
-
     from handlers.fragment_handler import EmoteHandler, MentionHandler
     from models.config_models import Config
 
@@ -24,11 +21,11 @@ logger: logging.Logger = LoggerUtils.get_logger(__name__)
 
 
 class ChatMessageHandler:
-    def __init__(self, twitch_message: TwitchMessage | ChatMessageDTO, config: Config) -> None:
+    def __init__(self, twitch_message: ChatMessageDTO, config: Config) -> None:
         """Initialize ChatMessageHandler with a chat message and configuration.
 
         Args:
-            twitch_message (TwitchMessage | ChatMessageDTO): The chat message data.
+            twitch_message (ChatMessageDTO): The chat message data.
             config (Config): Configuration settings.
         """
         self._chat_message: ChatMessage = ChatMessage(twitch_message, config)
@@ -46,7 +43,7 @@ class ChatMessageHandler:
         self._chat_message.content = value
 
     @property
-    def author(self) -> Chatter | ChatMessageAuthorDTO:
+    def author(self) -> ChatMessageAuthorDTO:
         return self._chat_message.author
 
     @property

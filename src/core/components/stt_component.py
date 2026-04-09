@@ -240,7 +240,6 @@ class STTServiceComponent(ComponentBase):
             # or schema validation is required.
             message_id=f"stt-{uuid4().hex}",
             content=text,
-            text=text,
             fragments=[ChatMessageFragmentDTO(type="text", text=text)],
             author=author,
             timestamp=datetime.now(tz=UTC),

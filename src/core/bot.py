@@ -93,7 +93,7 @@ class Bot(commands.Bot):
         Note:
             The contents of 'token_data' and 'token_manager.load_tokens()' differ, so they cannot be combined.
         """
-        logger.debug("Initialising %s", self.__class__.__name__)
+        logger.info("Initializing Twitchbot")
         self._setup_twitchio_logger(logging.WARNING)
 
         self.config: Config = config
@@ -177,7 +177,7 @@ class Bot(commands.Bot):
 
         This method initializes shared data and attaches registered components.
         """
-        logger.debug("Setting up %s", self.__class__.__name__)
+        logger.info("SETUP HOOK: Initializing shared data and attaching components")
 
         await self.shared_data.async_init()
         self.shared_data.stt_manager.set_level_event_callback(self._pending_stt_level_callback)
@@ -306,6 +306,7 @@ class Bot(commands.Bot):
         Performs initialization tasks including subscribing to chat events, setting bot color,
         and sending login message if configured.
         """
+        logger.info("Bot is ready. Performing post-connection setup.")
         try:
             await self._subscribe_to_chat_events()
 
@@ -371,6 +372,7 @@ class Bot(commands.Bot):
             The Twitchio built-in adapter triggers this event when OAuth authentication is successful.
             As this app does not use the built-in adapter, this event will not occur.
         """
+        logger.info("OAuth authorization successful")
         await self.add_token(payload.access_token, payload.refresh_token)
 
         if not payload.user_id:

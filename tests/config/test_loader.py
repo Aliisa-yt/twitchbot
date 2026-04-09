@@ -229,6 +229,7 @@ def test_stt_enabled_with_invalid_thresholds_raises_config_value_error(tmp_path:
     with pytest.raises(ConfigValueError):
         ConfigLoader(config_filename=str(ini_path), script_name="test")
 
+
 # Validate ONNX thread boundaries only under STT enabled + silero_onnx mode.
 @pytest.mark.parametrize("onnx_threads", [0, 8])
 def test_stt_enabled_with_valid_vad_onnx_threads_does_not_raise(tmp_path: Path, onnx_threads: int) -> None:
@@ -289,6 +290,160 @@ def test_stt_enabled_with_invalid_vad_onnx_threads_raises_config_value_error(tmp
 
         [SILERO_VAD]
         ONNX_THREADS = {onnx_threads}
+        """,
+    )
+
+    with pytest.raises(ConfigValueError):
+        ConfigLoader(config_filename=str(ini_path), script_name="test")
+
+
+def test_stt_enabled_with_invalid_vad_mode_raises_config_value_error(tmp_path: Path) -> None:
+    ini_path: Path = _write_ini(
+        tmp_path,
+        """
+        [TWITCH]
+        OWNER_NAME = "owner1"
+
+        [BOT]
+        BOT_NAME = "bot1"
+        COLOR = "blue"
+
+        [TRANSLATION]
+        ENGINE = ["google"]
+
+        [STT]
+        ENABLED = True
+        ENGINE = "google_cloud_stt"
+        INPUT_DEVICE = "default"
+        LANGUAGE = "ja-JP"
+
+        [VAD]
+        MODE = "unknown_mode"
+        """,
+    )
+
+    with pytest.raises(ConfigValueError):
+        ConfigLoader(config_filename=str(ini_path), script_name="test")
+
+
+@pytest.mark.parametrize("ini_key", ["INPUT_DEVICE", "LANGUAGE"])
+def test_stt_enabled_with_empty_required_field_raises_config_value_error(tmp_path: Path, ini_key: str) -> None:
+    ini_path: Path = _write_ini(
+        tmp_path,
+        f"""
+        [TWITCH]
+        OWNER_NAME = "owner1"
+
+        [BOT]
+        BOT_NAME = "bot1"
+        COLOR = "blue"
+
+        [TRANSLATION]
+        ENGINE = ["google"]
+
+        [STT]
+        ENABLED = True
+        ENGINE = "google_cloud_stt"
+        {ini_key} = ""
+        """,
+    )
+
+    with pytest.raises(ConfigValueError):
+        ConfigLoader(config_filename=str(ini_path), script_name="test")
+
+
+def test_stt_enabled_silero_with_empty_model_path_raises_config_value_error(tmp_path: Path) -> None:
+    ini_path: Path = _write_ini(
+        tmp_path,
+        """
+        [TWITCH]
+        OWNER_NAME = "owner1"
+
+        [BOT]
+        BOT_NAME = "bot1"
+        COLOR = "blue"
+
+        [TRANSLATION]
+        ENGINE = ["google"]
+
+        [STT]
+        ENABLED = True
+        ENGINE = "google_cloud_stt"
+        INPUT_DEVICE = "default"
+        LANGUAGE = "ja-JP"
+
+        [VAD]
+        MODE = "silero_onnx"
+
+        [SILERO_VAD]
+        MODEL_PATH = ""
+        """,
+    )
+
+    with pytest.raises(ConfigValueError):
+        ConfigLoader(config_filename=str(ini_path), script_name="test")
+
+
+@pytest.mark.parametrize(("retry_max", "retry_backoff_ms"), [(0, 0), (1, 100)])
+def test_stt_retry_boundary_values_do_not_raise(tmp_path: Path, retry_max: int, retry_backoff_ms: int) -> None:
+    ini_path: Path = _write_ini(
+        tmp_path,
+        f"""
+        [TWITCH]
+        OWNER_NAME = "owner1"
+
+        [BOT]
+        BOT_NAME = "bot1"
+        COLOR = "blue"
+
+        [TRANSLATION]
+        ENGINE = ["google"]
+
+        [STT]
+        ENABLED = True
+        ENGINE = "google_cloud_stt"
+        INPUT_DEVICE = "default"
+        LANGUAGE = "ja-JP"
+        RETRY_MAX = {retry_max}
+        RETRY_BACKOFF_MS = {retry_backoff_ms}
+
+        [VAD]
+        MODE = "level"
+        """,
+    )
+
+    loader = ConfigLoader(config_filename=str(ini_path), script_name="test")
+    assert retry_max == loader.config.STT.RETRY_MAX
+    assert retry_backoff_ms == loader.config.STT.RETRY_BACKOFF_MS
+
+
+@pytest.mark.parametrize(("retry_max", "retry_backoff_ms"), [(-1, 0), (0, -1)])
+def test_stt_negative_retry_values_raise_config_value_error(
+    tmp_path: Path, retry_max: int, retry_backoff_ms: int
+) -> None:
+    ini_path: Path = _write_ini(
+        tmp_path,
+        f"""
+        [TWITCH]
+        OWNER_NAME = "owner1"
+
+        [BOT]
+        BOT_NAME = "bot1"
+        COLOR = "blue"
+
+        [TRANSLATION]
+        ENGINE = ["google"]
+
+        [STT]
+        ENABLED = True
+        ENGINE = "google_cloud_stt"
+        INPUT_DEVICE = "default"
+        LANGUAGE = "ja-JP"
+        RETRY_MAX = {retry_max}
+        RETRY_BACKOFF_MS = {retry_backoff_ms}
+
+        [VAD]
+        MODE = "level"
         """,
     )
 

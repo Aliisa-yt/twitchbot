@@ -242,3 +242,147 @@ async def test_speech_synthesis_raises_when_audio_data_is_empty(engine: DummyVVC
         await engine.speech_synthesis(TTSParam(content="hello"))
 
     engine.play.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_speech_synthesis_raises_when_audio_data_is_not_bytes(engine: DummyVVCore) -> None:
+    engine.api_command_procedure = AsyncMock(return_value="not-bytes")
+    engine.play = AsyncMock()
+
+    with pytest.raises(vv_module.TTSNotSupportedError):
+        await engine.speech_synthesis(TTSParam(content="hello"))
+
+    engine.play.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_speech_synthesis_logs_tts_file_error_without_raising(engine: DummyVVCore) -> None:
+    engine.api_command_procedure = AsyncMock(return_value=b"wav-bytes")
+    engine.create_audio_filename = MagicMock(return_value=Path("voice.wav"))
+    engine.save_audio_file = MagicMock(side_effect=vv_module.TTSFileError("file error"))
+    engine.play = AsyncMock()
+
+    # TTSFileError must be caught and logged; speech_synthesis must not raise
+    await engine.speech_synthesis(TTSParam(content="hello"))
+
+    engine.play.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_speech_synthesis_logs_async_comm_error_without_raising(engine: DummyVVCore) -> None:
+    engine.api_command_procedure = AsyncMock(side_effect=AsyncCommError("comm error"))
+    engine.play = AsyncMock()
+
+    # AsyncCommError must be caught and logged; speech_synthesis must not raise
+    await engine.speech_synthesis(TTSParam(content="hello"))
+
+    engine.play.assert_not_called()
+
+
+def test_convert_parameters_with_float_value_within_range(engine: DummyVVCore) -> None:
+    result = engine._convert_parameters(1.25, (0.50, 2.00, 1.00))
+
+    assert result == 1.25
+
+
+def test_convert_parameters_with_invalid_type_returns_default(engine: DummyVVCore) -> None:
+    result = engine._convert_parameters("bad", (0.50, 2.00, 1.00))  # type: ignore[arg-type]
+
+    assert result == 1.00
+
+
+def test_adjust_reading_speed_disabled_when_no_earlyspeech(engine: DummyVVCore) -> None:
+    engine._Interface__tts_config.earlyspeech = False  # type: ignore[attr-defined]
+
+    adjusted = engine._adjust_reading_speed(1.0, 100)
+
+    assert adjusted == 1.0
+
+
+def test_adjust_reading_speed_boundary_at_exactly_30_chars(engine: DummyVVCore) -> None:
+    # Exactly 30 characters: threshold is NOT exceeded, so speed stays unchanged
+    assert engine._adjust_reading_speed(1.0, 30) == 1.0
+
+
+def test_adjust_reading_speed_caps_at_1_40(engine: DummyVVCore) -> None:
+    adjusted = engine._adjust_reading_speed(2.0, 10000)
+
+    assert adjusted == 1.40
+
+
+def test_get_speaker_id_from_name_style_format(
+    engine: DummyVVCore, available_speakers: dict[str, dict[str, vv_module.SpeakerID]]
+) -> None:
+    speaker_id = engine.get_speaker_id_from_cast("四国めたん|ツンツン", available_speakers)
+
+    assert speaker_id == vv_module.SpeakerID(uuid="uuid-metan", style_id=7)
+    assert engine.id_cache["四国めたん|ツンツン"] == speaker_id
+
+
+def test_get_speaker_id_from_unknown_name_returns_default(
+    engine: DummyVVCore, available_speakers: dict[str, dict[str, vv_module.SpeakerID]]
+) -> None:
+    speaker_id = engine.get_speaker_id_from_cast("存在しない|ノーマル", available_speakers)
+
+    # Default is the first speaker's ノーマル style
+    assert speaker_id == available_speakers["四国めたん"]["ノーマル"]
+
+
+def test_get_speaker_id_with_empty_available_speakers(engine: DummyVVCore) -> None:
+    speaker_id = engine.get_speaker_id_from_cast("四国めたん", {})
+
+    assert speaker_id == vv_module.SpeakerID(uuid="", style_id=0)
+
+
+def test_get_speaker_id_from_cast_cache_hit(
+    engine: DummyVVCore, available_speakers: dict[str, dict[str, vv_module.SpeakerID]]
+) -> None:
+    # Populate the cache
+    first = engine.get_speaker_id_from_cast("ずんだもん", available_speakers)
+    # Corrupt available_speakers to confirm second call uses cache, not live lookup
+    available_speakers.clear()
+    second = engine.get_speaker_id_from_cast("ずんだもん", available_speakers)
+
+    assert first == second
+
+
+def test_get_speaker_id_with_empty_name_in_pipe_format(
+    engine: DummyVVCore, available_speakers: dict[str, dict[str, vv_module.SpeakerID]]
+) -> None:
+    # "|style" format: name part is empty, should fall back to default
+    speaker_id = engine.get_speaker_id_from_cast("|ノーマル", available_speakers)
+
+    assert speaker_id == available_speakers["四国めたん"]["ノーマル"]
+
+
+@pytest.mark.asyncio
+async def test_api_request_wraps_key_error_as_async_comm_error(engine: DummyVVCore) -> None:
+    class KeyErrorModel(DataClassJsonMixin):
+        """Fake model whose from_dict always raises KeyError."""
+
+        @classmethod
+        def from_dict(cls, _kvs, *, _infer_missing: bool = False):  # type: ignore[override]
+            msg = "missing_field"
+            raise KeyError(msg)
+
+    engine.async_http.get = AsyncMock(return_value={"data": "value"})
+
+    with pytest.raises(AsyncCommError):
+        await engine._api_request(method="get", url="http://example.com", model=KeyErrorModel, total_timeout=1.0)
+
+
+def test_check_status_command_setter(engine: DummyVVCore) -> None:
+    engine.check_status_command = "/v2/version"
+
+    assert engine.check_status_command == "/v2/version"
+
+
+@pytest.mark.asyncio
+async def test_close_closes_async_http(engine: DummyVVCore) -> None:
+    await engine.close()
+
+    cast("AsyncMock", engine.async_http.close).assert_awaited_once()
+
+
+def test_is_engine_running_property_initially_false(engine: DummyVVCore) -> None:
+    assert engine.is_engine_running is False

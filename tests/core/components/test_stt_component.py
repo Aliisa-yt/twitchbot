@@ -152,7 +152,6 @@ async def test_forward_stt_result_to_chat_events_enqueues_when_enabled(stt_bundl
     stt_bundle.bot.safe_dispatch.assert_called_once()
     dto: ChatMessageDTO = stt_bundle.bot.safe_dispatch.call_args.kwargs["payload"]
     assert dto.content == "recognized text"
-    assert dto.text == "recognized text"
     assert dto.author.name == "owner_name"
     assert dto.author.display_name == "owner_name"
     assert dto.author.broadcaster is True

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import re
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING
 
 from models.re_models import COMMAND_PATTERN
 from models.voice_models import TTSInfo, TTSInfoPerLanguage, UserTypeInfo, Voice
@@ -10,8 +10,6 @@ from utils.string_utils import StringUtils
 
 if TYPE_CHECKING:
     import logging
-
-    from twitchio import Chatter
 
     from config.loader import Config
     from handlers.chat_message import ChatMessageHandler
@@ -81,12 +79,11 @@ class ParameterManager:
         self.clear()  # Initialize
 
         # Mapping of user types to corresponding parameter keys
-        author: Chatter = cast("Chatter", message.author)
-        user_type_map: dict[str, Chatter | bool] = {
-            "streamer": author.broadcaster,
-            "moderator": author.moderator,
-            "vip": author.vip,
-            "subscriber": author.subscriber,
+        user_type_map: dict[str, bool] = {
+            "streamer": message.author.broadcaster,
+            "moderator": message.author.moderator,
+            "vip": message.author.vip,
+            "subscriber": message.author.subscriber,
             "others": True,  # Default case
         }
         for key, condition in user_type_map.items():

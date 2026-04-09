@@ -117,7 +117,7 @@ class TTSInfo:
 
 # Type alias: Maps language codes to TTS engine information.
 # Must be defined after TTSInfo class to avoid undefined type error.
-TTSInfoPerLanguage = dict[str, TTSInfo]
+type TTSInfoPerLanguage = dict[str, TTSInfo]
 
 
 @dataclass
