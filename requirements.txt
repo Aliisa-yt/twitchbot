@@ -10,7 +10,7 @@ charset-normalizer==3.4.7
 # click==8.1.8
 colorama==0.4.6
 coverage==7.13.5
-cryptography==46.0.6
+cryptography==46.0.7
 dataclasses-json==0.6.7
 deepl==1.29.0
 emoji==2.15.0
