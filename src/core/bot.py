@@ -594,20 +594,24 @@ class Bot(commands.Bot):
             return
 
         if self.config.BOT.CONSOLE_OUTPUT:
-            max_len: int = 80
+            max_len: int = 80  # Console width is 80 ASCII characters.
             try:
                 # Calculate the byte-to-character ratio to adjust for multibyte characters.
                 # Multibyte characters (e.g., Japanese, emoji) take more bytes than ASCII but display
                 # as single characters. This ratio accounts for display width differences and is clamped
                 # between 1.0 and 2.0 (empirical bounds).
-                length_ratio: float = max(min(float(len(content.encode("utf-8")) / len(content)), 2.0), 1.0)
+                _tmp: str = content
+                if header:
+                    _tmp += header
+                if footer:
+                    _tmp += footer
+                length_ratio: float = max(min(float(len(_tmp.encode("utf-8")) / len(_tmp)), 2.0), 1.0)
             except (ZeroDivisionError, UnicodeDecodeError) as err:
                 logger.debug(err)
                 return
 
-            max_len = int(max_len / length_ratio)
             try:
-                content = ChatUtils.truncate_message(content, max_len, header=header, footer=footer)
+                content = ChatUtils.truncate_message(content, int(max_len / length_ratio), header=header, footer=footer)
             except ValueError as err:
                 logger.warning("Failed to truncate message for console output: %s", err)
                 return
