@@ -1,6 +1,6 @@
 [project]
 name = "twitchbot"
-version = "1.8.5-beta"
+dynamic = ["version"]
 description = "A Twitch chatbot built with Python, designed to enhance viewer engagement and provide interactive features for Twitch streamers."
 authors = [{ name = "Allisa_yt" }]
 requires-python = ">=3.13"

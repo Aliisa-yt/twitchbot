@@ -29,10 +29,10 @@ from core.gui.gui_app import (
 )
 from core.token_manager import TokenManager
 from core.token_storage import TokenStorage
-from core.version import VERSION
 from handlers.katakana import E2KConverter, Romaji
 from utils.file_utils import FileUtils
 from utils.logger_utils import LoggerUtils
+from version import VERSION
 
 if TYPE_CHECKING:
     import logging
@@ -86,8 +86,8 @@ def load_config(args: argparse.Namespace) -> Config:
 
     script_name: str = Path(sys.argv[0]).stem
     cfg: Config = ConfigLoader(config_filename=CFG_FILE, script_name=script_name, **vars(args)).config
-    cfg.GENERAL.VERSION = VERSION
     cfg.GENERAL.SCRIPT_NAME = script_name
+    cfg.GENERAL.VERSION = VERSION
     return cfg
 
 
