@@ -78,7 +78,7 @@ dependencies = [
     "twitchio==3.2.1",
     "types-cffi==2.0.0.20260408",
     "types-dataclasses-json==0.5.9",
-    "types-grpcio==1.0.0.20251009",
+    "types-grpcio==1.0.0.20260408",
     "types-grpcio-status==1.0.0.20260402",
     "types-httplib2==0.31.2.20260408",
     "types-pyasn1==0.6.0.20260408",
