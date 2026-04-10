@@ -69,7 +69,7 @@ dependencies = [
     "pywin32; platform_system == 'Windows'",
     "pywin32-ctypes==0.2.3",
     "requests==2.33.1",
-    "ruff==0.15.9",
+    "ruff==0.15.10",
     "setuptools==82.0.1",
     "sounddevice==0.5.5",
     "soundfile==0.13.1",
