@@ -32,7 +32,7 @@ dependencies = [
     "google-auth-httplib2==0.3.1",
     "google-cloud-core==2.5.1",
     "google-cloud-speech==2.38.0",
-    "google-cloud-translate==3.25.0",
+    "google-cloud-translate==3.26.0",
     "googleapis-common-protos==1.74.0",
     "grpc-google-iam-v1==0.14.4",
     "grpcio==1.80.0",
