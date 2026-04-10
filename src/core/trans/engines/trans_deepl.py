@@ -34,7 +34,7 @@ __all__: list[str] = ["DeeplTranslation"]
 
 logger: logging.Logger = LoggerUtils.get_logger(__name__)
 
-_EXPECTED_DEEPL_VERSION: Final[str] = "1.29.0"
+_EXPECTED_DEEPL_VERSION: Final[str] = "1.30.0"
 
 _DEEPL_DEFAULT_CHAR_LIMIT: Final[int] = 500000  # Default character limit for DeepL if not provided by the API
 
