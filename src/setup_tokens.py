@@ -159,6 +159,11 @@ async def main() -> None:
         return
 
 
+def run_main() -> None:
+    """Run token setup from a synchronous console-script entry point."""
+    asyncio.run(main())
+
+
 if __name__ == "__main__":
     try:
         asyncio.run(main())

@@ -348,6 +348,11 @@ async def main() -> None:
             await _console_bootstrap(args, log_setup)
 
 
+def run_main() -> None:
+    """Run application from a synchronous console-script entry point."""
+    asyncio.run(main())
+
+
 if __name__ == "__main__":
     # Track whether the application terminated normally.
     # If False, pause before exit to allow user to read error messages (console mode only).
