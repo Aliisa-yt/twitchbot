@@ -28,8 +28,7 @@ dependencies = [
     "ruff==0.15.10",
     "sounddevice==0.5.5",
     "soundfile==0.13.1",
-    "starlette==1.0.0",
-    "twitchio==3.2.1",
+    "twitchio[starlette]==3.2.1",
     "types-cffi==2.0.0.20260408",
     "types-dataclasses-json==0.5.9",
     "types-grpcio==1.0.0.20260408",
@@ -42,7 +41,6 @@ dependencies = [
     "types-setuptools==82.0.0.20260408",
     "typing-inspect==0.9.0",
     "typing_extensions==4.15.0",
-    "uvicorn==0.44.0",
 ]
 
 [project.scripts]
