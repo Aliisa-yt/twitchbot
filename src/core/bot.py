@@ -23,15 +23,15 @@ from twitchio.eventsub import (
 from twitchio.ext import commands
 from twitchio.ext.commands import ComponentLoadError
 
-from core.components import (
-    BotCommandManager,  # noqa: F401
-    CacheServiceComponent,  # noqa: F401
-    ChatEventsManager,  # noqa: F401
+from core.components import (  # noqa: F401
+    BotCommandManager,
+    CacheServiceComponent,
+    ChatEventsManager,
     ComponentBase,
     ComponentDescriptor,
-    STTServiceComponent,  # noqa: F401
-    TranslationServiceComponent,  # noqa: F401
-    TTSServiceComponent,  # noqa: F401
+    STTServiceComponent,
+    TranslationServiceComponent,
+    TTSServiceComponent,
 )
 from core.components.removable import TimeSignalManager  # noqa: F401
 from core.shared_data import SharedData

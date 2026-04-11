@@ -15,7 +15,7 @@ from contextlib import suppress
 from pathlib import Path
 from typing import TYPE_CHECKING, Final, NoReturn
 
-from __init__ import __version__
+from _version import __version__
 from config.loader import (
     Config,
     ConfigLoader,
@@ -87,7 +87,7 @@ def load_config(args: argparse.Namespace) -> Config:
     script_name: str = Path(sys.argv[0]).stem
     cfg: Config = ConfigLoader(config_filename=CFG_FILE, script_name=script_name, **vars(args)).config
     cfg.GENERAL.SCRIPT_NAME = script_name
-    cfg.GENERAL.VERSION = __version__
+    cfg.GENERAL.VERSION = str(__version__)
     return cfg
 
 

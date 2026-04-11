@@ -3,10 +3,10 @@ from __future__ import annotations
 import time
 from typing import TYPE_CHECKING, ClassVar, Final
 
-from core.trans.engines import (
-    DeeplTranslation,  # noqa: F401
-    GoogleCloudTranslation,  # noqa: F401
-    GoogleTranslation,  # noqa: F401
+from core.trans.engines import (  # noqa: F401
+    DeeplTranslation,
+    GoogleCloudTranslation,
+    GoogleTranslation,
 )
 from core.trans.engines.const_google import LANGUAGES
 from core.trans.trans_interface import (

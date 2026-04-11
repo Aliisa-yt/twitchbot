@@ -7,7 +7,10 @@ import contextlib
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from core.stt.engines import GoogleCloudSpeechToText, GoogleCloudSpeechToTextV2  # noqa: F401
+from core.stt.engines import (  # noqa: F401
+    GoogleCloudSpeechToText,
+    GoogleCloudSpeechToTextV2,
+)
 from core.stt.processor import ProcessorOptions, STTProcessor
 from core.stt.recorder import (
     DEFAULT_SILERO_ONNX_MODEL_PATH,

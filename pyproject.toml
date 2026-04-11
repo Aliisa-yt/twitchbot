@@ -205,7 +205,7 @@ exclude_lines = [
 [tool.coverage.html]
 directory = "htmlcov"
 
-[tool.pylance]
+[tool.pyright]
 exclude = [
     "**/.*",
     "**/.venv/**",
@@ -219,11 +219,11 @@ exclude = [
 
 typeCheckingMode = "basic"
 
-reportUnusedImport = true
+reportUnusedImport = false
 reportUnusedVariable = true
 reportGeneralTypeIssues = true
 
 reportMissingImports = true
 reportDuplicateImport = true
 
-extraPaths = ["."]
+extraPaths = ["src", "tests"]
