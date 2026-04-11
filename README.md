@@ -17,7 +17,7 @@ Modular Twitch chat bot with translation, TTS, STT, cache, and GUI support. It s
 - Twitch API credentials as environment variables:
   - `TWITCH_API_CLIENT_ID`
   - `TWITCH_API_CLIENT_SECRET`
-- Install dependencies: `pip install -r requirements.txt`
+- Install dependencies: `pip install .`
 - Prepare `twitchbot.ini` from the template:
   1. Copy `twitchbot.ini.example` to `twitchbot.ini`
   2. Edit `twitchbot.ini` and set your Twitch channel owner name and bot account name

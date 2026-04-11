@@ -15,7 +15,7 @@
 - Twitch API 認証情報を環境変数として設定：
   - `TWITCH_API_CLIENT_ID`
   - `TWITCH_API_CLIENT_SECRET`
-- 依存関係をインストール: `pip install -r requirements.txt`
+- 依存関係をインストール: `pip install .`
 - テンプレートから `twitchbot.ini` を準備：
   1. `twitchbot.ini.example` を `twitchbot.ini` にコピー
   2. `twitchbot.ini` を編集して、Twitch チャンネルオーナー名とボットアカウント名を設定
