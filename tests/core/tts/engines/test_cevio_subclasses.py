@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 import importlib
-from types import ModuleType
+from typing import TYPE_CHECKING
 
 import pytest
+
+if TYPE_CHECKING:
+    from types import ModuleType
 
 pythoncom = pytest.importorskip("pythoncom")
 pytest.importorskip("win32com.client")

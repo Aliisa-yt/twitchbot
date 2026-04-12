@@ -147,7 +147,8 @@ async def test_speech_synthesis_handles_bad_command_error(monkeypatch: pytest.Mo
     engine = bmc.BouyomiChanSocket()
 
     def _raise_command_error(self, command: str, ttsparam: TTSParam) -> bytes:  # noqa: ARG001
-        raise bmc.BouyomiChanCommandError("bad command")
+        msg = "bad command"
+        raise bmc.BouyomiChanCommandError(msg)
 
     monkeypatch.setattr(bmc.BouyomiChanCommand, "generation", _raise_command_error)
 
@@ -161,7 +162,7 @@ async def test_speech_synthesis_handles_bad_command_error(monkeypatch: pytest.Mo
 
 @pytest.mark.asyncio
 async def test_speech_synthesis_never_calls_play(monkeypatch: pytest.MonkeyPatch) -> None:
-    from unittest.mock import AsyncMock
+    from unittest.mock import AsyncMock  # noqa: PLC0415
 
     monkeypatch.setattr(bmc, "AsyncSocket", DummySocket)
     engine = bmc.BouyomiChanSocket()

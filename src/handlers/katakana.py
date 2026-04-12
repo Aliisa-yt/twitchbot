@@ -13,13 +13,15 @@ Key features:
 """
 
 import json
-import logging
 import re
 from json import JSONDecodeError
-from pathlib import Path
-from typing import ClassVar
+from typing import TYPE_CHECKING, ClassVar
 
 from utils.logger_utils import LoggerUtils
+
+if TYPE_CHECKING:
+    import logging
+    from pathlib import Path
 
 __all__: list[str] = ["E2KConverter", "Romaji"]
 
