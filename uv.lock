@@ -1174,6 +1174,7 @@ wheels = [
 
 [[package]]
 name = "twitchbot"
+version = "2026.4"
 source = { editable = "." }
 dependencies = [
     { name = "aiohttp" },
@@ -1191,6 +1192,16 @@ dependencies = [
     { name = "sounddevice" },
     { name = "soundfile" },
     { name = "twitchio", extra = ["starlette"] },
+    { name = "types-cffi" },
+    { name = "types-dataclasses-json" },
+    { name = "types-grpcio" },
+    { name = "types-grpcio-status" },
+    { name = "types-httplib2" },
+    { name = "types-pyasn1" },
+    { name = "types-pywin32" },
+    { name = "types-pyyaml" },
+    { name = "types-requests" },
+    { name = "types-setuptools" },
     { name = "typing-extensions" },
     { name = "typing-inspect" },
 ]
@@ -1205,16 +1216,6 @@ dev = [
     { name = "pytest" },
     { name = "pytest-asyncio" },
     { name = "ruff" },
-    { name = "types-cffi" },
-    { name = "types-dataclasses-json" },
-    { name = "types-grpcio" },
-    { name = "types-grpcio-status" },
-    { name = "types-httplib2" },
-    { name = "types-pyasn1" },
-    { name = "types-pywin32" },
-    { name = "types-pyyaml" },
-    { name = "types-requests" },
-    { name = "types-setuptools" },
 ]
 
 [package.metadata]
@@ -1242,16 +1243,16 @@ requires-dist = [
     { name = "sounddevice", specifier = "==0.5.5" },
     { name = "soundfile", specifier = "==0.13.1" },
     { name = "twitchio", extras = ["starlette"], specifier = "==3.2.1" },
-    { name = "types-cffi", marker = "extra == 'dev'", specifier = "==2.0.0.20260408" },
-    { name = "types-dataclasses-json", marker = "extra == 'dev'", specifier = "==0.5.9" },
-    { name = "types-grpcio", marker = "extra == 'dev'", specifier = "==1.0.0.20260408" },
-    { name = "types-grpcio-status", marker = "extra == 'dev'", specifier = "==1.0.0.20260408" },
-    { name = "types-httplib2", marker = "extra == 'dev'", specifier = "==0.31.2.20260408" },
-    { name = "types-pyasn1", marker = "extra == 'dev'", specifier = "==0.6.0.20260408" },
-    { name = "types-pywin32", marker = "extra == 'dev'", specifier = "==311.0.0.20260408" },
-    { name = "types-pyyaml", marker = "extra == 'dev'", specifier = "==6.0.12.20260408" },
-    { name = "types-requests", marker = "extra == 'dev'", specifier = "==2.33.0.20260408" },
-    { name = "types-setuptools", marker = "extra == 'dev'", specifier = "==82.0.0.20260408" },
+    { name = "types-cffi", specifier = "==2.0.0.20260408" },
+    { name = "types-dataclasses-json", specifier = "==0.5.9" },
+    { name = "types-grpcio", specifier = "==1.0.0.20260408" },
+    { name = "types-grpcio-status", specifier = "==1.0.0.20260408" },
+    { name = "types-httplib2", specifier = "==0.31.2.20260408" },
+    { name = "types-pyasn1", specifier = "==0.6.0.20260408" },
+    { name = "types-pywin32", specifier = "==311.0.0.20260408" },
+    { name = "types-pyyaml", specifier = "==6.0.12.20260408" },
+    { name = "types-requests", specifier = "==2.33.0.20260408" },
+    { name = "types-setuptools", specifier = "==82.0.0.20260408" },
     { name = "typing-extensions", specifier = "==4.15.0" },
     { name = "typing-inspect", specifier = "==0.9.0" },
 ]

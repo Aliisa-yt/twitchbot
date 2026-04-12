@@ -1,6 +1,6 @@
 [project]
 name = "twitchbot"
-dynamic = ["version"]
+version = "2026.4" # unused
 description = "A Twitch chatbot built with Python, designed to enhance viewer engagement and provide interactive features for Twitch streamers."
 authors = [{ name = "Allisa_yt" }]
 requires-python = ">=3.14"
@@ -22,6 +22,16 @@ dependencies = [
     "sounddevice==0.5.5",
     "soundfile==0.13.1",
     "twitchio[starlette]==3.2.1",
+    "types-cffi==2.0.0.20260408",
+    "types-dataclasses-json==0.5.9",
+    "types-grpcio==1.0.0.20260408",
+    "types-grpcio-status==1.0.0.20260408",
+    "types-httplib2==0.31.2.20260408",
+    "types-pyasn1==0.6.0.20260408",
+    "types-pywin32==311.0.0.20260408",
+    "types-PyYAML==6.0.12.20260408",
+    "types-requests==2.33.0.20260408",
+    "types-setuptools==82.0.0.20260408",
     "typing-inspect==0.9.0",
     "typing_extensions==4.15.0",
 ]
@@ -36,16 +46,6 @@ dev = [
     "pytest==9.0.3",
     "pytest-asyncio==1.3.0",
     "ruff==0.15.10",
-    "types-cffi==2.0.0.20260408",
-    "types-dataclasses-json==0.5.9",
-    "types-grpcio==1.0.0.20260408",
-    "types-grpcio-status==1.0.0.20260408",
-    "types-httplib2==0.31.2.20260408",
-    "types-pyasn1==0.6.0.20260408",
-    "types-pywin32==311.0.0.20260408",
-    "types-PyYAML==6.0.12.20260408",
-    "types-requests==2.33.0.20260408",
-    "types-setuptools==82.0.0.20260408",
 ]
 
 [project.scripts]
@@ -209,6 +209,8 @@ directory = "htmlcov"
 [tool.pyright]
 exclude = [
     "**/.*",
+    "**/uv.lock",
+    "**/.git/**",
     "**/.venv/**",
     "**/__pycache__/**",
     "**/node_modules/**",
@@ -217,6 +219,7 @@ exclude = [
     "**/data/**",
     "**/dic/**",
     "**/*.egg-info/**",
+    "**/htmlcov/**",
 ]
 
 typeCheckingMode = "basic"
