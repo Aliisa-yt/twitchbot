@@ -220,6 +220,7 @@ exclude = [
     "**/dic/**",
     "**/*.egg-info/**",
     "**/htmlcov/**",
+    "**/AppData/**",
 ]
 
 typeCheckingMode = "basic"
