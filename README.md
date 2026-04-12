@@ -12,7 +12,7 @@ Modular Twitch chat bot with translation, TTS, STT, cache, and GUI support. It s
 - GUI module: Status bar, scrolling log, and STT level meter. When STT is enabled, also shows VAD threshold sliders and a mute button.
 
 ## Setup
-- Python 3.13+
+- Python 3.14+
 - Before running, register an application on [Twitch Developers](https://dev.twitch.tv/) and obtain your `CLIENT ID` and `CLIENT SECRET`. We do not cover the registration flow here; please follow Twitch's docs or a setup guide. When creating the app, add `http://localhost` to **OAuth Redirect URLs**.
 - Twitch API credentials as environment variables:
   - `TWITCH_API_CLIENT_ID`

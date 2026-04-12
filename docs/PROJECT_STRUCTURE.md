@@ -107,7 +107,7 @@ This document provides an English overview of the current Twitchbot Python sourc
 
 ### src
 - `setup_tokens.py`: Console-only token setup utility; performs OAuth flow and stores tokens in `tokens.db`.
-- `twitchbot.py`: Main entrypoint — version check (3.13+), logging setup, config load, CLI args (`--owner`, `--bot`, `--debug`), temp dir creation, dictionary load, OAuth flow, and bot lifecycle.
+- `twitchbot.py`: Main entrypoint — version check (3.14+), logging setup, config load, CLI args (`--owner`, `--bot`, `--debug`), temp dir creation, dictionary load, OAuth flow, and bot lifecycle.
 
 ### src/config
 - `loader.py`: Parses and validates `twitchbot.ini`; coerces types; validates usernames/colors; builds voice parameters; supports CLI overrides.

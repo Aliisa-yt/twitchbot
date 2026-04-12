@@ -10,7 +10,7 @@
 - GUI モジュール: ステータスバー・スクロールログ・STT レベルメーターを表示。STT 有効時は VAD 閾値スライダーとミュートボタンも表示。
 
 ## セットアップ
-- Python 3.13 以上
+- Python 3.14 以上
 - 実行前に [Twitch Developers](https://dev.twitch.tv/) でアプリケーションを登録し、`CLIENT ID` と `CLIENT SECRET` を取得してください。登録手順はここでは説明しませんので、Twitch のドキュメントやセットアップガイドに従ってください。アプリ作成時には **OAuth Redirect URLs** に `http://localhost` を追加してください。
 - Twitch API 認証情報を環境変数として設定：
   - `TWITCH_API_CLIENT_ID`

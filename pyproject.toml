@@ -3,7 +3,7 @@ name = "twitchbot"
 dynamic = ["version"]
 description = "A Twitch chatbot built with Python, designed to enhance viewer engagement and provide interactive features for Twitch streamers."
 authors = [{ name = "Allisa_yt" }]
-requires-python = ">=3.13"
+requires-python = ">=3.14"
 readme = "README.md"
 license = { file = "LICENSE" }
 dependencies = [
@@ -95,7 +95,7 @@ exclude = [
 # Formatter Settings
 line-length = 120
 indent-width = 4
-target-version = "py313"
+target-version = "py314"
 
 [tool.ruff.lint]
 select = ["ALL"]
@@ -145,7 +145,7 @@ convention = "google"
 [tool.mypy]
 mypy_path = "src"
 files = ["src"]
-python_version = "3.13"
+python_version = "3.14"
 exclude = ["dic/.*", "tests/.*"]
 explicit_package_bases = true
 warn_redundant_casts = true
@@ -173,6 +173,7 @@ asyncio_default_fixture_loop_scope = "function"
 filterwarnings = [
     "ignore:There is no current event loop:DeprecationWarning",
     "ignore:coroutine .* was never awaited:RuntimeWarning",
+    "ignore:'asyncio.iscoroutinefunction' is deprecated:DeprecationWarning",
 ]
 
 [tool.coverage.run]
@@ -209,12 +210,13 @@ directory = "htmlcov"
 exclude = [
     "**/.*",
     "**/.venv/**",
-    "**/site-packages/**",
     "**/__pycache__/**",
     "**/node_modules/**",
     "**/dist/**",
     "**/build/**",
-    "**/lib/**",
+    "**/data/**",
+    "**/dic/**",
+    "**/*.egg-info/**",
 ]
 
 typeCheckingMode = "basic"
@@ -222,7 +224,6 @@ typeCheckingMode = "basic"
 reportUnusedImport = false
 reportUnusedVariable = true
 reportGeneralTypeIssues = true
-
 reportMissingImports = true
 reportDuplicateImport = true
 
