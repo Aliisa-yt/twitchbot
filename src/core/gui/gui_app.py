@@ -36,7 +36,7 @@ TEXT_COLOR: Final[str] = "#FFFAF0"  # Floral White
 STATUS_WAKEUP_COLOR: Final[str] = "#5CC8EB"  # Light Blue
 STATUS_RUNNING_COLOR: Final[str] = "#00D000"  # Green
 STATUS_ERROR_COLOR: Final[str] = "#FF2A04"  # Red
-BUTTON_BG_COLOR: Final[str] = "#FF6347"  # Tomato
+# BUTTON_BG_COLOR: Final[str] = "#FF6347"  # Tomato
 TEXT_WIDGET_BG: Final[str] = "#0F0F0F"  # Dark background
 TEXT_WIDGET_FG: Final[str] = "#56F000"  # Green text
 BACKGROUND_COLOR: Final[str] = "#F0F0F0"  # Light background for the whole app
@@ -58,9 +58,9 @@ STT_SILERO_UNUSED_VALUE_TEXT: Final[str] = "--"
 MAX_SCROLLED_LINES: Final[int] = 50
 
 # STT level meter thresholds
-STT_LEVEL_WARNING_THRESHOLD: Final[float] = -20  # dB
-STT_LEVEL_DANGER_THRESHOLD: Final[float] = -8  # dB
-STT_FLOOR_LEVEL_DB: Final[float] = -60  # dB
+STT_LEVEL_WARNING_THRESHOLD: Final[float] = -20  # dBFS
+STT_LEVEL_DANGER_THRESHOLD: Final[float] = -8  # dBFS
+STT_FLOOR_LEVEL_DB: Final[float] = -60  # dBFS
 
 # STT level meter colors
 STT_LEVEL_SAFE_COLOR: Final[str] = "#37D247"  # Green
@@ -73,6 +73,9 @@ MUTE_BUTTON_MUTED_COLOR: Final[str] = "#FF5537"  # Red
 MUTE_BUTTON_MUTED_ACTIVE_COLOR: Final[str] = "#FF806A"  # Red
 MUTE_BUTTON_UNMUTED_COLOR: Final[str] = "#6DEC7A"  # Green
 MUTE_BUTTON_UNMUTED_ACTIVE_COLOR: Final[str] = "#9CECA4"  # Green
+
+DEFAULT_WINDOW_TITLE: Final[str] = "Twitchbot"
+DEFAULT_WINDOW_SIZE: Final[str] = "800x336"
 
 
 @dataclass(slots=True)
@@ -139,7 +142,7 @@ class StreamRedirector(io.StringIO):
         try:
             self.original_stream.write(msg)
             self.original_stream.flush()
-        except (OSError, AttributeError, ValueError):
+        except OSError, AttributeError, ValueError:
             # Original stream may be closed or unavailable
             pass
 
@@ -195,7 +198,7 @@ class GUIApp:
     STT_LEVEL_EMA_RESPONSE_TIME: Final[float] = 0.300
     STT_LEVEL_EMA_ALPHA_DEFAULT: Final[float] = 1.0 / (1.0 + STT_LEVEL_EMA_RESPONSE_TIME * 10.0)
 
-    def __init__(self, window_title: str = "Twitchbot", geometry: str = "800x336") -> None:
+    def __init__(self, window_title: str = DEFAULT_WINDOW_TITLE, geometry: str = DEFAULT_WINDOW_SIZE) -> None:
         """Initialize the GUI application.
 
         Args:
@@ -204,7 +207,11 @@ class GUIApp:
         """
         self.root: tk.Tk = tk.Tk()
         self.root.title(window_title)
-        self.root.geometry(geometry)
+        try:
+            self.root.geometry(geometry)
+        except tk.TclError:
+            logger.warning("Invalid geometry format '%s', using default size.", geometry)
+            self.root.geometry(DEFAULT_WINDOW_SIZE)
 
         self.bot: Bot | None = None
         self.running: bool = False
@@ -521,9 +528,23 @@ class GUIApp:
         style.configure(FRAME_STYLE, background=BACKGROUND_COLOR)
         style.configure(LABEL_FRAME_STYLE, background=BACKGROUND_COLOR)
         style.configure(LABEL_FRAME_LABEL_STYLE, background=BACKGROUND_COLOR)
-        style.configure(MUTE_BUTTON_MUTED_STYLE, background=MUTE_BUTTON_MUTED_COLOR, font=("Arial", 10, "bold"))
+
+        style.configure(
+            MUTE_BUTTON_MUTED_STYLE,
+            forcusthickness=1,
+            focuscolor=MUTE_BUTTON_MUTED_COLOR,
+            background=MUTE_BUTTON_MUTED_COLOR,
+            font=("Arial", 10, "bold"),
+        )
         style.map(MUTE_BUTTON_MUTED_STYLE, background=[("active", MUTE_BUTTON_MUTED_ACTIVE_COLOR)])
-        style.configure(MUTE_BUTTON_UNMUTED_STYLE, background=MUTE_BUTTON_UNMUTED_COLOR, font=("Arial", 10, "bold"))
+
+        style.configure(
+            MUTE_BUTTON_UNMUTED_STYLE,
+            forcusthickness=1,
+            focuscolor=MUTE_BUTTON_UNMUTED_COLOR,
+            background=MUTE_BUTTON_UNMUTED_COLOR,
+            font=("Arial", 10, "bold"),
+        )
         style.map(MUTE_BUTTON_UNMUTED_STYLE, background=[("active", MUTE_BUTTON_UNMUTED_ACTIVE_COLOR)])
 
     @staticmethod
