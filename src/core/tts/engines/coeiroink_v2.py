@@ -6,9 +6,7 @@ This is an implementation of the CoeiroInk (v2) engine, which is currently in an
 - The styleID cannot be changed at this time.
 """
 
-from __future__ import annotations
-
-from typing import TYPE_CHECKING, Final
+from typing import TYPE_CHECKING, Final, override
 
 from core.tts.engines.vv_core import SpeakerID, VVCore
 from models.coeiroink_v2_models import Prosody, SpeakerMeta, WavMakingParam, WavProcessingParam, WavWithDuration
@@ -46,16 +44,19 @@ class CoeiroInk2(VVCore):
         super().__init__()
 
     @staticmethod
+    @override
     def fetch_engine_name() -> str:
         """Return the engine identifier."""
         return "coeiroink2"
 
+    @override
     def initialize_engine(self, tts_engine: TTSEngine, context: EngineContext) -> bool:
         """Initialize the engine with configuration settings."""
         super().initialize_engine(tts_engine, context)
         print("Loaded speech synthesis engine: CoeiroInk2")
         return True
 
+    @override
     async def async_init(self, param: UserTypeInfo) -> None:
         """Initialize speakers for the engine."""
         self.check_status_command = "/v1/engine_info"
@@ -92,7 +93,7 @@ class CoeiroInk2(VVCore):
         keyed by speaker name and style for fast ID lookups.
 
         Args:
-            speakers (list[_SpeakerMeta]): List of Speaker objects retrieved from the API.
+            speakers (list[SpeakerMeta]): List of Speaker objects retrieved from the API.
 
         Returns:
             dict[str, dict[str, SpeakerID]]: Mapping of speaker names and styles to IDs.
@@ -106,6 +107,7 @@ class CoeiroInk2(VVCore):
         logger.debug("Generated speaker ID dictionary: %s", id_dict)
         return id_dict
 
+    @override
     async def api_command_procedure(self, ttsparam: TTSParam) -> bytes:
         """This method processes the TTS parameters and synthesizes speech using the CoeiroInk2 engine.
 

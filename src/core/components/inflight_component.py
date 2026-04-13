@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from contextlib import suppress
-from typing import TYPE_CHECKING, ClassVar
+from typing import TYPE_CHECKING, ClassVar, override
 
 from core.components.base import ComponentBase
 from utils.logger_utils import LoggerUtils
@@ -31,6 +31,7 @@ class InFlightServiceComponent(ComponentBase):
 
     depends: ClassVar[list[str]] = ["TranslationServiceComponent", "CacheServiceComponent"]
 
+    @override
     async def component_load(self) -> None:
         """Load the in-flight manager component."""
         try:
@@ -39,6 +40,7 @@ class InFlightServiceComponent(ComponentBase):
         except AttributeError as err:
             logger.warning("InFlightManager component initialization skipped due to missing configuration: %s", err)
 
+    @override
     async def component_teardown(self) -> None:
         """Teardown the in-flight manager component."""
         with suppress(AttributeError):

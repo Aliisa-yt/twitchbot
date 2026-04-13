@@ -4,10 +4,8 @@ This module provides a translation interface implementation using Google Cloud T
 Requires google-cloud-translate library and proper authentication setup.
 """
 
-from __future__ import annotations
-
 import asyncio
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, override
 
 from google.api_core.exceptions import (
     BadRequest,
@@ -115,22 +113,27 @@ class GoogleCloudTranslation(TransInterface):
             logger.debug("Google Cloud Translate client instance set to None or invalid type.")
 
     @property
+    @override
     def count(self) -> int:
         return 0
 
     @property
+    @override
     def limit(self) -> int:
         return 0
 
     @property
+    @override
     def limit_reached(self) -> bool:
         return False
 
     @property
+    @override
     def is_available(self) -> bool:
         return True
 
     @staticmethod
+    @override
     def fetch_engine_name() -> str:
         """Fetch the distinguished name of the translation engine.
 
@@ -139,6 +142,7 @@ class GoogleCloudTranslation(TransInterface):
         """
         return "google_cloud"
 
+    @override
     def initialize(self, config: Config) -> None:
         """Initialize the Google Cloud Translation API client.
 
@@ -209,6 +213,7 @@ class GoogleCloudTranslation(TransInterface):
         """
         return APIKeySession(api_key)
 
+    @override
     async def detect_language(self, content: str, tgt_lang: str) -> Result:
         """Detect the language of the input text.
 
@@ -258,6 +263,7 @@ class GoogleCloudTranslation(TransInterface):
             logger.debug("Detected language: '%s' with confidence: %s", detected_lang, detection.get("confidence"))
             return result
 
+    @override
     async def translation(self, content: str, tgt_lang: str, src_lang: str | None = None) -> Result:
         """Translate input text to the target language.
 
@@ -314,6 +320,7 @@ class GoogleCloudTranslation(TransInterface):
             logger.debug("'return': '%s'", result)
             return result
 
+    @override
     async def get_quota_status(self) -> CharacterQuota:
         """Retrieve the current character quota status.
 
@@ -327,6 +334,7 @@ class GoogleCloudTranslation(TransInterface):
         logger.debug("Getting quota status (local counter only)")
         return CharacterQuota(count=self.count, limit=self.limit, is_quota_valid=self.has_quota_api)
 
+    @override
     async def close(self) -> None:
         """Perform cleanup and shutdown of the translation engine.
 

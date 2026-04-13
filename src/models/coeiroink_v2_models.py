@@ -1,8 +1,7 @@
 """Data models for CoeiroInk v2 TTS API payloads."""
 
-from __future__ import annotations
-
 from dataclasses import dataclass
+from typing import override
 
 from dataclasses_json import DataClassJsonMixin, LetterCase, dataclass_json
 
@@ -19,6 +18,7 @@ class _Styles(DataClassJsonMixin):
     base64_icon: str
     base64_portrait: str | None
 
+    @override
     def __repr__(self) -> str:
         # base64 fields can be very large, so exclude them from the representation
         return f"_Styles(style_name={self.style_name}, style_id={self.style_id})"
@@ -35,6 +35,7 @@ class SpeakerMeta(DataClassJsonMixin):
     version: str
     base64_portrait: str
 
+    @override
     def __repr__(self) -> str:
         # base64 fields can be very large, so exclude them from the representation
         return (
@@ -113,6 +114,7 @@ class WavWithDuration(DataClassJsonMixin):
     start_trim_buffer: float
     end_trim_buffer: float
 
+    @override
     def __repr__(self) -> str:
         # base64 fields can be very large, so exclude them from the representation
         return (
@@ -143,6 +145,7 @@ class WavProcessingParam(DataClassJsonMixin):
     wav_base64: str
     mora_durations: list[_MoraDurations]
 
+    @override
     def __repr__(self) -> str:
         # base64 fields can be very large, so exclude them from the representation
         return (

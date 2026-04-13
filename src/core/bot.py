@@ -10,7 +10,7 @@ from __future__ import annotations
 import logging
 from collections import defaultdict, deque
 from contextlib import suppress
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, override
 
 import twitchio
 from twitchio import Chatter, PartialUser, User, eventsub
@@ -29,6 +29,7 @@ from core.components import (  # noqa: F401
     ChatEventsManager,
     ComponentBase,
     ComponentDescriptor,
+    InFlightServiceComponent,
     STTServiceComponent,
     TranslationServiceComponent,
     TTSServiceComponent,
@@ -127,11 +128,13 @@ class Bot(commands.Bot):
         return self._token_manager.client_secret
 
     @property
+    @override
     def bot_id(self) -> str:
         """Return the bot's user ID."""
         return self._token_manager.bot_id
 
     @property
+    @override
     def owner_id(self) -> str:
         """Return the owner's user ID."""
         return self._token_manager.owner_id
@@ -172,6 +175,7 @@ class Bot(commands.Bot):
         twitchio_logger.setLevel(log_level)
         logger.debug("TwitchIO logger set up with LoggerUtils configuration")
 
+    @override
     async def setup_hook(self) -> None:
         """Asynchronous setup hook called during bot initialization.
 
@@ -289,6 +293,7 @@ class Bot(commands.Bot):
             with suppress(ValueError):
                 self.attached_components.remove(component)
 
+    @override
     async def event_error(self, payload: EventErrorPayload) -> None:
         """Called when an error occurs in the bot.
 
@@ -347,6 +352,7 @@ class Bot(commands.Bot):
             except twitchio.HTTPException as err:
                 logger.error("TwitchIO HTTP error while subscribing to event %s: %s", type(sub), err)
 
+    @override
     async def event_command_error(self, payload: CommandErrorPayload) -> None:
         """Called when an error occurs in a command.
 
@@ -360,6 +366,7 @@ class Bot(commands.Bot):
     # event_message is overridden in the components, so do nothing here
     # async def event_message(self, payload: TwitchMessage) -> None:
 
+    @override
     async def event_oauth_authorized(self, payload: twitchio.authentication.UserTokenPayload) -> None:
         """Called when the bot is authorized with OAuth.
 
@@ -442,6 +449,7 @@ class Bot(commands.Bot):
             logger.debug("Token validated and saved successfully for bot user ID: %s", validation_payload.user_id)
             logger.info("OAuth token refreshed successfully")
 
+    @override
     async def load_tokens(self, path: str | None = None, /) -> None:
         """Load tokens from the token manager.
 
@@ -484,6 +492,7 @@ class Bot(commands.Bot):
             raise
         logger.info("Tokens loaded successfully for bot user ID: %s", self.bot_id)
 
+    @override
     async def save_tokens(self, path: str | None = None, /) -> None:
         """Save tokens to the token manager.
 
@@ -495,6 +504,7 @@ class Bot(commands.Bot):
         _ = path
         logger.debug("Saving tokens to TokenManager")
 
+    @override
     async def close(self, **kwargs) -> None:
         """Close the bot and perform any necessary cleanup.
 

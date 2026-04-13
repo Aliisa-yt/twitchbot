@@ -7,15 +7,13 @@ This is a console-only application; no log file is created.
 All output is sent to stdout/stderr for immediate user feedback.
 """
 
-from __future__ import annotations
-
 import argparse
 import asyncio
 import os
 import sys
 from contextlib import suppress
 from pathlib import Path
-from typing import Final, NoReturn
+from typing import Final, NoReturn, override
 
 from config.loader import Config, ConfigLoader, ConfigLoaderError
 from core.token_manager import TokenManager
@@ -37,6 +35,7 @@ def check_python_version() -> None:
 
 
 class _ArgumentParser(argparse.ArgumentParser):
+    @override
     def error(self, message: str) -> NoReturn:
         print(f"\n{message}\n", file=sys.stderr)
         self.print_help(sys.stderr)
@@ -167,7 +166,7 @@ def run_main() -> None:
 if __name__ == "__main__":
     try:
         asyncio.run(main())
-    except (KeyboardInterrupt, EOFError):
+    except KeyboardInterrupt, EOFError:
         print("\n\nSetup cancelled by user.", file=sys.stderr)
     except (OSError, RuntimeError, ValueError) as err:
         print(f"\nFatal error: {err}", file=sys.stderr)

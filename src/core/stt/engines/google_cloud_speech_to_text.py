@@ -1,13 +1,11 @@
 """Google Cloud Speech-to-Text engine implementation."""
 
-from __future__ import annotations
-
 import base64
 import json
 import os
 from importlib import import_module
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any, cast, override
 from urllib import error, parse, request
 
 from core.stt.stt_interface import (
@@ -61,13 +59,16 @@ class GoogleCloudSpeechToText(STTInterface):
         self._speech_module: ModuleType | None = None
 
     @property
+    @override
     def is_available(self) -> bool:
         return self._available
 
     @staticmethod
+    @override
     def fetch_engine_name() -> str:
         return "google_cloud_stt"
 
+    @override
     def initialize(self, config: Config) -> None:
         """Initialize Google Cloud STT authentication and runtime mode.
 
@@ -110,6 +111,7 @@ class GoogleCloudSpeechToText(STTInterface):
             )
             return
 
+    @override
     def transcribe(self, stt_input: STTInput) -> STTResult:
         """Transcribe audio using Google Cloud Speech-to-Text.
 

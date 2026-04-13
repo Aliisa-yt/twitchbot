@@ -4,9 +4,7 @@ This component provides basic commands for the bot, such as displaying version i
 and attaching/detaching components.
 """
 
-from __future__ import annotations
-
-from typing import TYPE_CHECKING, ClassVar
+from typing import TYPE_CHECKING, ClassVar, override
 
 from twitchio.ext import commands
 
@@ -43,10 +41,12 @@ class BotCommandManager(ComponentBase):
 
     depends: ClassVar[list[str]] = ["ChatEventsManager"]
 
+    @override
     async def component_load(self) -> None:
         """Load the component. No setup required for this component."""
         logger.debug("'%s' component loaded", self.__class__.__name__)
 
+    @override
     async def component_teardown(self) -> None:
         """Teardown the component. No teardown required for this component."""
         logger.debug("'%s' component unloaded", self.__class__.__name__)

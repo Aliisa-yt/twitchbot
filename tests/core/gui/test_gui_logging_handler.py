@@ -1,7 +1,5 @@
-from __future__ import annotations
-
 import logging
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any, cast, override
 
 from core.gui.gui_logging_handler import GUILoggingHandler
 
@@ -30,6 +28,7 @@ class _DummyTextWidget:
 
 
 class _FailingTextWidget(_DummyTextWidget):
+    @override
     def insert(self, _index: str, text: str, tag: str | None = None) -> None:
         _ = text, tag
         msg = "widget unavailable"

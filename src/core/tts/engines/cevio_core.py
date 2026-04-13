@@ -1,8 +1,18 @@
-from __future__ import annotations
+"""Module for controlling CeVIO TTS engines via COM interface.
+
+This module defines the `CevioCore` class, which provides the core functionality for controlling CeVIO TTS engines
+(both AI and CS7) through the Windows COM interface.
+It includes methods for connecting to CeVIO, performing speech synthesis, and managing presets for different voice
+casts.
+The class is designed to be extended by specific implementations for CeVIO AI and CS7, which can override certain
+methods as needed.
+
+Note: This module is only compatible with Windows due to the use of COM interfaces.
+"""
 
 import asyncio
 import platform
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, override
 
 import pythoncom
 import win32com.client
@@ -49,10 +59,12 @@ class CevioCore(Interface):
         self.talk_preset: dict[str, Voice] = {}
 
     @staticmethod
+    @override
     def fetch_engine_name() -> str:
         """Returns the distinguished name of CeVIO"""
         return "cevio"
 
+    @override
     def initialize_engine(self, tts_engine: TTSEngine, context: EngineContext) -> bool:
         """Reads settings from the configuration module and connects to CeVIO"""
         super().initialize_engine(tts_engine, context)
@@ -158,6 +170,7 @@ class CevioCore(Interface):
             return False
         return True
 
+    @override
     async def speech_synthesis(self, ttsparam: TTSParam) -> None:
         """Perform speech synthesis asynchronously
 
@@ -232,6 +245,7 @@ class CevioCore(Interface):
             ttsparam.filepath = _voicefile
             logger.debug("Wave file generated: %s", _voicefile)
 
+    @override
     async def close(self) -> None:
         """Perform CeVIO termination process"""
         if self.linkedstartup:

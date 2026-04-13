@@ -5,12 +5,10 @@ It maintains a buffer of the most recent log lines (20-30 by default) and applie
 based on log level (WARNING and above are colored).
 """
 
-from __future__ import annotations
-
 import logging
 import sys
 import threading
-from typing import TYPE_CHECKING, Final
+from typing import TYPE_CHECKING, Final, override
 
 from utils.logger_utils import LoggerUtils
 
@@ -77,6 +75,7 @@ class GUILoggingHandler(logging.Handler):
             # If text widget is not yet initialized, tags will be set later
             logger.debug("Failed to configure text widget tags: %s", err)
 
+    @override
     def emit(self, record: logging.LogRecord) -> None:
         """Emit a log record to the text widget.
 
@@ -104,7 +103,7 @@ class GUILoggingHandler(logging.Handler):
             # Auto-scroll to the end
             self.text_widget.see("end")
             self.text_widget.config(state="disabled")
-        except (AttributeError, RuntimeError, TclError):
+        except AttributeError, RuntimeError, TclError:
             self._emit_to_stderr(msg)
 
     @staticmethod

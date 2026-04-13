@@ -1,12 +1,10 @@
 """Unit tests for core.tts.tts_interface module."""
 
-from __future__ import annotations
-
 import re
 from io import BytesIO
 from pathlib import Path
 from types import SimpleNamespace
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, cast, override
 from unittest.mock import AsyncMock
 
 import pytest
@@ -42,12 +40,15 @@ def reset_interface_state() -> Iterator[None]:
 
 class DummyEngine(Interface):
     @staticmethod
+    @override
     def fetch_engine_name() -> str:
         return "dummy"
 
+    @override
     def initialize_engine(self, tts_engine: TTSEngine, context: EngineContext) -> bool:
         return super().initialize_engine(tts_engine, context)
 
+    @override
     async def speech_synthesis(self, ttsparam: TTSParam) -> None:
         _ = ttsparam
 

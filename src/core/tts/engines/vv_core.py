@@ -4,12 +4,10 @@ Provides core functionality for VOICEVOX API communication, including audio quer
 speaker management, and parameter conversion. Subclasses implement api_command_procedure().
 """
 
-from __future__ import annotations
-
 import asyncio
 import json
 from abc import abstractmethod
-from typing import TYPE_CHECKING, Any, Final, Literal, NamedTuple, TypeVar, overload
+from typing import TYPE_CHECKING, Any, Final, Literal, NamedTuple, TypeVar, overload, override
 
 from marshmallow.exceptions import ValidationError
 
@@ -100,6 +98,7 @@ class VVCore(Interface):
         return self._id_cache
 
     @staticmethod
+    @override
     def fetch_engine_name() -> str:
         """Get the engine identifier.
 
@@ -108,6 +107,7 @@ class VVCore(Interface):
         """
         return ""
 
+    @override
     def initialize_engine(self, tts_engine: TTSEngine, context: EngineContext) -> bool:
         """Initialize the TTS engine with the provided configuration.
 
@@ -119,6 +119,7 @@ class VVCore(Interface):
         super().initialize_engine(tts_engine, context)
         return True
 
+    @override
     async def async_init(self, param: UserTypeInfo) -> None:
         """Asynchronously initialize the TTS engine.
 
@@ -181,11 +182,13 @@ class VVCore(Interface):
             logger.error(msg)
             self._is_engine_running = False
 
+    @override
     async def close(self) -> None:
         """Close the TTS engine and clean up resources."""
         await self.async_http.close()
         logger.info("%s process termination", self.__class__.__name__)
 
+    @override
     async def speech_synthesis(self, ttsparam: TTSParam) -> None:
         """Perform text-to-speech synthesis and queue playback.
 

@@ -1,11 +1,9 @@
 """Unit tests for core.tts.engines.vv_core module."""
 
-from __future__ import annotations
-
 from dataclasses import dataclass
 from pathlib import Path
 from types import SimpleNamespace
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, cast, override
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -35,9 +33,11 @@ class FakeAsyncHttp:
 
 class DummyVVCore(vv_module.VVCore):
     @staticmethod
+    @override
     def fetch_engine_name() -> str:
         return "dummyvv"
 
+    @override
     async def api_command_procedure(self, ttsparam: TTSParam) -> bytes:
         _ = ttsparam
         return b"voice"

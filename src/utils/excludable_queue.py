@@ -1,7 +1,5 @@
-from __future__ import annotations
-
 import asyncio
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, override
 
 from utils.logger_utils import LoggerUtils
 
@@ -21,6 +19,7 @@ class ExcludableQueue[T](asyncio.Queue[Any]):
         super().__init__(*args, **kwargs)
         self._lock = asyncio.Lock()
 
+    @override
     async def put(self, item: T) -> None:
         """Add item to queue with exclusive lock."""
         async with self._lock:

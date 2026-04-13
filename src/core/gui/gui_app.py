@@ -14,7 +14,7 @@ import sys
 import tkinter as tk
 from dataclasses import dataclass
 from tkinter import messagebox, scrolledtext, ttk
-from typing import TYPE_CHECKING, Any, Final
+from typing import TYPE_CHECKING, Any, Final, override
 
 from core.gui.gui_logging_handler import GUILoggingHandler
 from utils.logger_utils import LoggerUtils
@@ -126,6 +126,7 @@ class StreamRedirector(io.StringIO):
         self.original_stream: Any = original_stream
         self.max_lines: int = max_lines
 
+    @override
     def write(self, msg: str) -> int:
         """Write message to both the text widget and the original stream.
 
@@ -171,6 +172,7 @@ class StreamRedirector(io.StringIO):
             end_index: str = f"{line_count - self.max_lines + 1}.0"
             self.text_widget.delete("1.0", end_index)
 
+    @override
     def flush(self) -> None:
         """Flush both the original stream and the buffer."""
         with contextlib.suppress(OSError, AttributeError, ValueError):

@@ -8,15 +8,13 @@ Original repository:
     https://github.com/sevenc-nanashi/async-google-trans-new
 """
 
-from __future__ import annotations
-
 import json
 import logging
 import random
 import re
 from json import JSONDecodeError
 from re import Match
-from typing import Any, Final
+from typing import Any, Final, override
 from urllib.parse import quote
 
 import aiohttp
@@ -124,9 +122,11 @@ class TextResult:
         self.pronounce_tgt: str | None = pronounce_tgt
         self.metadata: dict[str, str] | None = metadata
 
+    @override
     def __str__(self) -> str:
         return self.text
 
+    @override
     def __repr__(self) -> str:
         return (
             f"<TextResult text={self.text} detected_source_lang={self.detected_source_lang} "
@@ -165,7 +165,7 @@ class AsyncTranslator:
         try:
             if self.__session.closed:
                 self.__session = aiohttp.ClientSession()
-        except (NameError, AttributeError):
+        except NameError, AttributeError:
             self.__session = aiohttp.ClientSession()
         return self.__session
 
@@ -173,7 +173,7 @@ class AsyncTranslator:
         logger.debug("'%s': 'termination process'", self.__class__.__name__)
         try:
             await self.__session.close()
-        except (NameError, AttributeError):
+        except NameError, AttributeError:
             pass
         finally:
             logger.debug("'%s': 'finished'", self.__class__.__name__)

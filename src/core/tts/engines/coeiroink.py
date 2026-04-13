@@ -3,9 +3,7 @@
 Provides integration with COEIROINK v1 API for Japanese speech synthesis.
 """
 
-from __future__ import annotations
-
-from typing import TYPE_CHECKING, Final
+from typing import TYPE_CHECKING, Final, override
 
 from core.tts.engines.voicevox import VoiceVox
 from utils.logger_utils import LoggerUtils
@@ -38,21 +36,24 @@ class CoeiroInk(VoiceVox):
         super().__init__()
 
     @staticmethod
+    @override
     def fetch_engine_name() -> str:
         """Return the engine identifier."""
         return "coeiroink"
 
+    @override
     def initialize_engine(self, tts_engine: TTSEngine, context: EngineContext) -> bool:
         """Initialize the COEIROINK engine with configuration."""
         super(VoiceVox, self).initialize_engine(tts_engine, context)
         print("Loaded speech synthesis engine: COEIROINK")
         return True
 
+    @override
     def _set_synthesis_parameters(self, audio_query: AudioQueryType, ttsparam: TTSParam) -> None:
         """Apply user-specified synthesis parameters to the audio query.
 
         Args:
-            audio_query (_AudioQueryType): The audio query object to modify.
+            audio_query (AudioQueryType): The audio query object to modify.
             ttsparam (TTSParam): User's text-to-speech parameters.
         """
         audio_query.speedScale = self._adjust_reading_speed(

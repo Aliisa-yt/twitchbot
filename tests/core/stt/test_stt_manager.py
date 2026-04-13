@@ -1,7 +1,5 @@
-from __future__ import annotations
-
 from types import SimpleNamespace
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any, cast, override
 
 import pytest
 
@@ -41,6 +39,7 @@ class _FakeRecorder:
 
 
 class _FailingRecorder(_FakeRecorder):
+    @override
     async def start_input_monitoring(self, on_level_event=None) -> None:
         _ = on_level_event
         msg = "invalid input device"

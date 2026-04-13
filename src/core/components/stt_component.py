@@ -1,10 +1,8 @@
-from __future__ import annotations
-
 import asyncio
 from contextlib import suppress
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, ClassVar, Final
+from typing import TYPE_CHECKING, ClassVar, Final, override
 from uuid import uuid4
 
 from core.components.base import ComponentBase
@@ -47,6 +45,7 @@ class STTServiceComponent(ComponentBase):
 
     depends: ClassVar[list[str]] = ["ChatEventsManager", "TTSServiceComponent", "TranslationServiceComponent"]
 
+    @override
     async def component_load(self) -> None:
         """Load the component and initialize STT services."""
         self._stt_result_ignore_words: list[str] = self._load_stt_result_ignore_words()
@@ -74,6 +73,7 @@ class STTServiceComponent(ComponentBase):
         except AttributeError as err:
             logger.warning("STT service initialization skipped due to missing configuration: %s", err)
 
+    @override
     async def component_teardown(self) -> None:
         """Teardown the component and close STT services."""
         with suppress(AttributeError):

@@ -5,10 +5,8 @@ The event is executed at regular intervals, and the next execution time is set a
 The time signal can be configured to output text to the console or to output speech using TTS.
 """
 
-from __future__ import annotations
-
 from datetime import datetime, timedelta
-from typing import TYPE_CHECKING, ClassVar, Final
+from typing import TYPE_CHECKING, ClassVar, Final, override
 
 from twitchio.ext import routines
 
@@ -52,6 +50,7 @@ class TimeSignalManager(ComponentBase):
 
     depends: ClassVar[list[str]] = ["TTSServiceComponent"]
 
+    @override
     async def component_load(self) -> None:
         """Load the component and initialize resources."""
         if not self._configure_time_signal():
@@ -59,6 +58,7 @@ class TimeSignalManager(ComponentBase):
         self.event_time_signal.start()
         logger.debug("'%s' component loaded", self.__class__.__name__)
 
+    @override
     async def component_teardown(self) -> None:
         """Teardown the component and release resources."""
         self.event_time_signal.cancel()

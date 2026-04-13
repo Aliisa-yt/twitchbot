@@ -1,8 +1,14 @@
-from __future__ import annotations
+"""Module for controlling BouyomiChan via socket communication for speech synthesis.
+
+This module defines the `BouyomiChanSocket` class, which implements the `Interface` for controlling the BouyomiChan
+TTS engine through socket communication.
+It also includes the `BouyomiChanCommand` class for generating the appropriate binary commands to send to BouyomiChan,
+and custom exceptions for error handling specific to this module.
+"""
 
 import contextlib
 import struct
-from typing import TYPE_CHECKING, Final
+from typing import TYPE_CHECKING, Final, override
 
 from core.tts.tts_interface import EngineContext, Interface
 from handlers.async_comm import AsyncCommError, AsyncSocket
@@ -152,7 +158,7 @@ class BouyomiChanCommand:
             return 0
         try:
             return self._clamp(int(value), 0, 65535)
-        except (ValueError, TypeError):
+        except ValueError, TypeError:
             logger.warning("Invalid VoiceID '%s'; using default value (0)", value)
             return 0
 
@@ -185,6 +191,7 @@ class BouyomiChanSocket(Interface):
         self._buffer = 4096  # Buffer size for future response handling
 
     @staticmethod
+    @override
     def fetch_engine_name() -> str:
         """Get the distinguished name of the TTS engine
 
@@ -196,6 +203,7 @@ class BouyomiChanSocket(Interface):
         # causing the module to not be found in subsequent processing
         # return __name__
 
+    @override
     def initialize_engine(self, tts_engine: TTSEngine, context: EngineContext) -> bool:
         """Setup the TTS engine with the given configuration
 
@@ -210,6 +218,7 @@ class BouyomiChanSocket(Interface):
         print("Loaded speech synthesis engine: BouyomiChan")
         return True
 
+    @override
     async def speech_synthesis(self, ttsparam: TTSParam) -> None:
         """Perform speech synthesis using BouyomiChan
 

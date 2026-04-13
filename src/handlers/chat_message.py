@@ -1,8 +1,6 @@
 """Handler for chat messages, providing access to message content, author, and formatting utilities."""
 
-from __future__ import annotations
-
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, override
 
 from handlers.message_formatter import MessageFormatter
 from models.message_models import ChatMessage, ChatMessageAuthorDTO, ChatMessageDTO
@@ -31,6 +29,7 @@ class ChatMessageHandler:
         self._chat_message: ChatMessage = ChatMessage(twitch_message, config)
         self._formatter: MessageFormatter = MessageFormatter(self)
 
+    @override
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}({', '.join(f"{key[1:]}='{value}'" for key, value in self.__dict__.items())})"
 

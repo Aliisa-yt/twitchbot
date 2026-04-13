@@ -1,7 +1,12 @@
-from __future__ import annotations
+"""This module implements the DeepL translation engine using the DeepL API.
+
+It provides functionality for translating text, detecting languages, and managing usage quotas.
+The implementation includes error handling for various exceptions that may occur during API interactions,
+such as authorization failures, quota limits, and connection issues.
+"""
 
 import asyncio
-from typing import TYPE_CHECKING, ClassVar, Final, Literal
+from typing import TYPE_CHECKING, ClassVar, Final, Literal, override
 
 from deepl import DeepLClient, Language, TextResult, Usage, version
 from deepl.exceptions import (
@@ -183,29 +188,35 @@ class DeeplTranslation(TransInterface):
         logger.debug("%s usage: '%s'", self.__class__.__name__, usage_str)
 
     @property
+    @override
     def count(self) -> int:
         if self._usage.character.count is not None:
             return self._usage.character.count
         return 0
 
     @property
+    @override
     def limit(self) -> int:
         if self._usage.character.limit is not None:
             return self._usage.character.limit
         return _DEEPL_DEFAULT_CHAR_LIMIT
 
     @property
+    @override
     def limit_reached(self) -> bool:
         return self._usage.character.limit_reached
 
     @property
+    @override
     def is_available(self) -> bool:
         return self.__available
 
     @staticmethod
+    @override
     def fetch_engine_name() -> str:
         return "deepl"
 
+    @override
     def initialize(self, config: Config) -> None:
         """Initializes the DeepL translation client with the provided configuration.
 
@@ -242,6 +253,7 @@ class DeeplTranslation(TransInterface):
             msg = "Authorisation failed. Please check your authentication key"
             raise TranslateExceptionError(msg) from None
 
+    @override
     async def detect_language(self, content: str, tgt_lang: str) -> Result:
         """Detects the language of the given content using DeepL.
 
@@ -262,6 +274,7 @@ class DeeplTranslation(TransInterface):
         logger.debug("Detected language: '%s'", result.detected_source_lang)
         return result
 
+    @override
     async def translation(self, content: str, tgt_lang: str, src_lang: str | None = None) -> Result:
         """Translates the given content from source language to target language using DeepL.
 
@@ -319,7 +332,7 @@ class DeeplTranslation(TransInterface):
         except DeepLException:
             msg = "An anomaly occurred during the translation process at DeepL"
             raise TranslateExceptionError(msg) from None
-        except (ValueError, TypeError):
+        except ValueError, TypeError:
             msg = "An anomaly occurred during the translation process at DeepL"
             raise TranslateExceptionError(msg) from None
 
@@ -381,6 +394,7 @@ class DeeplTranslation(TransInterface):
             msg = "An anomaly occurred during the translation process at DeepL"
             raise TranslateExceptionError(msg) from None
 
+    @override
     async def get_quota_status(self) -> CharacterQuota:
         """Asynchronously retrieves the current character usage quota from DeepL.
 
@@ -396,6 +410,7 @@ class DeeplTranslation(TransInterface):
         await asyncio.to_thread(self._get_usage)
         return CharacterQuota(count=self.count, limit=self.limit, is_quota_valid=self.has_quota_api)
 
+    @override
     async def close(self) -> None:
         """This closes the DeepL client instance and resets the usage statistics.
 

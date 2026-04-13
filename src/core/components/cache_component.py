@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 from datetime import timedelta
-from typing import TYPE_CHECKING, ClassVar, Final
+from typing import TYPE_CHECKING, ClassVar, Final, override
 
 from twitchio.ext import commands, routines
 
@@ -50,12 +50,14 @@ class CacheServiceComponent(ComponentBase):
 
     depends: ClassVar[list[str]] = ["TranslationServiceComponent"]
 
+    @override
     async def component_load(self) -> None:
         """Load the component and initialize cache services."""
         await self.shared.cache_manager.component_load()
         self.cache_maintenance.start()
         logger.debug("'%s' component loaded", self.__class__.__name__)
 
+    @override
     async def component_teardown(self) -> None:
         """Teardown the component and shut down cache services."""
         self.cache_maintenance.cancel()

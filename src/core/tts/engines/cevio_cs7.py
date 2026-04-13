@@ -5,9 +5,7 @@ speech synthesis. CeVIO CS7 is a Windows-based voice synthesis software with adv
 voice customization capabilities.
 """
 
-from __future__ import annotations
-
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, override
 
 from core.tts.engines.cevio_core import CevioCore
 from utils.logger_utils import LoggerUtils
@@ -27,6 +25,7 @@ class CevioCS7(CevioCore):
         super().__init__(cevio_type="CS7")
 
     @staticmethod
+    @override
     def fetch_engine_name() -> str:
         return "cevio_cs7"
 

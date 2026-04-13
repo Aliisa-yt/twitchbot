@@ -1,7 +1,7 @@
 import asyncio
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Any, NoReturn, cast
+from typing import Any, NoReturn, cast, override
 from unittest.mock import patch
 
 import pytest
@@ -206,14 +206,17 @@ async def test_create_handler_map_passes_context_to_engine() -> None:
 
     class DummyEngine(Interface):
         @staticmethod
+        @override
         def fetch_engine_name() -> str:
             return "dummy_engine"
 
+        @override
         def initialize_engine(self, tts_engine, context: EngineContext) -> bool:
             _ = tts_engine
             captured_context.append(context)
             return True
 
+        @override
         async def speech_synthesis(self, ttsparam) -> None:
             _ = ttsparam
 

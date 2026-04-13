@@ -1,10 +1,8 @@
 """Unit tests for core.trans.trans_manager module."""
 
-from __future__ import annotations
-
 from datetime import UTC, datetime
 from types import SimpleNamespace
-from typing import TYPE_CHECKING, ClassVar, cast
+from typing import TYPE_CHECKING, ClassVar, cast, override
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -41,25 +39,31 @@ class DummyEngine(TransInterface):
     quota: ClassVar[CharacterQuota] = CharacterQuota(count=1, limit=10, is_quota_valid=True)
 
     @property
+    @override
     def count(self) -> int:
         return 0
 
     @property
+    @override
     def limit(self) -> int:
         return 10
 
     @property
+    @override
     def limit_reached(self) -> bool:
         return False
 
     @property
+    @override
     def is_available(self) -> bool:
         return type(self).available
 
     @staticmethod
+    @override
     def fetch_engine_name() -> str:
         return "dummy"
 
+    @override
     def initialize(self, config) -> None:
         _ = config
         self.engine_attributes = EngineAttributes(
@@ -68,6 +72,7 @@ class DummyEngine(TransInterface):
             supports_quota_api=True,
         )
 
+    @override
     async def detect_language(self, content: str, tgt_lang: str) -> Result:
         _ = content, tgt_lang
         err: Exception | None = type(self).detect_error
@@ -75,6 +80,7 @@ class DummyEngine(TransInterface):
             raise err
         return type(self).detect_result
 
+    @override
     async def translation(self, content: str, tgt_lang: str, src_lang: str | None = None) -> Result:
         _ = content, tgt_lang, src_lang
         type(self).translation_called = True
@@ -83,12 +89,14 @@ class DummyEngine(TransInterface):
             raise err
         return type(self).translation_result
 
+    @override
     async def get_quota_status(self) -> CharacterQuota:
         err: Exception | None = type(self).quota_error
         if err is not None:
             raise err
         return type(self).quota
 
+    @override
     async def close(self) -> None:
         type(self).close_called = True
 

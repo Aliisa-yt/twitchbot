@@ -1,10 +1,8 @@
-from __future__ import annotations
-
 import uuid
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from io import BytesIO
-from typing import TYPE_CHECKING, ClassVar, Final
+from typing import TYPE_CHECKING, ClassVar, Final, override
 
 from core.tts._tts_engine_config import (
     DEFAULT_PORT_RANGE,
@@ -263,10 +261,12 @@ class Interface(ProcessMixin, ABC):
         return self.__tts_config.earlyspeech
 
     @property
+    @override
     def linkedstartup(self) -> bool:
         return self.__tts_config.linkedstartup
 
     @property
+    @override
     def exec_path(self) -> Path | None:
         return self.__tts_config.exec_path
 

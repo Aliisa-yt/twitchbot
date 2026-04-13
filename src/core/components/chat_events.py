@@ -1,9 +1,7 @@
-from __future__ import annotations
-
 import asyncio
 import contextlib
 import time
-from typing import TYPE_CHECKING, ClassVar, Final
+from typing import TYPE_CHECKING, ClassVar, Final, override
 
 from twitchio.ext.commands import Component
 
@@ -66,12 +64,13 @@ class ChatEventsManager(ComponentBase):
         self._concurrency_sem: asyncio.Semaphore | None = None
         self._is_available: bool = False
 
+    @override
     async def component_load(self) -> None:
         """Initialize the component, including the message queue and concurrency semaphore."""
         max_concurrent: int = getattr(self.config.TTS, "MAX_CONCURRENT_MESSAGES", MESSAGE_CONCURRENCY_DEFAULT)
         try:
             max_concurrent = int(max_concurrent)
-        except (ValueError, TypeError):
+        except ValueError, TypeError:
             logger.warning(
                 "Invalid MAX_CONCURRENT_MESSAGES value '%s'. Falling back to default: %d",
                 max_concurrent,
@@ -88,6 +87,7 @@ class ChatEventsManager(ComponentBase):
         self._is_available = True
         logger.debug("'%s' component loaded", self.__class__.__name__)
 
+    @override
     async def component_teardown(self) -> None:
         """Teardown the component, including cancelling tasks and releasing resources."""
         self._is_available = False

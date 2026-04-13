@@ -1,7 +1,5 @@
-from __future__ import annotations
-
 from types import SimpleNamespace
-from typing import Any
+from typing import Any, override
 
 import pytest
 
@@ -78,6 +76,7 @@ async def test_detect_language_delegates_to_translation(monkeypatch: pytest.Monk
 @pytest.mark.asyncio
 async def test_translation_raises_on_engine_error(monkeypatch: pytest.MonkeyPatch, config: Any) -> None:
     class ErrorTranslator(DummyTranslator):
+        @override
         async def translate(self, content: str, tgt_lang: str, src_lang: str | None) -> trans_google_module.TextResult:
             _ = content, tgt_lang, src_lang
             msg = "bad"

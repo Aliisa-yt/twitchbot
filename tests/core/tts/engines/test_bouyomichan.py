@@ -1,8 +1,7 @@
 """Unit tests for bouyomichan TTS engine."""
 
-from __future__ import annotations
-
 import struct
+from typing import override
 
 import pytest
 
@@ -35,6 +34,7 @@ class DummySocket:
 
 
 class DummySocketFailure(DummySocket):
+    @override
     async def connect(self, address: tuple[str, int]) -> None:
         _ = address
         msg = "connect failed"

@@ -4,9 +4,7 @@ This module provides a translation interface implementation using Google Transla
 through the async_google_translate library.
 """
 
-from __future__ import annotations
-
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, override
 
 from core.trans.engines.async_google_translate import (
     AsyncTranslator,
@@ -62,25 +60,31 @@ class GoogleTranslation(TransInterface):
             logger.debug("Google Translate client instance set to None or invalid type.")
 
     @property
+    @override
     def count(self) -> int:
         return 0
 
     @property
+    @override
     def limit(self) -> int:
         return 0
 
     @property
+    @override
     def limit_reached(self) -> bool:
         return False
 
     @property
+    @override
     def is_available(self) -> bool:
         return True
 
     @staticmethod
+    @override
     def fetch_engine_name() -> str:
         return "google"
 
+    @override
     def initialize(self, config: Config) -> None:
         logger.debug("'%s' Initialization start", self.__class__.__name__)
         self.engine_attributes = EngineAttributes(
@@ -95,11 +99,13 @@ class GoogleTranslation(TransInterface):
             msg = "an error occurred in instance creation"
             raise RuntimeError(msg) from err
 
+    @override
     async def detect_language(self, content: str, tgt_lang: str) -> Result:
         result: Result = await self.translation(content, tgt_lang=tgt_lang)
         logger.debug("Detected language: '%s'", result.detected_source_lang)
         return result
 
+    @override
     async def translation(self, content: str, tgt_lang: str, src_lang: str | None = None) -> Result:
         logger.info("'%s': 'start translation'", self.__class__.__name__)
         logger.debug("'content': '%s', 'src_lang': '%s', 'tgt_lang': '%s'", content, src_lang, tgt_lang)
@@ -131,9 +137,11 @@ class GoogleTranslation(TransInterface):
             raise TranslationRateLimitError(msg) from err
         return _result
 
+    @override
     async def get_quota_status(self) -> CharacterQuota:
         return CharacterQuota(count=self.count, limit=self.limit, is_quota_valid=self.has_quota_api)
 
+    @override
     async def close(self) -> None:
         await self._inst.close()
         self.__inst = None

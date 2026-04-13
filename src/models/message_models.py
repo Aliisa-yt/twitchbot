@@ -3,15 +3,15 @@
 Defines ChatMessage dataclass for content, author information, translation details, and TTS parameters.
 """
 
-from __future__ import annotations
-
 from dataclasses import InitVar, dataclass, field
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, override
 
+from handlers.fragment_handler import EmoteHandler, MentionHandler
 from models.re_models import REPLY_PATTERN
 from models.translation_models import TranslationInfo
 from models.voice_models import TTSParam
 from utils.logger_utils import LoggerUtils
+from utils.string_utils import StringUtils
 
 if TYPE_CHECKING:
     import logging
@@ -20,7 +20,6 @@ if TYPE_CHECKING:
 
     from twitchio import ChatMessage as TwitchMessage
 
-    from handlers.fragment_handler import EmoteHandler, MentionHandler
     from models.config_models import Config, TTSFormat
 
 
@@ -86,8 +85,6 @@ class ChatMessageDTO:
         Returns:
             ChatMessageDTO: DTO snapshot of the message.
         """
-        from utils.string_utils import StringUtils  # noqa: PLC0415
-
         content: str = StringUtils.ensure_str(twitch_message.text)
         fragments: list[ChatMessageFragmentDTO] = []
         for fragment in twitch_message.fragments:
@@ -148,10 +145,6 @@ class ChatMessage:
     fragments: list[ChatMessageFragmentDTO] = field(default_factory=list)
 
     def __post_init__(self, twitch_message: ChatMessageDTO, config: Config) -> None:
-        # Lazy import to avoid circular import when models/__init__.py exports ChatMessage
-        from handlers.fragment_handler import EmoteHandler, MentionHandler  # noqa: PLC0415
-        from utils.string_utils import StringUtils  # noqa: PLC0415
-
         self.content = StringUtils.ensure_str(twitch_message.content)
         self.author = twitch_message.author
         self.id = StringUtils.ensure_str(twitch_message.message_id)
@@ -163,10 +156,11 @@ class ChatMessage:
         if twitch_message.reply is not None:
             self._process_reply_info_dto(twitch_message.reply)
 
-        self.tts_format: TTSFormat = config.TTS_FORMAT
-        self.emote: EmoteHandler = EmoteHandler(self)
-        self.mention: MentionHandler = MentionHandler(self)
+        self.tts_format = config.TTS_FORMAT
+        self.emote = EmoteHandler(self)
+        self.mention = MentionHandler(self)
 
+    @override
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}({', '.join(f"{key[1:]}='{value}'" for key, value in self.__dict__.items())})"
 
@@ -176,8 +170,6 @@ class ChatMessage:
         Args:
             reply (ChatMessageReplyDTO): Reply payload stored in the DTO.
         """
-        from utils.string_utils import StringUtils  # noqa: PLC0415
-
         decoded_message: str = reply.parent_message_body
         match: Match[str] | None = REPLY_PATTERN.search(decoded_message)
 

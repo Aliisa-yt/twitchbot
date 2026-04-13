@@ -4,9 +4,7 @@ This module provides a TTS interface implementation for CeVIO AI speech synthesi
 CeVIO AI is a Windows-based voice synthesis software with support for multiple voice actors.
 """
 
-from __future__ import annotations
-
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, override
 
 from core.tts.engines.cevio_core import CevioCore
 from utils.logger_utils import LoggerUtils
@@ -26,6 +24,7 @@ class CevioAI(CevioCore):
         super().__init__(cevio_type="AI")
 
     @staticmethod
+    @override
     def fetch_engine_name() -> str:
         return "cevio_ai"
 

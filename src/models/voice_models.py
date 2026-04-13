@@ -3,11 +3,9 @@
 Defines Voice, TTSInfo, TTSParam, and UserTypeInfo dataclasses for TTS operations.
 """
 
-from __future__ import annotations
-
 import json
 from dataclasses import asdict, dataclass, field, fields, replace
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any, cast, override
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -52,12 +50,14 @@ class Voice:
     alpha: VoiceParamType = None
     intonation: VoiceParamType = None
 
+    @override
     def __str__(self) -> str:
         return (
             f"<{self.__class__.__name__} cast: {self.cast}, volume: {self.volume}, speed: {self.speed}, "
             f"tone: {self.tone}, alpha: {self.alpha}, intonation: {self.intonation}>"
         )
 
+    @override
     def __repr__(self) -> str:
         return json.dumps(asdict(self), ensure_ascii=False)
 
@@ -97,12 +97,14 @@ class TTSInfo:
     engine: str | None = None
     voice: Voice = field(default_factory=Voice)
 
+    @override
     def __str__(self) -> str:
         return (
             f"<{self.__class__.__name__} supported_lang: {self.supported_lang}, "
             f"engine: {self.engine}, voice: {self.voice}>"
         )
 
+    @override
     def __repr__(self) -> str:
         return f'{{"supported_lang": "{self.supported_lang}", "engine": "{self.engine}", "voice": {self.voice!r}}}'
 

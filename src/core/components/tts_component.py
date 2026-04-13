@@ -4,10 +4,8 @@ Manages TTS functionalities including initialization and teardown of TTS service
 as well as providing commands for playback management.
 """
 
-from __future__ import annotations
-
 from contextlib import suppress
-from typing import TYPE_CHECKING, ClassVar
+from typing import TYPE_CHECKING, ClassVar, override
 
 from twitchio.ext import commands
 from twitchio.ext.commands import Component
@@ -52,6 +50,7 @@ class TTSServiceComponent(ComponentBase):
 
     depends: ClassVar[list[str]] = ["ChatEventsManager"]
 
+    @override
     async def component_load(self) -> None:
         """Load the component and initialize TTS services."""
         try:
@@ -60,6 +59,7 @@ class TTSServiceComponent(ComponentBase):
         except AttributeError as err:
             logger.warning("TTS service initialization skipped due to missing configuration: %s", err)
 
+    @override
     async def component_teardown(self) -> None:
         """Teardown the component and close TTS services."""
         with suppress(AttributeError):

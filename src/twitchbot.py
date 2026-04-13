@@ -4,8 +4,6 @@ This module provides the main entry point for the Twitchbot application. It hand
 GUI initialization, configuration loading, token verification, and bot startup.
 """
 
-from __future__ import annotations
-
 import argparse
 import asyncio
 import signal
@@ -13,11 +11,10 @@ import sys
 import tempfile
 from contextlib import suppress
 from pathlib import Path
-from typing import TYPE_CHECKING, Final, NoReturn
+from typing import TYPE_CHECKING, Final, NoReturn, override
 
 from _version import __version__
 from config.loader import (
-    Config,
     ConfigLoader,
     ConfigLoaderError,
 )
@@ -36,6 +33,8 @@ from utils.logger_utils import LoggerUtils
 
 if TYPE_CHECKING:
     import logging
+
+    from models.config_models import Config
 
 CFG_FILE: Final[str] = "twitchbot.ini"
 LOG_FILE: Final[str] = "debug.log"
@@ -63,6 +62,7 @@ def sig_handler(signum, frame) -> None:
 
 
 class _ArgumentParser(argparse.ArgumentParser):
+    @override
     def error(self, message: str) -> NoReturn:
         print(f"\n{message}\n", file=sys.stderr)
         self.print_help(sys.stderr)
@@ -71,7 +71,7 @@ class _ArgumentParser(argparse.ArgumentParser):
 
 def parse_arguments() -> argparse.Namespace:
     """Parse command-line arguments for owner and bot names."""
-    parser = _ArgumentParser()
+    parser: _ArgumentParser = _ArgumentParser()
     parser.add_argument("--owner", dest="owner", metavar="OWNER_NAME", help="Override channel owner name")
     parser.add_argument("--bot", dest="bot", metavar="BOT_NAME", help="Override bot user name")
     parser.add_argument("-d", "--debug", action="store_true", help="Enable debug mode")
@@ -120,7 +120,7 @@ def token_db_has_data(db_path: Path) -> bool:
         return False
 
     try:
-        storage = TokenStorage(db_path)
+        storage: TokenStorage = TokenStorage(db_path)
         with storage:
             tokens = storage.load_tokens()
 
@@ -173,8 +173,8 @@ def load_dictionary(config: Config) -> None:
 
 class SignalHandler:
     def __init__(self, sig: signal._SIGNUM, handler: signal._HANDLER) -> None:
-        self.sig = sig
-        self.handler = handler
+        self.sig: signal._SIGNUM = sig
+        self.handler: signal._HANDLER = handler
         self.original_handler: signal._HANDLER | None = None
 
     def __enter__(self) -> None:

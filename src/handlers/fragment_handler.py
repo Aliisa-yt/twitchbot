@@ -6,10 +6,8 @@ Both handlers extract elements from message fragments, apply restrictions, and p
 methods to manipulate these elements in message text.
 """
 
-from __future__ import annotations
-
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Final, NamedTuple
+from typing import TYPE_CHECKING, Final, NamedTuple, override
 
 from utils.logger_utils import LoggerUtils
 from utils.string_utils import StringUtils
@@ -275,6 +273,7 @@ class EmoteHandler:
         logger.debug("Message after emote removal: '%s'", result)
         return result
 
+    @override
     def __repr__(self) -> str:
         """Return string representation of the emote list.
 

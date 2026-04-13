@@ -2,12 +2,10 @@
 It includes the Result data class for translation results, and exceptions for unsupported languages and quota limits.
 """
 
-from __future__ import annotations
-
 import os
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, ClassVar
+from typing import TYPE_CHECKING, ClassVar, override
 
 from utils.logger_utils import LoggerUtils
 
@@ -65,11 +63,13 @@ class Result:
     detected_source_lang: str | None = None
     metadata: dict[str, str] | None = None
 
+    @override
     def __str__(self) -> str:
         if self.text is None:
             return ""
         return self.text
 
+    @override
     def __repr__(self) -> str:
         return (
             f"Result(text={self.text!r}, detected_source_lang={self.detected_source_lang!r}, "

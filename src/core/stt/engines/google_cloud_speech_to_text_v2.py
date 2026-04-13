@@ -1,12 +1,10 @@
 """Google Cloud Speech-to-Text V2 engine implementation."""
 
-from __future__ import annotations
-
 import json
 import os
 from importlib import import_module
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any, cast, override
 
 from core.stt.stt_interface import (
     STTExceptionError,
@@ -80,13 +78,16 @@ class GoogleCloudSpeechToTextV2(STTInterface):
         self._model: str = "chirp_2"
 
     @property
+    @override
     def is_available(self) -> bool:
         return self._available
 
     @staticmethod
+    @override
     def fetch_engine_name() -> str:
         return "google_cloud_stt_v2"
 
+    @override
     def initialize(self, config: Config) -> None:
         """Initialize the Google Cloud Speech-to-Text V2 engine."""
         self._available = False
@@ -201,6 +202,7 @@ class GoogleCloudSpeechToTextV2(STTInterface):
 
         return resolved_location, resolved_model
 
+    @override
     def transcribe(self, stt_input: STTInput) -> STTResult:
         """Transcribe audio using Google Cloud Speech-to-Text V2.
 
@@ -287,7 +289,7 @@ class GoogleCloudSpeechToTextV2(STTInterface):
         try:
             raw: str = credentials_file.read_text(encoding="utf-8")
             decoded = json.loads(raw)
-        except (OSError, json.JSONDecodeError):
+        except OSError, json.JSONDecodeError:
             return None
 
         if isinstance(decoded, dict):

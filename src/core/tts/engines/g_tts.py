@@ -1,9 +1,7 @@
-from __future__ import annotations
-
 import asyncio
 from dataclasses import dataclass
 from io import BytesIO
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any, cast, override
 
 import numpy as np
 import soundfile
@@ -75,15 +73,18 @@ class GoogleText2Speech(Interface):
         super().__init__()
 
     @staticmethod
+    @override
     def fetch_engine_name() -> str:
         return "gtts"
 
+    @override
     def initialize_engine(self, tts_engine: TTSEngine, context: EngineContext) -> bool:
         super().initialize_engine(tts_engine, context)
         # Output a message to the console
         print("Loaded speech synthesis engine: Google Text-to-Speech")
         return True
 
+    @override
     async def speech_synthesis(self, ttsparam: TTSParam) -> None:
         try:
             mp3_data = BytesIO()

@@ -1,7 +1,5 @@
-from __future__ import annotations
-
 from types import SimpleNamespace
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, cast, override
 
 import pytest
 
@@ -206,6 +204,7 @@ def test_get_usage_raises_rate_limit_error(monkeypatch: pytest.MonkeyPatch, conf
     engine.initialize(config)
 
     class RateLimitClient(DummyClient):
+        @override
         def get_usage(self) -> DummyUsage:
             msg = "rate limit"
             raise trans_deepl_module.TooManyRequestsException(msg)
@@ -226,6 +225,7 @@ async def test_get_quota_status_raises_rate_limit_error(monkeypatch: pytest.Monk
     engine.initialize(config)
 
     class RateLimitClient(DummyClient):
+        @override
         def get_usage(self) -> DummyUsage:
             msg = "rate limit"
             raise trans_deepl_module.TooManyRequestsException(msg)

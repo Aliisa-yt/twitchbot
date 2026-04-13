@@ -4,10 +4,8 @@ Provides integration with VOICEVOX API for Japanese speech synthesis.
 Supports version 0.20.0+ with pauseLength and pauseLengthScale parameters.
 """
 
-from __future__ import annotations
-
 import contextlib
-from typing import TYPE_CHECKING, Final, TypeVar
+from typing import TYPE_CHECKING, Final, TypeVar, override
 
 from dataclasses_json import DataClassJsonMixin
 
@@ -51,6 +49,7 @@ class VoiceVox(VVCore):
         super().__init__()
 
     @staticmethod
+    @override
     def fetch_engine_name() -> str:
         """Return the engine identifier.
 
@@ -59,6 +58,7 @@ class VoiceVox(VVCore):
         """
         return "voicevox"
 
+    @override
     def initialize_engine(self, tts_engine: TTSEngine, context: EngineContext) -> bool:
         """Initialize the VOICEVOX engine with configuration.
 
@@ -72,6 +72,7 @@ class VoiceVox(VVCore):
         print("Loaded speech synthesis engine: VOICEVOX")
         return True
 
+    @override
     async def async_init(self, param: UserTypeInfo) -> None:
         """Asynchronously initialize speakers for the VOICEVOX engine.
 
@@ -138,6 +139,7 @@ class VoiceVox(VVCore):
         logger.debug("Generated speaker ID dictionary: %s", id_dict)
         return id_dict
 
+    @override
     async def api_command_procedure(self, ttsparam: TTSParam) -> bytes:
         """Execute the VOICEVOX API request to generate synthesized speech.
 

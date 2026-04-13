@@ -1,7 +1,5 @@
-from __future__ import annotations
-
 from contextlib import suppress
-from typing import TYPE_CHECKING, ClassVar
+from typing import TYPE_CHECKING, ClassVar, override
 
 from twitchio.ext import commands
 
@@ -36,6 +34,7 @@ class TranslationServiceComponent(ComponentBase):
 
     depends: ClassVar[list[str]] = ["ChatEventsManager"]
 
+    @override
     async def component_load(self) -> None:
         """Load the component and initialize translation services."""
         try:
@@ -44,6 +43,7 @@ class TranslationServiceComponent(ComponentBase):
         except AttributeError as err:
             logger.warning("Translation service initialization skipped due to missing configuration: %s", err)
 
+    @override
     async def component_teardown(self) -> None:
         """Teardown the component and shutdown translation services."""
         with suppress(AttributeError):

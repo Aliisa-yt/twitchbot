@@ -3,9 +3,8 @@
 Defines TranslationInfo and CharacterQuota dataclasses for translation tasks.
 """
 
-from __future__ import annotations
-
 from dataclasses import dataclass, field
+from typing import override
 
 from core.trans.trans_interface import Result, TransInterface
 
@@ -29,39 +28,49 @@ class TranslationInfo:
         """Null translation engine that performs no translation and returns empty results."""
 
         @property
+        @override
         def count(self) -> int:
             return 0
 
         @property
+        @override
         def limit(self) -> int:
             return 0
 
         @property
+        @override
         def limit_reached(self) -> bool:
             return False
 
         @property
+        @override
         def is_available(self) -> bool:
             return False
 
         @staticmethod
+        @override
         def fetch_engine_name() -> str:
             return ""
 
+        @override
         def initialize(self, config) -> None:
             _ = config
 
+        @override
         async def detect_language(self, content: str, tgt_lang: str) -> Result:
             _ = content, tgt_lang
             return Result()
 
+        @override
         async def translation(self, content: str, tgt_lang: str, src_lang: str | None = None) -> Result:
             _ = content, tgt_lang, src_lang
             return Result()
 
+        @override
         async def get_quota_status(self) -> CharacterQuota:
             return CharacterQuota()
 
+        @override
         async def close(self) -> None:
             pass
 
