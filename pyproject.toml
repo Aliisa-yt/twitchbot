@@ -38,6 +38,7 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = [
+    "basedpyright>=1.39.0",
     "coverage>=7.13.5",
     "mypy==1.20.0",
     "mypy_extensions==1.1.0",
@@ -206,12 +207,34 @@ exclude_lines = [
 [tool.coverage.html]
 directory = "htmlcov"
 
-[tool.pyright]
+[tool.basedpyright]
+pythonVersion = "3.14"
+pythonPlatform = "All"
+# typeCheckingMode = "recommended"
+typeCheckingMode = "basic"
+
+# Rule exclusion settings.
+reportAny = "none"
+reportUnusedCallResult = "none"
+reportMissingTypeStubs = "none"
+reportUnknownArgumentType = "none"
+reportUnknownParameterType = "none"
+reportUnknownMemberType = "none"
+reportUnknownVariableType = "none"
+reportUnreachable = "none"
+
+# Only display hints indicating rule violations.
+reportUnusedImport = "hint"
+reportUnnecessaryIsInstance = "hint"
+
+# Rule Enhancement Settings.
+reportImplicitOverride = "warning"
+
+include = ["src", "tests"]
+
 exclude = [
     "**/.*",
     "**/uv.lock",
-    "**/.git/**",
-    "**/.venv/**",
     "**/__pycache__/**",
     "**/node_modules/**",
     "**/dist/**",
@@ -220,15 +243,5 @@ exclude = [
     "**/dic/**",
     "**/*.egg-info/**",
     "**/htmlcov/**",
-    "**/AppData/**",
+    "**/local/**",
 ]
-
-typeCheckingMode = "basic"
-
-reportUnusedImport = false
-reportUnusedVariable = true
-reportGeneralTypeIssues = true
-reportMissingImports = true
-reportDuplicateImport = true
-
-extraPaths = ["src", "tests"]
