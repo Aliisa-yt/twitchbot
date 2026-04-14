@@ -4,9 +4,12 @@ Defines TranslationInfo and CharacterQuota dataclasses for translation tasks.
 """
 
 from dataclasses import dataclass, field
-from typing import override
+from typing import TYPE_CHECKING, override
 
 from core.trans.trans_interface import Result, TransInterface
+
+if TYPE_CHECKING:
+    from models.config_models import Config
 
 __all__: list[str] = ["CharacterQuota", "TranslationInfo"]
 
@@ -53,7 +56,7 @@ class TranslationInfo:
             return ""
 
         @override
-        def initialize(self, config) -> None:
+        def initialize(self, config: Config) -> None:
             _ = config
 
         @override

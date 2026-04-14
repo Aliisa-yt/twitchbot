@@ -1,11 +1,9 @@
-from __future__ import annotations
-
 import logging
 import sys
 import warnings
 from logging import Formatter, NullHandler, StreamHandler
 from logging.handlers import RotatingFileHandler
-from typing import TYPE_CHECKING, ClassVar, Final, Literal, NamedTuple, Self, TextIO
+from typing import TYPE_CHECKING, Any, ClassVar, Final, Literal, NamedTuple, Self, TextIO
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -47,16 +45,16 @@ class LoggerUtils:
     and retrieving loggers with a specified namespace.
 
     Attributes:
-        _LOGGER_NAMESPACE (str): The namespace for the logger.
+        _logger_namespace (str): The namespace for the logger.
         _configured (bool): Indicates whether the logger has been configured.
         _instance (LoggerUtils | None): The singleton instance of LoggerUtils.
     """
 
-    _LOGGER_NAMESPACE: ClassVar[str] = DEFAULT_NAMESPACE
+    _logger_namespace: ClassVar[str] = DEFAULT_NAMESPACE
     _configured: ClassVar[bool] = False  # reconfiguration-proof
     _instance: ClassVar[Self | None] = None  # Singleton instance
 
-    def __new__(cls, *args, **kwargs) -> Self:
+    def __new__(cls, *args: Any, **kwargs: Any) -> Self:
         """Create or reuse the singleton instance.
 
         Extra args/kwargs are accepted to mirror ``__init__`` and avoid TypeError
@@ -89,7 +87,7 @@ class LoggerUtils:
         if LoggerUtils._configured:
             return
 
-        self.root_logger: logging.Logger = logging.getLogger(self._LOGGER_NAMESPACE)
+        self.root_logger: logging.Logger = logging.getLogger(self._logger_namespace)
         self._use_null_console: bool = bool(use_null_console) or sys.stderr is None
         filename = str(filename)  # Unify with str type.
         # must be set to a lower level than the level set in the handler
@@ -147,7 +145,7 @@ class LoggerUtils:
             msg = "LoggerUtils is already configured. Reinitialization is not allowed."
             raise RuntimeError(msg)
 
-        cls._LOGGER_NAMESPACE = namespace
+        cls._logger_namespace = namespace
 
     def _console_logging(self) -> None:
         """Configure log output to console.
@@ -168,7 +166,7 @@ class LoggerUtils:
 
         console_handler: StreamHandler[TextIO] = StreamHandler(sys.stderr)
         console_handler.setLevel(logging.WARNING)
-        console_formatter = Formatter("%(message)s")
+        console_formatter: Formatter = Formatter("%(message)s")
         console_handler.setFormatter(console_formatter)
         self.root_logger.addHandler(console_handler)
 
@@ -186,18 +184,18 @@ class LoggerUtils:
             return
 
         try:
-            file_handler = RotatingFileHandler(
+            file_handler: RotatingFileHandler = RotatingFileHandler(
                 filename=filename,
                 maxBytes=_LOG_FILE_SIZE,
                 backupCount=_LOG_BACKUP_COUNT,
                 encoding="utf-8",
             )
-        except (FileNotFoundError, PermissionError):
+        except FileNotFoundError, PermissionError:
             self.root_logger.error("Incorrect log file name: %s\nLogging to the file is not performed.", filename)
             return
 
         file_handler.setLevel(logging.DEBUG)
-        file_formatter = Formatter(
+        file_formatter: Formatter = Formatter(
             "%(asctime)s %(levelname)-8s %(process)5d %(thread)5d %(lineno)4d %(name)-38s\t%(funcName)s\t%(message)s"
         )
         file_handler.setFormatter(file_formatter)
@@ -243,18 +241,18 @@ class LoggerUtils:
     def get_logger(name: str | None = None) -> logging.Logger:
         """Get a logger with the specified name.
 
-        If no name is provided, the root logger in the namespace specified by the '_LOGGER_NAMESPACE'
+        If no name is provided, the root logger in the namespace specified by the '_logger_namespace'
         variable is returned.
 
         Args:
             name (str | None): The name of the logger.
-                               If None, the root logger in the namespace specified by '_LOGGER_NAMESPACE' is returned.
+                               If None, the root logger in the namespace specified by '_logger_namespace' is returned.
         Returns:
             logging.Logger: The logger instance.
         """
         full_name: str | None
-        if LoggerUtils._LOGGER_NAMESPACE:
-            full_name = f"{LoggerUtils._LOGGER_NAMESPACE}.{name}" if name else LoggerUtils._LOGGER_NAMESPACE
+        if LoggerUtils._logger_namespace:
+            full_name = f"{LoggerUtils._logger_namespace}.{name}" if name else LoggerUtils._logger_namespace
         else:
             full_name = name or None
         return logging.getLogger(full_name)

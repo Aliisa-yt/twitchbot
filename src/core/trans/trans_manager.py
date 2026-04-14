@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import time
 from typing import TYPE_CHECKING, ClassVar, Final
 
@@ -26,10 +24,10 @@ from utils.string_utils import StringUtils
 if TYPE_CHECKING:
     import logging
 
-    from config.loader import Config
     from core.cache.cache_manager import TranslationCacheManager
     from core.cache.inflight_manager import InFlightManager
     from models.cache_models import LanguageDetectionCacheEntry, TranslationCacheEntry
+    from models.config_models import Config
     from models.translation_models import TranslationInfo
 
 

@@ -7,7 +7,7 @@ processing synthesis requests, and queuing audio files for playback.
 import asyncio
 import inspect
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 # The TTS engine is invoked in such a way that it is recognised as an unused import.
 # To prevent this, the warning must be disabled.
@@ -125,7 +125,13 @@ class SynthesisManager:
 
         return tts_engine_handler_map
 
-    async def _dispatch_tts_tasks(self, handler_map: TTSEngineHandlerMap, method_name: str, *args, **kwargs) -> None:
+    async def _dispatch_tts_tasks(
+        self,
+        handler_map: TTSEngineHandlerMap,
+        method_name: str,
+        *args: UserTypeInfo | TTSParam | None,
+        **kwargs: dict[str, Any],
+    ) -> None:
         """Dispatch a method call to all TTS engine handlers.
 
         Calls ``method_name`` on every handler in ``handler_map``.
@@ -201,7 +207,7 @@ class SynthesisManager:
         and ensures that the TTS engines are properly initialized and terminated.
         """
 
-        async def dispatch(method_name: str, *args, **kwargs) -> None:
+        async def dispatch(method_name: str, *args: UserTypeInfo | TTSParam | None, **kwargs: dict[str, Any]) -> None:
             """Helper function to dispatch methods to all TTS engines."""
             await self._dispatch_tts_tasks(tts_engine_handler_map, method_name, *args, **kwargs)
 

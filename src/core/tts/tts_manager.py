@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import asyncio
 from typing import TYPE_CHECKING
 
@@ -16,8 +14,8 @@ if TYPE_CHECKING:
     import logging
     from pathlib import Path
 
-    from config.loader import Config
     from handlers.chat_message import ChatMessageHandler
+    from models.config_models import Config
     from models.voice_models import TTSInfo, TTSParam, UserTypeInfo
 
 
@@ -56,8 +54,8 @@ class TTSManager:
         """
         logger.debug("Initializing TTSManager with config")
         self.config: Config = config
-        self.parameter_manager = ParameterManager(config)
-        self.text_preprocessor = TextPreprocessor(config)
+        self.parameter_manager: ParameterManager = ParameterManager(config)
+        self.text_preprocessor: TextPreprocessor = TextPreprocessor(config)
         self._reset_runtime_managers()
 
         # Set to keep track of background tasks
@@ -78,9 +76,11 @@ class TTSManager:
         # When set, it will allow the tasks to exit their loops and clean up resources.
         self.task_terminate_event: asyncio.Event = asyncio.Event()
 
-        self.file_manager = TTSFileManager(self.deletion_queue)
-        self.synthesis_manager = SynthesisManager(self.config, self.synthesis_queue, self.playback_queue)
-        self.playback_manager = AudioPlaybackManager(
+        self.file_manager: TTSFileManager = TTSFileManager(self.deletion_queue)
+        self.synthesis_manager: SynthesisManager = SynthesisManager(
+            self.config, self.synthesis_queue, self.playback_queue
+        )
+        self.playback_manager: AudioPlaybackManager = AudioPlaybackManager(
             self.config, self.file_manager, self.playback_queue, self.task_terminate_event
         )
 

@@ -294,7 +294,7 @@ class AudioPlaybackManager:
             logger.error("Error opening sounddevice stream: %s", err)
             return False
 
-        if self.stream is None:
+        if self.stream is None:  # pyright: ignore[reportUnnecessaryComparison]
             logger.error("Failed to create sounddevice stream")
             return False
 

@@ -3,8 +3,6 @@
 This module provides persistent storage for Twitch API tokens using SQLite3 database.
 """
 
-from __future__ import annotations
-
 import json
 import sqlite3
 import time
@@ -15,6 +13,7 @@ from utils.logger_utils import LoggerUtils
 
 if TYPE_CHECKING:
     import logging
+    from types import TracebackType
 
 
 __all__: list[str] = ["TokenStorage"]
@@ -60,7 +59,9 @@ class TokenStorage:
         self._initialize_database()
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+    def __exit__(
+        self, exc_type: type[BaseException] | None, exc_val: BaseException | None, exc_tb: TracebackType | None
+    ) -> None:
         """Exit context manager; close database connection."""
         _ = exc_type, exc_val, exc_tb
         self.close()

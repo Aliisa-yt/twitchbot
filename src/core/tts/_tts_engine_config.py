@@ -4,8 +4,6 @@ Defines the _TTSConfig dataclass that holds and parses TTS engine settings
 (server, timeout, startup path, etc.) and TTSExceptionError as the base exception class.
 """
 
-from __future__ import annotations
-
 import re
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Final, Literal, cast
@@ -28,8 +26,8 @@ __all__: list[str] = [
     "DEFAULT_PORT_RANGE",
     "DEFAULT_PROTOCOL",
     "DEFAULT_TIMEOUT",
+    "TTSConfig",
     "TTSExceptionError",
-    "_TTSConfig",
     "protocol_type",
 ]
 
@@ -51,7 +49,7 @@ class TTSExceptionError(Exception):
 
 
 @dataclass
-class _TTSConfig:
+class TTSConfig:
     """Dataclass holding TTS engine configuration.
 
     Attributes:
@@ -73,12 +71,12 @@ class _TTSConfig:
     exec_path: Path | None = None
 
     @classmethod
-    def from_config(cls, tts_engine: TTSEngine) -> _TTSConfig:
-        """Create a _TTSConfig instance from a TTSEngine configuration object.
+    def from_config(cls, tts_engine: TTSEngine) -> TTSConfig:
+        """Create a TTSConfig instance from a TTSEngine configuration object.
 
-        Reads settings from the TTSEngine model and initialises a _TTSConfig instance.
+        Reads settings from the TTSEngine model and initialises a TTSConfig instance.
         """
-        tts_config: _TTSConfig = cls()
+        tts_config: TTSConfig = cls()
         # SERVER setting
         server_str: str | None = getattr(tts_engine, "SERVER", None)
         if server_str:

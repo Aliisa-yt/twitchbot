@@ -5,7 +5,7 @@ Requires google-cloud-translate library and proper authentication setup.
 """
 
 import asyncio
-from typing import TYPE_CHECKING, override
+from typing import TYPE_CHECKING, Any, override
 
 from google.api_core.exceptions import (
     BadRequest,
@@ -34,6 +34,8 @@ from utils.logger_utils import LoggerUtils
 if TYPE_CHECKING:
     import logging
 
+    from requests.models import Response
+
     from models.config_models import Config
 
 __all__: list[str] = ["GoogleCloudTranslation"]
@@ -48,7 +50,7 @@ class APIKeySession:
         self.api_key: str = api_key
         self._session: AuthorizedSession = AuthorizedSession(AnonymousCredentials())
 
-    def request(self, method: str, url: str, **kwargs):
+    def request(self, method: str, url: str, **kwargs: Any) -> Any | Response:
         """Make HTTP request with API key appended to URL.
 
         Args:
@@ -160,7 +162,7 @@ class GoogleCloudTranslation(TransInterface):
         logger.debug("'%s' Initialization start", self.__class__.__name__)
         _ = config  # Indicate unused
 
-        self.engine_attributes = EngineAttributes(
+        self.engine_attributes: EngineAttributes = EngineAttributes(
             name="google_cloud",
             supports_dedicated_detection_api=True,
             supports_quota_api=False,

@@ -4,7 +4,7 @@ This module provides the Base class that all bot components inherit from,
 offering common functionality for message processing, translation, and TTS operations.
 """
 
-from typing import TYPE_CHECKING, ClassVar, NamedTuple
+from typing import TYPE_CHECKING, Any, ClassVar, NamedTuple
 
 from twitchio.ext.commands import Component
 
@@ -56,7 +56,7 @@ class ComponentBase(Component):
 
     component_registry: ClassVar[dict[str, ComponentDescriptor]] = {}
 
-    def __init_subclass__(cls, **kwargs) -> None:
+    def __init_subclass__(cls, **kwargs: Any) -> None:
         """Register subclass in the component registry and dependency mapping.
 
         Args:
@@ -89,9 +89,9 @@ class ComponentBase(Component):
             https://twitchio.dev/en/latest/exts/commands/components.html
         """
         self.bot: Bot = bot
-        if bot.shared_data is None:
-            msg = "Shared data is not initialized."
-            raise RuntimeError(msg)
+        # if bot.shared_data is None:
+        #     msg = "Shared data is not initialized."
+        #     raise RuntimeError(msg)
         self.shared: SharedData = bot.shared_data
 
     def get_attached_component(self, component_name: str) -> ComponentBase | None:

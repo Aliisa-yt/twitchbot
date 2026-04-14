@@ -2,14 +2,14 @@ import uuid
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from io import BytesIO
-from typing import TYPE_CHECKING, ClassVar, Final, override
+from typing import TYPE_CHECKING, Any, ClassVar, Final, override
 
 from core.tts._tts_engine_config import (
     DEFAULT_PORT_RANGE,
     DEFAULT_PROTOCOL,
     DEFAULT_TIMEOUT,
+    TTSConfig,
     TTSExceptionError,
-    _TTSConfig,
     protocol_type,
 )
 from core.tts._tts_process_mixin import ProcessMixin
@@ -32,12 +32,12 @@ __all__: list[str] = [
     "EngineContext",
     "EngineHandler",
     "Interface",
+    "TTSConfig",
     "TTSExceptionError",
     "TTSFileCreateError",
     "TTSFileError",
     "TTSFileExistsError",
     "TTSNotSupportedError",
-    "_TTSConfig",
 ]
 
 logger: logging.Logger = LoggerUtils.get_logger(__name__)
@@ -140,7 +140,7 @@ class Interface(ProcessMixin, ABC):
 
     def __init__(self) -> None:
         self.process: asyncio.subprocess.Process | None = None
-        self.__tts_config: _TTSConfig = _TTSConfig()
+        self._tts_config: TTSConfig = TTSConfig()
         self._context: EngineContext | None = None
 
     async def async_init(self, _param: UserTypeInfo) -> None:
@@ -207,7 +207,7 @@ class Interface(ProcessMixin, ABC):
             msg: str = f"No such engine registered: {name}"
             raise ValueError(msg) from None
 
-    def __init_subclass__(cls, **kwargs) -> None:
+    def __init_subclass__(cls, **kwargs: Any) -> None:
         super().__init_subclass__(**kwargs)
         cls.register_engine(cls)
         # Although it appears possible to register subclass information with '__init__',
@@ -228,21 +228,21 @@ class Interface(ProcessMixin, ABC):
         Returns:
             bool: True if initialization is successful, False otherwise.
         """
-        self.__tts_config = _TTSConfig.from_config(tts_engine)
+        self._tts_config = TTSConfig.from_config(tts_engine)
         self._context = context
         return True
 
     @property
     def protocol(self) -> protocol_type:
-        return self.__tts_config.protocol
+        return self._tts_config.protocol
 
     @property
     def host(self) -> str:
-        return self.__tts_config.host
+        return self._tts_config.host
 
     @property
     def port(self) -> int:
-        return self.__tts_config.port
+        return self._tts_config.port
 
     @property
     def url(self) -> str:
@@ -254,21 +254,21 @@ class Interface(ProcessMixin, ABC):
 
     @property
     def timeout(self) -> float:
-        return self.__tts_config.timeout
+        return self._tts_config.timeout
 
     @property
     def earlyspeech(self) -> bool:
-        return self.__tts_config.earlyspeech
+        return self._tts_config.earlyspeech
 
     @property
     @override
     def linkedstartup(self) -> bool:
-        return self.__tts_config.linkedstartup
+        return self._tts_config.linkedstartup
 
     @property
     @override
     def exec_path(self) -> Path | None:
-        return self.__tts_config.exec_path
+        return self._tts_config.exec_path
 
     @staticmethod
     @abstractmethod

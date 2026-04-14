@@ -17,6 +17,7 @@ from utils.time_utils import TimeUtils
 if TYPE_CHECKING:
     import logging
     from pathlib import Path
+    from types import TracebackType
 
     from twitchio.user import User
 
@@ -128,7 +129,9 @@ class TokenManager:
         """Enter sync context; no-op convenience helper."""
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+    def __exit__(
+        self, exc_type: type[BaseException] | None, exc_val: BaseException | None, exc_tb: TracebackType | None
+    ) -> None:
         """Exit sync context; no resources are managed by TokenManager itself."""
         _ = exc_type, exc_val, exc_tb
 
@@ -136,7 +139,9 @@ class TokenManager:
         """Enter async context; no-op convenience helper."""
         return self
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:
+    async def __aexit__(
+        self, exc_type: type[BaseException] | None, exc_val: BaseException | None, exc_tb: TracebackType | None
+    ) -> None:
         """Exit async context; no resources are managed by TokenManager itself."""
         _ = exc_type, exc_val, exc_tb
 
@@ -537,7 +542,7 @@ class TokenManager:
                     if token_user_id != self.bot_id:
                         logger.warning(
                             "Cached token belongs to user '%s', but expected bot '%s' (%s). "
-                             "Discarding cached token and re-authorizing.",
+                            "Discarding cached token and re-authorizing.",
                             token_user_id,
                             bot_name,
                             self.bot_id,

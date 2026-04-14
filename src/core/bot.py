@@ -40,6 +40,7 @@ from utils.logger_utils import LoggerUtils
 if TYPE_CHECKING:
     from twitchio import EventErrorPayload
     from twitchio.authentication import ValidateTokenPayload
+    from twitchio.eventsub.subscriptions import ChatMessageSubscription
     from twitchio.ext.commands import CommandErrorPayload
     from twitchio.models import Stream
     from twitchio.models.chat import SentMessage
@@ -332,7 +333,9 @@ class Bot(commands.Bot):
         """
         logger.debug("Subscribing to chat messages and events for the bot's owner")
         await self.add_token(self.access_token, self.refresh_token)
-        payload = eventsub.ChatMessageSubscription(broadcaster_user_id=self.owner_id, user_id=self.bot_id)
+        payload: ChatMessageSubscription = eventsub.ChatMessageSubscription(
+            broadcaster_user_id=self.owner_id, user_id=self.bot_id
+        )
         await self.subscribe_websocket(payload=payload, token_for=self.bot_id)
 
         logger.debug("Subscribing to chat message deletion and clearing events for the bot's owner")
@@ -389,7 +392,9 @@ class Bot(commands.Bot):
             return
 
         logger.info("Subscribing to chat messages for user ID: %s", payload.user_id)
-        chat = eventsub.ChatMessageSubscription(broadcaster_user_id=payload.user_id, user_id=self.bot_id)
+        chat: ChatMessageSubscription = eventsub.ChatMessageSubscription(
+            broadcaster_user_id=payload.user_id, user_id=self.bot_id
+        )
         if not chat:
             logger.error("Failed to create ChatMessageSubscription for user ID: %s", payload.user_id)
             return
@@ -503,7 +508,7 @@ class Bot(commands.Bot):
         logger.debug("Saving tokens to TokenManager")
 
     @override
-    async def close(self, **kwargs) -> None:
+    async def close(self, **kwargs: Any) -> None:
         """Close the bot and perform any necessary cleanup.
 
         Args:

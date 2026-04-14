@@ -4,7 +4,7 @@ This component provides basic commands for the bot, such as displaying version i
 and attaching/detaching components.
 """
 
-from typing import TYPE_CHECKING, ClassVar, override
+from typing import TYPE_CHECKING, Any, ClassVar, override
 
 from twitchio.ext import commands
 
@@ -79,7 +79,7 @@ class BotCommandManager(ComponentBase):
 
     @commands.command()
     @commands.is_broadcaster()
-    async def attach(self, context: commands.Context, *args) -> None:
+    async def attach(self, context: commands.Context, *args: str) -> None:
         """Attach a removable component to the bot.
 
         Args:
@@ -120,7 +120,7 @@ class BotCommandManager(ComponentBase):
 
     @commands.command()
     @commands.is_broadcaster()
-    async def detach(self, context: commands.Context, *args) -> None:
+    async def detach(self, context: commands.Context, *args: str) -> None:
         """Detach a removable component from the bot.
 
         Args:
@@ -151,13 +151,12 @@ class BotCommandManager(ComponentBase):
             await context.send(usage_message())
             return
 
-        component_instance: ComponentBase | None = None
+        # component_instance: ComponentBase | None = None
         for comp in self.bot.attached_components:
             if comp.__class__ is component_class:
-                component_instance = comp
+                component_instance: ComponentBase = comp
                 break
-
-        if component_instance is None:
+        else:
             await context.send(f"Component '{component_class.__name__}' is not attached.")
             return
 
@@ -165,7 +164,7 @@ class BotCommandManager(ComponentBase):
         await context.send(f"Component '{component_class.__name__}' detached.")
 
     @commands.command()
-    async def help(self, context: commands.Context, *args) -> None:
+    async def help(self, context: commands.Context, *args: str) -> None:
         """Display available commands or help for a specific command.
 
         Args:
@@ -174,7 +173,7 @@ class BotCommandManager(ComponentBase):
         """
         logger.debug("Command 'help' invoked by user: %s", context.author.name)
 
-        bot_commands: dict[str, commands.Command] = context.bot.commands
+        bot_commands: dict[str, commands.Command[Any, ...]] = context.bot.commands
 
         def show_command_list() -> str:
             command_names: list[str] = sorted(bot_commands.keys())
@@ -190,7 +189,7 @@ class BotCommandManager(ComponentBase):
 
         command_name: str = args[0].lower()
         if command_name in bot_commands:
-            cmd_obj: commands.Command = bot_commands[command_name]
+            cmd_obj: commands.Command[Any, ...] = bot_commands[command_name]
             help_text: str | None = cmd_obj.callback.__doc__
             if help_text:
                 first_line: str = help_text.strip().split("\n")[0]

@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import os
 import sys
 from pathlib import Path
@@ -33,7 +31,7 @@ class FileUtils:
             for normal execution.
     """
 
-    RESOURCE_BASE = Path(getattr(sys, "_MEIPASS", Path.cwd()))
+    RESOURCE_BASE: Path = Path(getattr(sys, "_MEIPASS", Path.cwd()))
 
     @staticmethod
     def check_file_status(file_path: Path) -> None:

@@ -6,7 +6,7 @@ all STT engine implementations.
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, ClassVar
+from typing import TYPE_CHECKING, Any, ClassVar
 
 from utils.logger_utils import LoggerUtils
 
@@ -82,7 +82,7 @@ class STTInterface(ABC):
 
     registered: ClassVar[dict[str, type[STTInterface]]] = {}
 
-    def __init_subclass__(cls, **kwargs) -> None:
+    def __init_subclass__(cls, **kwargs: Any) -> None:
         super().__init_subclass__(**kwargs)
         if not hasattr(cls, "fetch_engine_name") or not callable(cls.fetch_engine_name):
             msg = "Subclasses of STTInterface must implement fetch_engine_name()."

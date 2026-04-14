@@ -5,6 +5,7 @@ from utils.logger_utils import LoggerUtils
 
 if TYPE_CHECKING:
     import logging
+    from asyncio.locks import Lock
     from collections.abc import Awaitable, Callable
 
 __all__: list[str] = ["ExcludableQueue"]
@@ -15,9 +16,9 @@ logger: logging.Logger = LoggerUtils.get_logger(__name__)
 class ExcludableQueue[T](asyncio.Queue[Any]):
     """Queue with exclusive lock for put() and clear() operations."""
 
-    def __init__(self, *args, **kwargs) -> None:
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
-        self._lock = asyncio.Lock()
+        self._lock: Lock = asyncio.Lock()
 
     @override
     async def put(self, item: T) -> None:

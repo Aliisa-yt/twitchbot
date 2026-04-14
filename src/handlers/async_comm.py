@@ -6,8 +6,6 @@ The `AsyncHttp` class handles HTTP requests with customizable content type handl
 while the `AsyncSocket` class manages socket connections for sending and receiving data.
 """
 
-from __future__ import annotations
-
 import asyncio
 import json
 from typing import TYPE_CHECKING, Any, Final, Literal, Self
@@ -21,6 +19,7 @@ from utils.logger_utils import LoggerUtils
 if TYPE_CHECKING:
     import logging
     from collections.abc import Callable
+    from types import TracebackType
 
     from aiohttp.client import ClientResponse
 
@@ -70,7 +69,9 @@ class AsyncHttp:
         self.initialize_session(suppress_already_log=True)
         return self
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:
+    async def __aexit__(
+        self, exc_type: type[BaseException] | None, exc_val: BaseException | None, exc_tb: TracebackType | None
+    ) -> None:
         _ = exc_type, exc_val, exc_tb
         logger.debug("%s exiting context", self.__class__.__name__)
         await self.close()
@@ -299,7 +300,9 @@ class AsyncSocket:
         logger.debug("%s entering context", self.__class__.__name__)
         return self
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:
+    async def __aexit__(
+        self, exc_type: type[BaseException] | None, exc_val: BaseException | None, exc_tb: TracebackType | None
+    ) -> None:
         _ = exc_type, exc_val, exc_tb
         logger.debug("%s exiting context", self.__class__.__name__)
         await self.close()

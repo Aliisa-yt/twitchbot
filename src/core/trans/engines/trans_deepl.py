@@ -63,7 +63,7 @@ class DeeplTranslation(TransInterface):
         if version.VERSION != _EXPECTED_DEEPL_VERSION:
             logger.warning(
                 "The version of the DeepL library is '%s', which may not be compatible with this implementation. "
-                 "Please ensure you are using version '%s' for optimal performance.",
+                "Please ensure you are using version '%s' for optimal performance.",
                 version.VERSION,
                 _EXPECTED_DEEPL_VERSION,
             )
@@ -230,7 +230,7 @@ class DeeplTranslation(TransInterface):
         logger.debug("'%s' Initialization start", self.__class__.__name__)
         _ = config  # Indicate unused.
 
-        self.engine_attributes = EngineAttributes(
+        self.engine_attributes: EngineAttributes = EngineAttributes(
             name="deepl",
             supports_dedicated_detection_api=False,
             supports_quota_api=True,
