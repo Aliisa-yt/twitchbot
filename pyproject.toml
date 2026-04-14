@@ -215,6 +215,7 @@ typeCheckingMode = "basic"
 
 # Rule exclusion settings.
 reportAny = "none"
+reportExplicitAny = "none"
 reportUnusedCallResult = "none"
 reportMissingTypeStubs = "none"
 reportUnknownArgumentType = "none"
@@ -226,14 +227,20 @@ reportUnreachable = "none"
 # Only display hints indicating rule violations.
 reportUnusedImport = "hint"
 reportUnnecessaryIsInstance = "hint"
+reportImportCycles = "hint"
+reportImplicitStringConcatenation = "hint"
 
 # Rule Enhancement Settings.
 reportImplicitOverride = "warning"
+reportPrivateLocalImportUsage = "warning"
+reportUninitializedInstanceVariable = "warning"
+reportConstantRedefinition = "warning"
 
-include = ["src", "tests"]
+include = ["src"]
 
 exclude = [
     "**/.*",
+    "**/.venv/**",
     "**/uv.lock",
     "**/__pycache__/**",
     "**/node_modules/**",
