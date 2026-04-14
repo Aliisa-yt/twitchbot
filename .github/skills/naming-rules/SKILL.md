@@ -1,6 +1,6 @@
 ---
 name: naming-rules
-description: 命名規則の適用優先順位、用途別命名、禁止パターン、安全なリネーム運用ガイド
+description: クラスおよびメソッド命名規則の適用優先順位、用途別命名、禁止パターン、安全なリネーム運用ガイド
 keywords: [naming-convention, pep8, consistency, api-compatibility, rename-safety, refactoring]
 ---
 
