@@ -18,7 +18,7 @@ dependencies = [
     "numpy==2.4.4",
     "onnxruntime==1.24.4",
     "pywin32; platform_system == 'Windows'",
-    "pywin32-ctypes==0.2.3",
+    "pywin32-ctypes==0.2.3; platform_system == 'Windows'",
     "sounddevice==0.5.5",
     "soundfile==0.13.1",
     "twitchio[starlette]==3.2.1",
@@ -28,7 +28,7 @@ dependencies = [
     "types-grpcio-status==1.0.0.20260408",
     "types-httplib2==0.31.2.20260408",
     "types-pyasn1==0.6.0.20260408",
-    "types-pywin32==311.0.0.20260408",
+    "types-pywin32==311.0.0.20260408; platform_system == 'Windows'",
     "types-PyYAML==6.0.12.20260408",
     "types-requests==2.33.0.20260408",
     "types-setuptools==82.0.0.20260408",
@@ -210,10 +210,10 @@ directory = "htmlcov"
 [tool.basedpyright]
 pythonVersion = "3.14"
 pythonPlatform = "All"
-# typeCheckingMode = "recommended"
-typeCheckingMode = "basic"
+typeCheckingMode = "recommended"
+# typeCheckingMode = "basic"
 
-# Rule exclusion settings.
+# Rule modification settings.
 reportAny = "none"
 reportExplicitAny = "none"
 reportUnusedCallResult = "none"
@@ -223,16 +223,14 @@ reportUnknownParameterType = "none"
 reportUnknownMemberType = "none"
 reportUnknownVariableType = "none"
 reportUnreachable = "none"
-
-# Only display hints indicating rule violations.
+reportMissingTypeArgument = "none"
 reportUnusedImport = "hint"
 reportUnnecessaryIsInstance = "hint"
 reportImportCycles = "hint"
 reportImplicitStringConcatenation = "hint"
-
-# Rule Enhancement Settings.
-reportImplicitOverride = "warning"
-reportPrivateLocalImportUsage = "warning"
+reportPropertyTypeMismatch = "hint"
+# reportImplicitOverride = "warning"
+# reportPrivateLocalImportUsage = "warning"
 reportUninitializedInstanceVariable = "warning"
 reportConstantRedefinition = "warning"
 
