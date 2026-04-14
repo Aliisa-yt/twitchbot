@@ -5,8 +5,6 @@ used across different bot components. It provides properties for accessing confi
 translation services, text-to-speech services, and in-flight translation request management.
 """
 
-from __future__ import annotations
-
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
@@ -17,7 +15,7 @@ from core.trans.trans_manager import TransManager
 from core.tts.tts_manager import TTSManager
 
 if TYPE_CHECKING:
-    from config.loader import Config
+    from models.config_models import Config
 
 
 __all__: list[str] = ["SharedData"]

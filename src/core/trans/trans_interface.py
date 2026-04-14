@@ -5,14 +5,14 @@ It includes the Result data class for translation results, and exceptions for un
 import os
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, ClassVar, override
+from typing import TYPE_CHECKING, Any, ClassVar, override
 
 from utils.logger_utils import LoggerUtils
 
 if TYPE_CHECKING:
     import logging
 
-    from config.loader import Config
+    from models.config_models import Config
     from models.translation_models import CharacterQuota
 
 __all__: list[str] = [
@@ -119,7 +119,7 @@ class TransInterface(ABC):
 
     registered: ClassVar[dict[str, type[TransInterface]]] = {}
 
-    def __init_subclass__(cls, **kwargs) -> None:
+    def __init_subclass__(cls, **kwargs: dict[str, Any]) -> None:
         """Register the subclass in the registered dictionary.
 
         This method is called when a subclass of TransInterface is created.

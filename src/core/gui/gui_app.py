@@ -4,8 +4,6 @@ This module provides a GUI interface for the twitchbot using tkinter,
 integrating asyncio event loop with tkinter's event loop.
 """
 
-from __future__ import annotations
-
 import asyncio
 import contextlib
 import io
@@ -217,7 +215,7 @@ class GUIApp:
 
         self.bot: Bot | None = None
         self.running: bool = False
-        self.bot_task: asyncio.Task | None = None
+        self.bot_task: asyncio.Task[None] | None = None
         self.shutdown_event: asyncio.Event | None = None
         self._updating_stt_thresholds: bool = False
         self._stt_vad_mode: str = VAD_MODE_LEVEL
@@ -228,13 +226,29 @@ class GUIApp:
         self.stream_redirector: StreamRedirector | None = None
         self.ema_alpha: float = self.STT_LEVEL_EMA_ALPHA_DEFAULT
 
+        # GUI components (initialized in _create_widgets)
+        self.status_label: ttk.Label | None = None
+        self.exit_button: ttk.Button | None = None
+        self.text_widget: scrolledtext.ScrolledText | None = None
+        self.stt_level_meter: tk.Canvas | None = None
+        self.stt_start_scale: ttk.Scale | None = None
+        self.stt_start_value_label: ttk.Label | None = None
+        self.stt_stop_scale: ttk.Scale | None = None
+        self.stt_stop_value_label: ttk.Label | None = None
+        self.stt_mute_button: ttk.Button | None = None
+        self.stt_state_label: ttk.Label | None = None
+
         # Create GUI components
         try:
             self._create_widgets()
         except tk.TclError as err:
             logger.exception("Error creating GUI widgets")
-            msg: str = f"Failed to create GUI widgets: {err}"
+            msg = f"Failed to create GUI widgets: {err}"
             raise RuntimeError(msg) from err
+
+        if self.text_widget is None:
+            msg = "Failed to create text widget"
+            raise RuntimeError(msg)
 
         # Create stream redirector for stdout/stderr (dual output to GUI and console)
         self.stream_redirector = StreamRedirector(self.text_widget, sys.__stdout__, max_lines=MAX_SCROLLED_LINES)
@@ -264,11 +278,11 @@ class GUIApp:
         status_frame.pack(side=tk.TOP, fill=tk.X, padx=8, pady=(8, 4))
 
         # Create status label
-        self.status_label: ttk.Label = ttk.Label(status_frame, text="Starting...", style=LABEL_STYLE)
+        self.status_label = ttk.Label(status_frame, text="Starting...", style=LABEL_STYLE)
         self.status_label.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(4, 8))
 
         # Create exit button
-        self.exit_button: ttk.Button = ttk.Button(
+        self.exit_button = ttk.Button(
             status_frame,
             text="Close",
             command=self._on_closing,
@@ -294,7 +308,7 @@ class GUIApp:
         message_frame: ttk.LabelFrame = ttk.LabelFrame(parent_frame, text="Messages", style=LABEL_FRAME_STYLE)
         message_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(6, 0))
 
-        self.text_widget: scrolledtext.ScrolledText = scrolledtext.ScrolledText(
+        self.text_widget = scrolledtext.ScrolledText(
             message_frame,
             state="disabled",
             wrap=tk.WORD,
@@ -377,13 +391,13 @@ class GUIApp:
         Other modules and tests access these attributes directly, so this method
         keeps backward compatibility while allowing internal STT encapsulation.
         """
-        self.stt_level_meter: tk.Canvas = widgets.level_meter
-        self.stt_start_scale: ttk.Scale = widgets.start_scale
-        self.stt_start_value_label: ttk.Label = widgets.start_value_label
-        self.stt_stop_scale: ttk.Scale = widgets.stop_scale
-        self.stt_stop_value_label: ttk.Label = widgets.stop_value_label
-        self.stt_mute_button: ttk.Button = widgets.mute_button
-        self.stt_state_label: ttk.Label = widgets.state_label
+        self.stt_level_meter = widgets.level_meter
+        self.stt_start_scale = widgets.start_scale
+        self.stt_start_value_label = widgets.start_value_label
+        self.stt_stop_scale = widgets.stop_scale
+        self.stt_stop_value_label = widgets.stop_value_label
+        self.stt_mute_button = widgets.mute_button
+        self.stt_state_label = widgets.state_label
 
     def _require_stt_widgets(self) -> STTSectionWidgets:
         """Return STT widgets container.
@@ -616,6 +630,10 @@ class GUIApp:
             status (str): The status text to display.
             color (str): The color of the status text.
         """
+        if self.status_label is None:
+            logger.warning("Status label is not initialized, cannot update status")
+            return
+
         self.status_label.config(text=status, foreground=color)
         self.root.update_idletasks()
 

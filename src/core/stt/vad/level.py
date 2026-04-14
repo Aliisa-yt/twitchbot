@@ -1,7 +1,5 @@
 """Level-based VAD processor implementation."""
 
-from __future__ import annotations
-
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
@@ -21,8 +19,8 @@ class LevelVADProcessor:
     max_segment_sec: int
 
     def __post_init__(self) -> None:
-        self._recording_active: bool = False
-        self._silence_duration_sec: float = 0.0
+        self._recording_active: bool = False  # pyright: ignore[reportUninitializedInstanceVariable]
+        self._silence_duration_sec: float = 0.0  # pyright: ignore[reportUninitializedInstanceVariable]
 
     def reset(self) -> None:
         self._recording_active = False

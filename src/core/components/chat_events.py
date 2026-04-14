@@ -332,8 +332,7 @@ class ChatEventsManager(ComponentBase):
         # Apply forced language settings from prefixes.
         if temp_trans_info.src_lang is not None:
             trans_info.src_lang = temp_trans_info.src_lang
-        if temp_trans_info.tgt_lang is not None:
-            trans_info.tgt_lang = temp_trans_info.tgt_lang
+        trans_info.tgt_lang = temp_trans_info.tgt_lang
 
         self.trans_manager.refresh_active_engine_list()
 
@@ -389,7 +388,6 @@ class ChatEventsManager(ComponentBase):
         return (
             payload.chatter.id == self.bot.bot_id
             or payload.source_broadcaster is not None
-            or payload.text is None
             or payload.text.strip() == ""
             or payload.text.startswith("!")
             or ChatUtils.is_ignore_users(self.config, payload.chatter.name)

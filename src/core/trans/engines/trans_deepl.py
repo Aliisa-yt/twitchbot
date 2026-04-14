@@ -32,7 +32,7 @@ from utils.logger_utils import LoggerUtils
 if TYPE_CHECKING:
     import logging
 
-    from config.loader import Config
+    from models.config_models import Config
 
 
 __all__: list[str] = ["DeeplTranslation"]
@@ -63,7 +63,7 @@ class DeeplTranslation(TransInterface):
         if version.VERSION != _EXPECTED_DEEPL_VERSION:
             logger.warning(
                 "The version of the DeepL library is '%s', which may not be compatible with this implementation. "
-                "Please ensure you are using version '%s' for optimal performance.",
+                 "Please ensure you are using version '%s' for optimal performance.",
                 version.VERSION,
                 _EXPECTED_DEEPL_VERSION,
             )

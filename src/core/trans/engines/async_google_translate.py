@@ -146,7 +146,7 @@ class AsyncTranslator:
     ) -> None:
         self.proxies: dict[str, str] | None = proxies
         if url_suffix not in URLS_SUFFIX:
-            self.url_suffix = URL_SUFFIX_DEFAULT
+            self.url_suffix: str = URL_SUFFIX_DEFAULT
         else:
             self.url_suffix = url_suffix
         _url_base: str = f"https://translate.google.{self.url_suffix}"

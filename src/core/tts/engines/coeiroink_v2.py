@@ -59,7 +59,7 @@ class CoeiroInk2(VVCore):
     @override
     async def async_init(self, param: UserTypeInfo) -> None:
         """Initialize speakers for the engine."""
-        self.check_status_command = "/v1/engine_info"
+        self.check_status_command: str = "/v1/engine_info"
         await super().async_init(param)
 
         self.available_speakers = await self.fetch_available_speakers()

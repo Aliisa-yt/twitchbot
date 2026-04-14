@@ -34,7 +34,7 @@ from utils.logger_utils import LoggerUtils
 if TYPE_CHECKING:
     import logging
 
-    from config.loader import Config
+    from models.config_models import Config
 
 __all__: list[str] = ["GoogleCloudTranslation"]
 

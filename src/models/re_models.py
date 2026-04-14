@@ -3,8 +3,6 @@
 Patterns for IRC message formats, commands, URLs, mentions, replies, and language designations.
 """
 
-from __future__ import annotations
-
 import re
 from re import Pattern
 from typing import Final
@@ -49,8 +47,8 @@ COMMAND_PATTERN: Final[Pattern[str]] = re.compile(
 # Examples: "http://example.com", "https://www.example.com/path", "www.example.com", "example.com/path"
 URL_PATTERN: Final[Pattern[str]] = re.compile(
     r"((?:(?:https?://)?(?:www\.)?)"
-    r"[a-zA-Z0-9\-]+(?:\.[a-zA-Z0-9\-]+)+"
-    r"(?:/[^\s]*)?)"
+     r"[a-zA-Z0-9\-]+(?:\.[a-zA-Z0-9\-]+)+"
+     r"(?:/[^\s]*)?)"
 )
 
 # Regular expression that matches mentions in the format of @username
@@ -71,7 +69,7 @@ MENTION_PATTERN: Final[Pattern[str]] = re.compile(
 #   message [by display_name]
 REPLY_PATTERN: Final[Pattern[str]] = re.compile(
     r"\[by\s+(?P<display_name>\w+)(?:\s+\((?P<name>\w+)\))?\]"
-    r"(?:\s+\((?P<src_lang>[\w-]+)\s*>\s*(?P<tgt_lang>[\w-]+)\))?$"
+     r"(?:\s+\((?P<src_lang>[\w-]+)\s*>\s*(?P<tgt_lang>[\w-]+)\))?$"
 )
 
 # Regular expression that matches single language designation patterns

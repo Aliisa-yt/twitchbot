@@ -5,8 +5,6 @@ the bot's core functionality including event handling, chat message management, 
 integration, and component lifecycle management.
 """
 
-from __future__ import annotations
-
 import logging
 from collections import defaultdict, deque
 from contextlib import suppress
@@ -46,10 +44,10 @@ if TYPE_CHECKING:
     from twitchio.models import Stream
     from twitchio.models.chat import SentMessage
 
-    from config.loader import Config
     from core.stt.recorder import LevelEventCallback
     from core.stt.stt_manager import STTManager
     from core.token_manager import TokenManager
+    from models.config_models import Config
 
 
 __all__: list[str] = ["Bot"]

@@ -4,8 +4,6 @@ This module manages the TTS synthesis process, including initializing TTS engine
 processing synthesis requests, and queuing audio files for playback.
 """
 
-from __future__ import annotations
-
 import asyncio
 import inspect
 from pathlib import Path
@@ -32,7 +30,7 @@ if TYPE_CHECKING:
     import logging
     from collections.abc import Awaitable, Callable
 
-    from config.loader import Config
+    from models.config_models import Config
     from utils.excludable_queue import ExcludableQueue
 
 

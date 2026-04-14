@@ -50,6 +50,21 @@ class TimeSignalManager(ComponentBase):
 
     depends: ClassVar[list[str]] = ["TTSServiceComponent"]
 
+    _time_signal: TimeSignal | None = None
+    _language: str = ""
+    _clock12: bool = True
+    _early_morning: str = ""
+    _morning: str = ""
+    _late_morning: str = ""
+    _afternoon: str = ""
+    _late_afternoon: str = ""
+    _evening: str = ""
+    _night: str = ""
+    _late_night: str = ""
+    _time_announcement: str = ""
+    _is_text: bool = False
+    _is_voice: bool = False
+
     @override
     async def component_load(self) -> None:
         """Load the component and initialize resources."""
@@ -72,7 +87,8 @@ class TimeSignalManager(ComponentBase):
         Returns:
             bool: True if the configuration is valid and the time signal is enabled, False otherwise.
         """
-        self._time_signal: TimeSignal | None = getattr(self.config, "TIME_SIGNAL", None)
+        # self._time_signal: TimeSignal | None = getattr(self.config, "TIME_SIGNAL", None)
+        self._time_signal = getattr(self.config, "TIME_SIGNAL", None)
         if self._time_signal is None:
             logger.warning("TIME_SIGNAL configuration is missing.")
             return False
@@ -82,29 +98,29 @@ class TimeSignalManager(ComponentBase):
             logger.info("TIME_SIGNAL is disabled in the configuration.")
             return False
 
-        self._language: str = getattr(self._time_signal, "LANGUAGE", self.config.TRANSLATION.NATIVE_LANGUAGE)
+        self._language = getattr(self._time_signal, "LANGUAGE", self.config.TRANSLATION.NATIVE_LANGUAGE)
         if self._language == "" or not isinstance(self._language, str):
             logger.warning("Invalid LANGUAGE value in TIME_SIGNAL config; defaulting to TRANSLATION.NATIVE_LANGUAGE")
             self._language = self.config.TRANSLATION.NATIVE_LANGUAGE
 
-        self._clock12: bool = getattr(self.config.TIME_SIGNAL, "CLOCK12", True)
+        self._clock12 = getattr(self.config.TIME_SIGNAL, "CLOCK12", True)
         if not isinstance(self._clock12, bool):
             logger.warning("Invalid CLOCK12 value in TIME_SIGNAL config; defaulting to True")
             self._clock12 = True
 
         # Although defining 24 slots per time period would allow for greater flexibility, we have determined
         # that the current eight-slot system is sufficient.
-        self._early_morning: str = ""
-        self._morning: str = ""
-        self._late_morning: str = ""
-        self._afternoon: str = ""
-        self._late_afternoon: str = ""
-        self._evening: str = ""
-        self._night: str = ""
-        self._late_night: str = ""
+        self._early_morning = ""
+        self._morning = ""
+        self._late_morning = ""
+        self._afternoon = ""
+        self._late_afternoon = ""
+        self._evening = ""
+        self._night = ""
+        self._late_night = ""
 
-        self._time_announcement: str = ""
-        self._time_slots: list[tuple[int, int, str, int]] = []
+        self._time_announcement = ""
+        self._time_slots: list[tuple[int, int, str, int]] = []  # pyright: ignore[reportUninitializedInstanceVariable]
 
         if self._clock12:
             self._early_morning = self._get_attribute("EARLY_MORNING")
@@ -144,12 +160,12 @@ class TimeSignalManager(ComponentBase):
             if self._time_announcement == "":
                 return False
 
-        self._is_text: bool = getattr(self.config.TIME_SIGNAL, "TEXT", False)
+        self._is_text = getattr(self.config.TIME_SIGNAL, "TEXT", False)
         if not isinstance(self._is_text, bool):
             self._is_text = False
             logger.warning("Invalid TEXT value in TIME_SIGNAL config; defaulting to False")
 
-        self._is_voice: bool = getattr(self.config.TIME_SIGNAL, "VOICE", False)
+        self._is_voice = getattr(self.config.TIME_SIGNAL, "VOICE", False)
         if not isinstance(self._is_voice, bool):
             self._is_voice = False
             logger.warning("Invalid VOICE value in TIME_SIGNAL config; defaulting to False")

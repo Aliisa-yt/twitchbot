@@ -4,8 +4,6 @@ This module defines shared data structures, exceptions, and the abstract interfa
 all STT engine implementations.
 """
 
-from __future__ import annotations
-
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, ClassVar
@@ -16,7 +14,7 @@ if TYPE_CHECKING:
     import logging
     from pathlib import Path
 
-    from config.loader import Config
+    from models.config_models import Config
 
 __all__: list[str] = [
     "STTExceptionError",

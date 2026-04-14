@@ -27,7 +27,7 @@ if TYPE_CHECKING:
     import logging
     from types import ModuleType
 
-    from config.loader import Config
+    from models.config_models import Config
 
 __all__: list[str] = ["GoogleCloudSpeechToTextV2"]
 
@@ -132,7 +132,7 @@ class GoogleCloudSpeechToTextV2(STTInterface):
         if api_oauth:
             logger.warning(
                 "GOOGLE_CLOUD_API_OAUTH is configured, but STT V2 requires service-account auth via "
-                "GOOGLE_APPLICATION_CREDENTIALS"
+                 "GOOGLE_APPLICATION_CREDENTIALS"
             )
             return
 
@@ -172,7 +172,7 @@ class GoogleCloudSpeechToTextV2(STTInterface):
                         resolved_location = language_info["location"]
                         logger.warning(
                             "GOOGLE_CLOUD_STT_V2_LOCATION is not configured in ini. "
-                            "Auto-assigned '%s' from STT.LANGUAGE=%s.",
+                             "Auto-assigned '%s' from STT.LANGUAGE=%s.",
                             resolved_location,
                             language,
                         )
@@ -181,7 +181,7 @@ class GoogleCloudSpeechToTextV2(STTInterface):
                         resolved_model = language_info["default_model"]
                         logger.warning(
                             "GOOGLE_CLOUD_STT_V2_MODEL is not configured in ini. "
-                            "Auto-assigned '%s' from STT.LANGUAGE=%s.",
+                             "Auto-assigned '%s' from STT.LANGUAGE=%s.",
                             resolved_model,
                             language,
                         )
@@ -279,7 +279,7 @@ class GoogleCloudSpeechToTextV2(STTInterface):
         except TypeError:
             logger.warning(
                 "SpeechClient does not support client_options. Falling back to default endpoint. "
-                "To fix this, update google-cloud-speech package to a version that supports client_options."
+                 "To fix this, update google-cloud-speech package to a version that supports client_options."
             )
             return speech_module.SpeechClient()
 
@@ -353,7 +353,7 @@ class GoogleCloudSpeechToTextV2(STTInterface):
                 recognizer_id = "_"
                 logger.warning(
                     "GOOGLE_CLOUD_STT_V2_RECOGNIZER is set to '-', which is deprecated. "
-                    "Using '_' for default recognizer instead."
+                     "Using '_' for default recognizer instead."
                 )
             return recognizer_id
 

@@ -4,8 +4,6 @@ Handles reading, formatting, and validating settings from the INI configuration 
 Raises exceptions for any issues encountered during loading.
 """
 
-from __future__ import annotations
-
 import ast
 import configparser
 import re
@@ -151,7 +149,7 @@ class ConfigLoader:
         *,
         config_filename: str,
         script_name: str,
-        **args,
+        **args: dict[str, str | bool | None],
     ) -> None:
         config_path = Path(config_filename)
         msg: str
@@ -170,14 +168,14 @@ class ConfigLoader:
             msg = f"Failed to parse configuration file '{config_filename}': {err}"
             raise ConfigFormatError(msg) from None
 
-        self.config = Config()
+        self.config: Config = Config()
         self._convert_settings(parser)
         self.config.VOICE_PARAMETERS = self._get_voice_parameters()
         # Apply command-line argument overrides
         if args.get("owner") is not None:
-            self.config.TWITCH.OWNER_NAME = args["owner"]
+            self.config.TWITCH.OWNER_NAME = str(args["owner"])
         if args.get("bot") is not None:
-            self.config.BOT.BOT_NAME = args["bot"]
+            self.config.BOT.BOT_NAME = str(args["bot"])
         if args.get("debug", False):
             self.config.GENERAL.DEBUG = True
         self._validate_settings()

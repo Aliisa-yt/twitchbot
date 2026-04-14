@@ -45,13 +45,17 @@ class STTServiceComponent(ComponentBase):
 
     depends: ClassVar[list[str]] = ["ChatEventsManager", "TTSServiceComponent", "TranslationServiceComponent"]
 
+    _stt_result_ignore_words: list[str] | None = None
+    _confidence_threshold: float | None = None
+    _debug_mode: bool = False
+
     @override
     async def component_load(self) -> None:
         """Load the component and initialize STT services."""
-        self._stt_result_ignore_words: list[str] = self._load_stt_result_ignore_words()
+        self._stt_result_ignore_words = self._load_stt_result_ignore_words()
 
         try:
-            self._confidence_threshold: float | None = None
+            self._confidence_threshold = None
             confidence_threshold: float | None = getattr(self.config.STT, "CONFIDENCE_THRESHOLD", None)
             if confidence_threshold is not None:
                 try:
@@ -60,7 +64,7 @@ class STTServiceComponent(ComponentBase):
                     logger.warning("Invalid STT confidence threshold in configuration: %s", err)
                     self._confidence_threshold = None
 
-            self._debug_mode: bool = getattr(self.config.STT, "DEBUG", False)
+            self._debug_mode = getattr(self.config.STT, "DEBUG", False)
             stt_enabled: bool = self.config.STT.ENABLED
             if isinstance(stt_enabled, bool) and stt_enabled:
                 await self.stt_manager.async_init(on_result=self._on_stt_result)

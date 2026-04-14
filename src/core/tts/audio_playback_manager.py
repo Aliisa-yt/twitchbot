@@ -5,8 +5,6 @@ the playback of audio files in a non-blocking manner using asyncio.
 It uses sounddevice for audio output and soundfile for reading audio files.
 """
 
-from __future__ import annotations
-
 import asyncio
 from enum import IntEnum
 from typing import TYPE_CHECKING, Final
@@ -27,8 +25,8 @@ if TYPE_CHECKING:
     from numpy.typing import NDArray
     from sounddevice import CallbackFlags
 
-    from config.loader import Config
     from core.tts.file_manager import TTSFileManager
+    from models.config_models import Config
     from utils.excludable_queue import ExcludableQueue
 
 # soundfile -> sounddevice conversion tables

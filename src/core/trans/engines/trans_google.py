@@ -31,7 +31,7 @@ from utils.logger_utils import LoggerUtils
 if TYPE_CHECKING:
     import logging
 
-    from config.loader import Config
+    from models.config_models import Config
 
 __all__: list[str] = ["GoogleTranslation"]
 
@@ -87,7 +87,7 @@ class GoogleTranslation(TransInterface):
     @override
     def initialize(self, config: Config) -> None:
         logger.debug("'%s' Initialization start", self.__class__.__name__)
-        self.engine_attributes = EngineAttributes(
+        self.engine_attributes: EngineAttributes = EngineAttributes(
             name="google",
             supports_dedicated_detection_api=False,
             supports_quota_api=False,

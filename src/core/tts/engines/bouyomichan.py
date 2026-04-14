@@ -188,7 +188,7 @@ class BouyomiChanSocket(Interface):
         """Initialize the BouyomiChanSocket with default values"""
         logger.debug("%s initializing", self.__class__.__name__)
         super().__init__()
-        self._buffer = 4096  # Buffer size for future response handling
+        self._buffer: int = 4096  # Buffer size for future response handling
 
     @staticmethod
     @override

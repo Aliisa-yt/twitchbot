@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import asyncio
 import os
 import time
@@ -539,7 +537,7 @@ class TokenManager:
                     if token_user_id != self.bot_id:
                         logger.warning(
                             "Cached token belongs to user '%s', but expected bot '%s' (%s). "
-                            "Discarding cached token and re-authorizing.",
+                             "Discarding cached token and re-authorizing.",
                             token_user_id,
                             bot_name,
                             self.bot_id,

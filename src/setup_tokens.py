@@ -13,11 +13,14 @@ import os
 import sys
 from contextlib import suppress
 from pathlib import Path
-from typing import Final, NoReturn, override
+from typing import TYPE_CHECKING, Final, NoReturn, override
 
-from config.loader import Config, ConfigLoader, ConfigLoaderError
+from config.loader import ConfigLoader, ConfigLoaderError
 from core.token_manager import TokenManager
 from utils.file_utils import FileUtils
+
+if TYPE_CHECKING:
+    from models.config_models import Config
 
 CFG_FILE: Final[str] = "twitchbot.ini"
 TOKEN_DB_FILE: Final[str] = "tokens.db"

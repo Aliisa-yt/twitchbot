@@ -22,7 +22,7 @@ if TYPE_CHECKING:
     import logging
     from types import ModuleType
 
-    from config.loader import Config
+    from models.config_models import Config
 
 __all__: list[str] = ["GoogleCloudSpeechToText"]
 

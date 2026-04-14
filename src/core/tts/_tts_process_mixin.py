@@ -4,12 +4,10 @@ Provides _execute, _kill, _wait_for_exit, and _cleanup for managing an external 
 Intended to be used only in combination with Interface.
 """
 
-from __future__ import annotations
-
 import asyncio
 import contextlib
 import os
-from abc import abstractmethod
+from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Final
 
 from utils.logger_utils import LoggerUtils
@@ -27,7 +25,7 @@ WINDOWS: Final[bool] = os.name == "nt"
 KILL_TIMEOUT: Final[float] = 3.0  # Timeout in seconds for process termination
 
 
-class ProcessMixin:
+class ProcessMixin(ABC):
     """Mixin that manages the lifecycle of an external TTS engine process.
 
     Must not be used standalone; combine with Interface.

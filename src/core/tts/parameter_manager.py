@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import re
 from typing import TYPE_CHECKING
 
@@ -11,8 +9,8 @@ from utils.string_utils import StringUtils
 if TYPE_CHECKING:
     import logging
 
-    from config.loader import Config
     from handlers.chat_message import ChatMessageHandler
+    from models.config_models import Config
 
 logger: logging.Logger = LoggerUtils.get_logger(__name__)
 

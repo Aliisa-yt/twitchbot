@@ -4,8 +4,6 @@ Recorder handles microphone level monitoring and threshold-based segmentation,
 then writes temporary PCM files and enqueues them for STT processing.
 """
 
-from __future__ import annotations
-
 import asyncio
 import contextlib
 import sys
@@ -321,7 +319,7 @@ class STTRecorder:
         try:
             await asyncio.to_thread(self._open_input_stream)
         except Exception:
-            if self._level_dispatch_task is not None:
+            if self._level_dispatch_task is not None:  # pyright: ignore[reportUnnecessaryComparison]
                 self._level_dispatch_task.cancel()
                 self._level_dispatch_task = None
             self._on_level_event = None

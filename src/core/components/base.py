@@ -4,8 +4,6 @@ This module provides the Base class that all bot components inherit from,
 offering common functionality for message processing, translation, and TTS operations.
 """
 
-from __future__ import annotations
-
 from typing import TYPE_CHECKING, ClassVar, NamedTuple
 
 from twitchio.ext.commands import Component
@@ -18,13 +16,13 @@ from utils.string_utils import StringUtils
 if TYPE_CHECKING:
     import logging
 
-    from config.loader import Config
     from core.bot import Bot
     from core.shared_data import SharedData
     from core.stt.stt_manager import STTManager
     from core.trans.trans_manager import TransManager
     from core.tts.tts_manager import TTSManager
     from handlers.chat_message import ChatMessageHandler
+    from models.config_models import Config
 
 
 __all__: list[str] = ["ComponentBase"]

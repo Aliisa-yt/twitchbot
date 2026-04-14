@@ -6,7 +6,7 @@ speaker management, and parameter conversion. Subclasses implement api_command_p
 
 import asyncio
 import json
-from abc import abstractmethod
+from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Any, Final, Literal, NamedTuple, TypeVar, overload, override
 
 from marshmallow.exceptions import ValidationError
@@ -45,7 +45,7 @@ class SpeakerID(NamedTuple):
     style_id: int
 
 
-class VVCore(Interface):
+class VVCore(Interface, ABC):
     """Base class for VOICEVOX-compatible text-to-speech engines.
 
     Provides core functionality for VOICEVOX API communication, including audio query
@@ -72,7 +72,7 @@ class VVCore(Interface):
         """
         logger.debug("%s initializing", self.__class__.__name__)
         super().__init__()
-        self.async_http = AsyncHttp()
+        self.async_http: AsyncHttp = AsyncHttp()
         self.async_http.initialize_session()
         self.async_http.add_handler("audio/wav", lambda raw: raw)
         self._id_cache: dict[str, SpeakerID] = {}

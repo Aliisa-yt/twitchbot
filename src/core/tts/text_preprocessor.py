@@ -4,8 +4,6 @@ Applies emoji-to-text conversion, alphabet-to-katakana transliteration,
 and character-count limiting to text before passing it to a TTS engine.
 """
 
-from __future__ import annotations
-
 from typing import TYPE_CHECKING
 
 from handlers.emoji import EmojiHandler
@@ -15,7 +13,7 @@ from utils.logger_utils import LoggerUtils
 if TYPE_CHECKING:
     import logging
 
-    from config.loader import Config
+    from models.config_models import Config
     from models.voice_models import TTSParam
 
 

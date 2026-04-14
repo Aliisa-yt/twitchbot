@@ -4,8 +4,6 @@ Manages translation and language detection caches using SQLite database with WAL
 Provides cache search, registration, in-flight request management, and cleanup functionality.
 """
 
-from __future__ import annotations
-
 import asyncio
 import sqlite3
 from pathlib import Path
@@ -25,7 +23,7 @@ if TYPE_CHECKING:
     import logging
     from datetime import datetime
 
-    from config.loader import Config
+    from models.config_models import Config
 
 __all__: list[str] = ["TranslationCacheManager"]
 
@@ -655,8 +653,8 @@ class TranslationCacheManager:
                 for row in rows:
                     last_used_dt: str = TimeUtils.epoch_to_datetime(row[7]).isoformat()
                     f.write(
-                        f'{row[2]} -> {row[3]}, "{row[1]}", "{row[4]}", Engine: {row[5]}, Hit Count: {row[6]},'
-                        f" Last Used: {last_used_dt}, Cache Key: {row[0]}\n"
+                        f'{row[2]} -> {row[3]}, "{row[1]}", "{row[4]}", Engine: {row[5]}, Hit Count: {row[6]}, '
+                         f"Last Used: {last_used_dt}, Cache Key: {row[0]}\n"
                     )
 
             logger.info("Cache data exported to: %s", output_path)

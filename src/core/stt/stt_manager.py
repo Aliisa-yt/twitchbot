@@ -1,7 +1,5 @@
 """STT manager lifecycle and orchestration."""
 
-from __future__ import annotations
-
 import asyncio
 import contextlib
 from pathlib import Path
@@ -29,8 +27,7 @@ if TYPE_CHECKING:
     import logging
     from collections.abc import Awaitable, Callable
 
-    from config.loader import Config
-    from models.config_models import STT, VAD, LevelsVAD, SileroVAD
+    from models.config_models import STT, VAD, Config, LevelsVAD, SileroVAD
 
 __all__: list[str] = ["STTManager"]
 
