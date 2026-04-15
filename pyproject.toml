@@ -21,7 +21,7 @@ dependencies = [
     "pywin32-ctypes==0.2.3; platform_system == 'Windows'",
     "sounddevice==0.5.5",
     "soundfile==0.13.1",
-    "twitchio[starlette]==3.2.1",
+    "twitchio[starlette]==3.2.2",
     "types-cffi==2.0.0.20260408",
     "types-dataclasses-json==0.5.9",
     "types-grpcio==1.0.0.20260408",
