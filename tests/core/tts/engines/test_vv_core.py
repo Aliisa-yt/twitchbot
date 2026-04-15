@@ -292,7 +292,7 @@ def test_convert_parameters_with_invalid_type_returns_default(engine: DummyVVCor
 
 
 def test_adjust_reading_speed_disabled_when_no_earlyspeech(engine: DummyVVCore) -> None:
-    engine._Interface__tts_config.earlyspeech = False  # type: ignore[attr-defined]
+    engine._tts_config.earlyspeech = False  # type: ignore[attr-defined]
 
     adjusted = engine._adjust_reading_speed(1.0, 100)
 

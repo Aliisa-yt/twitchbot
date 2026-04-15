@@ -14,10 +14,10 @@ from core.tts.tts_interface import (
     DEFAULT_TIMEOUT,
     EngineContext,
     Interface,
+    TTSConfig,
     TTSExceptionError,
     TTSFileExistsError,
     TTSNotSupportedError,
-    _TTSConfig,
 )
 from models.voice_models import TTSParam
 
@@ -54,7 +54,7 @@ class DummyEngine(Interface):
 
 
 def test_parse_server_config_with_protocol() -> None:
-    protocol, host, port = _TTSConfig._parse_server_config("http://example.com:50000")
+    protocol, host, port = TTSConfig._parse_server_config("http://example.com:50000")
 
     assert protocol == "http"
     assert host == "example.com"
@@ -62,7 +62,7 @@ def test_parse_server_config_with_protocol() -> None:
 
 
 def test_parse_server_config_defaults_protocol() -> None:
-    protocol, host, port = _TTSConfig._parse_server_config("example.com:50001")
+    protocol, host, port = TTSConfig._parse_server_config("example.com:50001")
 
     assert protocol == DEFAULT_PROTOCOL
     assert host == "example.com"
@@ -71,17 +71,17 @@ def test_parse_server_config_defaults_protocol() -> None:
 
 def test_parse_server_config_rejects_bad_protocol() -> None:
     with pytest.raises(TTSExceptionError):
-        _TTSConfig._parse_server_config("ftp://example.com:50000")
+        TTSConfig._parse_server_config("ftp://example.com:50000")
 
 
 def test_parse_server_config_rejects_port_out_of_range() -> None:
     with pytest.raises(TTSExceptionError):
-        _TTSConfig._parse_server_config("http://example.com:1")
+        TTSConfig._parse_server_config("http://example.com:1")
 
 
 def test_parse_timeout_invalid_returns_default() -> None:
-    assert _TTSConfig._parse_timeout(cast("float", "bad")) == DEFAULT_TIMEOUT
-    assert _TTSConfig._parse_timeout(0) == DEFAULT_TIMEOUT
+    assert TTSConfig._parse_timeout(cast("float", "bad")) == DEFAULT_TIMEOUT
+    assert TTSConfig._parse_timeout(0) == DEFAULT_TIMEOUT
 
 
 def test_initialize_engine_reads_config(reset_interface_state: Iterator[None], tmp_path: Path) -> None:

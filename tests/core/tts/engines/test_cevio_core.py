@@ -110,7 +110,7 @@ def test_connect_cevio_start_host_failure(monkeypatch: pytest.MonkeyPatch) -> No
         pass
 
     engine = CevioCore(cevio_type="AI")
-    engine._Interface__tts_config.linkedstartup = True
+    engine._tts_config.linkedstartup = True
 
     monkeypatch.setattr(cevio_core.platform, "system", lambda: "Windows")
     monkeypatch.setattr(cevio_core, "com_error", DummyComError)
@@ -163,7 +163,7 @@ async def test_speech_synthesis_uses_thread_and_play(monkeypatch: pytest.MonkeyP
 def test_speech_synthesis_main_generates_wave_file(monkeypatch: pytest.MonkeyPatch) -> None:
     engine = CevioCore(cevio_type="AI")
     engine.cevio = SimpleNamespace(IsHostStarted=True)
-    engine._Interface__tts_config.earlyspeech = True
+    engine._tts_config.earlyspeech = True
 
     preset = Voice(cast="alpha", volume=10, tone=20, speed=30, alpha=40, intonation=50)
     engine.talk_preset = {"alpha": preset}
@@ -344,7 +344,7 @@ def test_speech_synthesis_main_no_speed_adjustment_for_short_content(monkeypatch
     """Speed is NOT adjusted when content length <= 30, regardless of earlyspeech."""
     engine = CevioCore(cevio_type="AI")
     engine.cevio = SimpleNamespace(IsHostStarted=True)
-    engine._Interface__tts_config.earlyspeech = True
+    engine._tts_config.earlyspeech = True
 
     preset = Voice(cast="alpha", volume=50, tone=50, speed=30, alpha=50, intonation=50)
     engine.talk_preset = {"alpha": preset}
@@ -367,7 +367,7 @@ def test_speech_synthesis_main_no_speed_adjustment_for_short_content(monkeypatch
 @pytest.mark.asyncio
 async def test_close_calls_close_host_when_linkedstartup(monkeypatch: pytest.MonkeyPatch) -> None:
     engine = CevioCore(cevio_type="AI")
-    engine._Interface__tts_config.linkedstartup = True
+    engine._tts_config.linkedstartup = True
 
     close_host_mock = MagicMock()
     engine.cevio = SimpleNamespace(CloseHost=close_host_mock)
