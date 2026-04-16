@@ -4,7 +4,7 @@ This package contains the main Twitchbot application for translating Twitch chat
 and converting them to speech using various TTS engines.
 """
 
-from _version import __version__
+from _config import __version__
 
 __title__ = "Twitchbot"
 __author__ = "Allisa_yt"

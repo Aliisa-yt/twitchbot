@@ -13,7 +13,7 @@ from contextlib import suppress
 from pathlib import Path
 from typing import TYPE_CHECKING, Final, NoReturn, override
 
-from _version import __version__
+from _config import __config_file__, __log_file__, __token_db_file__, __version__
 from config.loader import (
     ConfigLoader,
     ConfigLoaderError,
@@ -37,9 +37,9 @@ if TYPE_CHECKING:
 
     from models.config_models import Config
 
-CFG_FILE: Final[str] = "twitchbot.ini"
-LOG_FILE: Final[str] = "debug.log"
-TOKEN_DB_FILE: Final[str] = "tokens.db"
+CFG_FILE: Final[str] = __config_file__
+LOG_FILE: Final[str] = __log_file__
+TOKEN_DB_FILE: Final[str] = __token_db_file__
 
 logger: logging.Logger = LoggerUtils.get_logger(__name__)
 
@@ -349,11 +349,6 @@ async def main() -> None:
             await app.run_with_bot(_gui_bootstrap(app, args, log_setup))
         else:
             await _console_bootstrap(args, log_setup)
-
-
-def run_main() -> None:
-    """Run application from a synchronous console-script entry point."""
-    asyncio.run(main())
 
 
 if __name__ == "__main__":
