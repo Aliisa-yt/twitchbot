@@ -49,10 +49,6 @@ dev = [
     "ruff==0.15.10",
 ]
 
-[project.scripts]
-twitchbot = "twitchbot:run_main"
-setup_tokens = "setup_tokens:run_main"
-
 [tool.setuptools]
 package-dir = { "" = "src" }
 py-modules = ["twitchbot", "setup_tokens"]
@@ -235,7 +231,7 @@ reportUninitializedInstanceVariable = "warning"
 reportConstantRedefinition = "warning"
 
 include = ["src"]
-ignore = ["tests"]
+ignore = ["tests", ".venv"]
 
 exclude = [
     "uv.lock",
@@ -249,5 +245,4 @@ exclude = [
     "**/dic/**",
     "**/*.egg-info/**",
     "**/htmlcov/**",
-    "**/local/**",
 ]

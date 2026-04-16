@@ -1272,7 +1272,7 @@ requires-dist = [
     { name = "ruff", marker = "extra == 'dev'", specifier = "==0.15.10" },
     { name = "sounddevice", specifier = "==0.5.5" },
     { name = "soundfile", specifier = "==0.13.1" },
-    { name = "twitchio", extras = ["starlette"], specifier = "==3.2.1" },
+    { name = "twitchio", extras = ["starlette"], specifier = "==3.2.2" },
     { name = "types-cffi", specifier = "==2.0.0.20260408" },
     { name = "types-dataclasses-json", specifier = "==0.5.9" },
     { name = "types-grpcio", specifier = "==1.0.0.20260408" },
@@ -1290,14 +1290,14 @@ provides-extras = ["dev"]
 
 [[package]]
 name = "twitchio"
-version = "3.2.1"
+version = "3.2.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "aiohttp" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/16/55/d0b8f1c6552f23994d925301fa7d5743109568cc8f079fee9866c5a52499/twitchio-3.2.1.tar.gz", hash = "sha256:a1be858a4028625173978db91224326b910a0aaa4c7db879a8867003642a0115", size = 248627, upload-time = "2026-01-29T14:14:44.803Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/d1/94/4226b2428f47bc4dde7c8efc6d4ff51b593d95a753b1df418d69153d8943/twitchio-3.2.2.tar.gz", hash = "sha256:44908f4581dcb85d106248bd5cbcccbd7cbbe6f0bea013085eb632f158d8c0c1", size = 248665, upload-time = "2026-04-14T05:46:16.764Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/7e/a1/2f7e31066eb2c6e78cecd95cf1dd66773cf8f90738339320e12df5e2da2d/twitchio-3.2.1-py3-none-any.whl", hash = "sha256:576d131fdfb0378ee0bfd7f35f8381636f9a911c3961589add97055a578da555", size = 320563, upload-time = "2026-01-29T14:14:43.252Z" },
+    { url = "https://files.pythonhosted.org/packages/44/50/2439df5d9169b82b07a4e72ae0815ec31838b56b9e8eddaf372429dadfcd/twitchio-3.2.2-py3-none-any.whl", hash = "sha256:a842fdd7dd9bd03e4d887f9490d42c616d58f9833bcf4ba6b187f77d4148ba7c", size = 320584, upload-time = "2026-04-14T05:46:15.12Z" },
 ]
 
 [package.optional-dependencies]
