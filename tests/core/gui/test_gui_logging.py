@@ -1,7 +1,5 @@
 """Simple test script for GUI components."""
 
-from __future__ import annotations
-
 import logging
 import tkinter as tk
 from tkinter import scrolledtext

@@ -1,8 +1,6 @@
 # ruff: noqa: PLC0415
 """Test script for GUI implementation validation."""
 
-from __future__ import annotations
-
 import logging
 import sys
 from typing import TYPE_CHECKING

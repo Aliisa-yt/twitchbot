@@ -1,7 +1,5 @@
 """Unit tests for core.gui.gui_app module."""
 
-from __future__ import annotations
-
 import asyncio
 import io
 import sys
@@ -322,7 +320,7 @@ def test_update_stt_level_updates_meter_style_by_level(patched_gui: SimpleNamesp
 
     meter = cast("DummyCanvas", app.stt_level_meter)
     widgets = app._require_stt_widgets()
-    fill_id = widgets.level_meter_fill_id
+    fill_id = widgets.level_meter.fill_id
 
     app.update_stt_level(0.2, 0.0)
     x1, y1, x2, y2 = meter.coords_map[fill_id]
@@ -353,7 +351,7 @@ def test_apply_stt_level_event_updates_meter_and_mute_button(patched_gui: Simple
     button = cast("DummyButton", app.stt_mute_button)
     meter = cast("DummyCanvas", app.stt_level_meter)
     widgets = app._require_stt_widgets()
-    fill_id = widgets.level_meter_fill_id
+    fill_id = widgets.level_meter.fill_id
 
     assert meter.coords_map[fill_id][2] == pytest.approx(144.15163)
     assert button.last_config.get("text") == "Unmute"
@@ -428,8 +426,8 @@ def test_stt_threshold_slider_applies_manager_thresholds(patched_gui: SimpleName
     stt_manager = DummySTTManager()
     app.bot = cast("Any", SimpleNamespace(shared_data=SimpleNamespace(stt_manager=stt_manager)))
 
-    start_scale = cast("DummyScale", app.stt_start_scale)
-    stop_scale = cast("DummyScale", app.stt_stop_scale)
+    start_scale = cast("DummyScale", app.stt_scale_1)
+    stop_scale = cast("DummyScale", app.stt_scale_2)
     stop_scale.set(-10.0)
     stt_manager.calls.clear()
     start_scale.set(-40.0)
@@ -437,8 +435,8 @@ def test_stt_threshold_slider_applies_manager_thresholds(patched_gui: SimpleName
     assert stt_manager.calls == [(-20.0, -40.0)]
     assert start_scale.value == -20.0
     assert stop_scale.value == -40.0
-    assert cast("DummyLabel", app.stt_start_value_label).text == "-20.0dB"
-    assert cast("DummyLabel", app.stt_stop_value_label).text == "-40.0dB"
+    assert cast("DummyLabel", app.stt_scale_1_label).text == "-20.0dB"
+    assert cast("DummyLabel", app.stt_scale_2_label).text == "-40.0dB"
 
 
 def test_update_stt_thresholds_does_not_reenter_threshold_callback(patched_gui: SimpleNamespace) -> None:
@@ -459,8 +457,8 @@ def test_update_stt_thresholds_does_not_reenter_threshold_callback(patched_gui: 
     app.update_stt_thresholds(-20, -40)
 
     assert stt_manager.calls == []
-    assert cast("DummyLabel", app.stt_start_value_label).text == "-20.0dB"
-    assert cast("DummyLabel", app.stt_stop_value_label).text == "-40.0dB"
+    assert cast("DummyLabel", app.stt_scale_1_label).text == "-20.0dB"
+    assert cast("DummyLabel", app.stt_scale_2_label).text == "-40.0dB"
 
 
 def test_configure_stt_vad_mode_silero_updates_slider_layout(patched_gui: SimpleNamespace) -> None:
@@ -469,13 +467,13 @@ def test_configure_stt_vad_mode_silero_updates_slider_layout(patched_gui: Simple
 
     app.configure_stt_vad_mode(vad_mode="silero_onnx", vad_threshold=0.42)
 
-    start_scale = cast("DummyScale", app.stt_start_scale)
-    stop_scale = cast("DummyScale", app.stt_stop_scale)
+    start_scale = cast("DummyScale", app.stt_scale_1)
+    stop_scale = cast("DummyScale", app.stt_scale_2)
     assert start_scale.from_ == pytest.approx(0.0)
     assert start_scale.to == pytest.approx(1.0)
     assert stop_scale.states[-1] == ["disabled"]
-    assert cast("DummyLabel", app.stt_start_value_label).text == "0.42"
-    assert cast("DummyLabel", app.stt_stop_value_label).text == "--"
+    assert cast("DummyLabel", app.stt_scale_1_label).text == "0.42"
+    assert cast("DummyLabel", app.stt_scale_2_label).text == "--"
 
 
 def test_stt_threshold_slider_applies_silero_vad_threshold(patched_gui: SimpleNamespace) -> None:
@@ -494,9 +492,9 @@ def test_stt_threshold_slider_applies_silero_vad_threshold(patched_gui: SimpleNa
     stt_manager = DummySTTManager()
     app.bot = cast("Any", SimpleNamespace(shared_data=SimpleNamespace(stt_manager=stt_manager)))
 
-    start_scale = cast("DummyScale", app.stt_start_scale)
+    start_scale = cast("DummyScale", app.stt_scale_1)
     start_scale.set(0.63)
 
     assert stt_manager.calls == [pytest.approx(0.63)]
-    assert cast("DummyLabel", app.stt_start_value_label).text == "0.63"
-    assert cast("DummyLabel", app.stt_stop_value_label).text == "--"
+    assert cast("DummyLabel", app.stt_scale_1_label).text == "0.63"
+    assert cast("DummyLabel", app.stt_scale_2_label).text == "--"
