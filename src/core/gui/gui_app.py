@@ -524,6 +524,16 @@ class GUIApp:
         return max(0.0, min(1.0, float(value)))
 
     @staticmethod
+    def _vad_to_scale(vad: float) -> float:
+        """Convert VAD threshold (0.0-1.0) to internal scale range (STT_FLOOR_LEVEL_DB to 0.0)."""
+        return vad * (-STT_FLOOR_LEVEL_DB) + STT_FLOOR_LEVEL_DB
+
+    @staticmethod
+    def _scale_to_vad(scale_value: float) -> float:
+        """Convert internal scale value (STT_FLOOR_LEVEL_DB to 0.0) to VAD threshold (0.0-1.0)."""
+        return (scale_value - STT_FLOOR_LEVEL_DB) / (-STT_FLOOR_LEVEL_DB)
+
+    @staticmethod
     def _format_vad_threshold_value(value: float) -> str:
         return f"{max(0.0, min(1.0, float(value))):.2f}"
 
@@ -547,11 +557,9 @@ class GUIApp:
         if self._stt_vad_mode == VAD_MODE_SILERO_ONNX:
             widgets.scale_1.text_label.config(text="VAD Threshold")
             widgets.scale_2.text_label.config(text=STT_SILERO_UNUSED_LABEL_TEXT, foreground=UNUSED_COLOR)
-            widgets.scale_1.scale.configure(from_=0.0, to=1.0)
-            widgets.scale_2.scale.configure(from_=STT_FLOOR_LEVEL_DB, to=0.0)
             self._updating_stt_thresholds = True
             try:
-                widgets.scale_1.scale.set(self._clamp_vad_threshold(vad_threshold))
+                widgets.scale_1.scale.set(self._vad_to_scale(self._clamp_vad_threshold(vad_threshold)))
             finally:
                 self._updating_stt_thresholds = False
             widgets.scale_2.scale.state(["disabled"])
@@ -561,8 +569,6 @@ class GUIApp:
 
         widgets.scale_1.text_label.config(text="Start Threshold")
         widgets.scale_2.text_label.config(text="Stop Threshold")
-        widgets.scale_1.scale.configure(from_=STT_FLOOR_LEVEL_DB, to=0.0)
-        widgets.scale_2.scale.configure(from_=STT_FLOOR_LEVEL_DB, to=0.0)
         self._update_stt_threshold_value_labels(widgets.scale_1.scale.get(), widgets.scale_2.scale.get())
         self.root.update_idletasks()
 
@@ -836,7 +842,7 @@ class GUIApp:
         widgets: STTSectionWidgets = self._require_stt_widgets()
         self._updating_stt_thresholds = True
         try:
-            widgets.scale_1.scale.set(self._clamp_vad_threshold(threshold))
+            widgets.scale_1.scale.set(self._vad_to_scale(self._clamp_vad_threshold(threshold)))
         finally:
             self._updating_stt_thresholds = False
         self._update_stt_threshold_value_labels(widgets.scale_1.scale.get(), 0.0)
@@ -891,7 +897,9 @@ class GUIApp:
         """
         widgets: STTSectionWidgets = self._require_stt_widgets()
         if self._stt_vad_mode == VAD_MODE_SILERO_ONNX:
-            widgets.scale_1.value_label.config(text=self._format_vad_threshold_value(start_level_db))
+            widgets.scale_1.value_label.config(
+                text=self._format_vad_threshold_value(self._scale_to_vad(start_level_db)),
+            )
             widgets.scale_2.value_label.config(text=STT_SILERO_UNUSED_VALUE_TEXT, foreground=UNUSED_COLOR)
             return
         widgets.scale_1.value_label.config(text=self._format_level_value(start_level_db))
@@ -920,7 +928,9 @@ class GUIApp:
             widgets: STTSectionWidgets = self._require_stt_widgets()
 
             if self._stt_vad_mode == VAD_MODE_SILERO_ONNX:
-                selected_threshold: float = self._clamp_vad_threshold(float(widgets.scale_1.scale.get()))
+                selected_threshold: float = self._clamp_vad_threshold(
+                    self._scale_to_vad(float(widgets.scale_1.scale.get())),
+                )
                 applied_threshold: float = stt_manager.set_vad_threshold(threshold=selected_threshold)
                 self.update_stt_vad_threshold(applied_threshold)
                 return

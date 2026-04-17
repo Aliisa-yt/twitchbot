@@ -467,10 +467,7 @@ def test_configure_stt_vad_mode_silero_updates_slider_layout(patched_gui: Simple
 
     app.configure_stt_vad_mode(vad_mode="silero_onnx", vad_threshold=0.42)
 
-    start_scale = cast("DummyScale", app.stt_scale_1)
     stop_scale = cast("DummyScale", app.stt_scale_2)
-    assert start_scale.from_ == pytest.approx(0.0)
-    assert start_scale.to == pytest.approx(1.0)
     assert stop_scale.states[-1] == ["disabled"]
     assert cast("DummyLabel", app.stt_scale_1_label).text == "0.42"
     assert cast("DummyLabel", app.stt_scale_2_label).text == "--"
@@ -493,7 +490,7 @@ def test_stt_threshold_slider_applies_silero_vad_threshold(patched_gui: SimpleNa
     app.bot = cast("Any", SimpleNamespace(shared_data=SimpleNamespace(stt_manager=stt_manager)))
 
     start_scale = cast("DummyScale", app.stt_scale_1)
-    start_scale.set(0.63)
+    start_scale.set(gui_module.GUIApp._vad_to_scale(0.63))
 
     assert stt_manager.calls == [pytest.approx(0.63)]
     assert cast("DummyLabel", app.stt_scale_1_label).text == "0.63"
