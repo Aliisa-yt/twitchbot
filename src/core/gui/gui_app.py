@@ -220,6 +220,7 @@ class GUIApp:
             window_title (str): The title of the window.
             geometry (str): The geometry of the window (format: "WIDTHxHEIGHT").
         """
+        logger.debug("Initializing GUI application with title '%s' and geometry '%s'", window_title, geometry)
         self.root: tk.Tk = tk.Tk()
         self.root.title(window_title)
         try:
@@ -285,6 +286,7 @@ class GUIApp:
 
     def _create_widgets(self) -> None:
         """Create the GUI widgets."""
+        logger.debug("Creating GUI widgets")
         self.root.configure(bg=BACKGROUND_COLOR)
         self._configure_styles()
 
@@ -320,6 +322,7 @@ class GUIApp:
         Args:
             parent_frame (ttk.Frame): The parent frame for the message section.
         """
+        logger.debug("Creating message section in the GUI")
         message_frame: ttk.LabelFrame = ttk.LabelFrame(parent_frame, text="Messages", style=LABEL_FRAME_STYLE)
         message_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(6, 0))
 
@@ -341,12 +344,14 @@ class GUIApp:
         Args:
             parent_frame (ttk.Frame): The parent frame for the STT section.
         """
+        logger.debug("Creating STT section in the GUI")
         widgets: STTSectionWidgets = self._create_stt_section_widgets(parent_frame)
         self._stt_widgets = widgets
         self._bind_stt_legacy_attributes(widgets)
 
     def _create_stt_section_widgets(self, parent_frame: ttk.Frame) -> STTSectionWidgets:
         """Create and return all widgets used by the STT section."""
+        logger.debug("Creating STT section widgets")
         stt_inner: ttk.Frame = self._create_section_frame(parent_frame, "STT")
 
         level_meter: LevelMeter = self._level_meter(stt_inner, length=150, height=24)
@@ -395,6 +400,7 @@ class GUIApp:
         Other modules and tests access these attributes directly, so this method
         keeps backward compatibility while allowing internal STT encapsulation.
         """
+        logger.debug("Binding legacy STT widget attributes for external compatibility")
         self.stt_level_meter = widgets.level_meter.canvas
         self.stt_scale_1 = widgets.scale_1.scale
         self.stt_scale_1_label = widgets.scale_1.value_label
@@ -411,6 +417,7 @@ class GUIApp:
         """
         if self._stt_widgets is None:
             msg: str = "STT widgets are not initialized"
+            logger.error(msg)
             raise RuntimeError(msg)
         return self._stt_widgets
 
@@ -424,8 +431,8 @@ class GUIApp:
 
         Returns:
             LevelMeter: The level meter widget.
-
         """
+        logger.debug("Creating STT level meter widget with length %d and height %d", length, height)
         # Use Canvas instead of ttk.Progressbar so level color can be controlled across platforms/themes.
         level_label: Label = ttk.Label(parent, text="Input Level", background=BACKGROUND_COLOR)
         level_label.pack(anchor=tk.W)
@@ -445,6 +452,8 @@ class GUIApp:
         return LevelMeter(canvas=level_meter, fill_id=fill_id, peak_id=peak_id, length=length, height=height)
 
     def _create_section_frame(self, parent: ttk.Frame, title: str) -> ttk.Frame:
+        """Create a labeled frame for a section."""
+        logger.debug("Creating section frame with title '%s'", title)
         frame: ttk.LabelFrame = ttk.LabelFrame(parent, text=title, style=LABEL_FRAME_STYLE)
         frame.pack(side=tk.LEFT, fill=tk.Y, padx=(0, 6))
 
@@ -476,7 +485,13 @@ class GUIApp:
         Returns:
             LabeledScale: The labeled scale widget.
         """
-
+        logger.debug(
+            "Creating labeled scale with text '%s', from %.2f, to %.2f, initial value %.2f",
+            text,
+            from_,
+            to,
+            initial_value,
+        )
         label_frame: Frame = ttk.Frame(parent, style=FRAME_STYLE)
         label_frame.pack(fill=tk.X, pady=(4, 0))
 
@@ -525,6 +540,7 @@ class GUIApp:
             - In "silero_onnx" mode, "scale_1" is used as the VAD threshold and is enabled.
               "scale_2" is disabled and reused to display unused stop thresholds as fixed values.
         """
+        logger.debug("Configuring STT VAD mode to '%s' with threshold %.2f", vad_mode, vad_threshold)
         widgets: STTSectionWidgets = self._require_stt_widgets()
         self._stt_vad_mode = self._normalize_vad_mode(vad_mode)
 
@@ -552,6 +568,7 @@ class GUIApp:
 
     def _configure_styles(self) -> None:
         """Configure ttk widget styles for the GUI."""
+        logger.debug("Configuring ttk widget styles for the GUI")
         style: Style = ttk.Style(self.root)
         style.theme_use("clam")
         style.configure(BUTTON_STYLE, font=("Arial", 10, "bold"))
@@ -606,6 +623,9 @@ class GUIApp:
         """Apply lightweight EMA smoothing for STT level meter width.
 
         The first sample is used as-is to avoid delayed initial rendering.
+
+        Note:
+            As this method is used so often, try to avoid logging in as much as possible.
         """
         if smoothed_data is None:
             return raw_data
@@ -838,6 +858,7 @@ class GUIApp:
 
     def _on_stt_mute_button_clicked(self) -> None:
         """Handle STT mute button click event."""
+        logger.debug("STT mute button clicked")
         if self.bot is None:
             logger.debug("STT mute toggle skipped because bot is not attached")
             return
