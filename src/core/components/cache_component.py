@@ -132,6 +132,7 @@ class CacheServiceComponent(ComponentBase):
             self.print_console_message(line)
 
         logger.info("Cache statistics displayed")
+        await self.send_chat_message("Cache statistics displayed in console.")
 
     @commands.command()
     @commands.is_broadcaster()
@@ -176,7 +177,9 @@ class CacheServiceComponent(ComponentBase):
             msg = f"Cache data exported to: {output_path}"
             self.print_console_message(msg)
             logger.info(msg)
+            await self.send_chat_message("Cache data export completed successfully.")
         else:
             msg = "Failed to export cache data."
             self.print_console_message(msg)
             logger.error(msg)
+            await self.send_chat_message("Failed to export cache data.")

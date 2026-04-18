@@ -93,6 +93,8 @@ class TimeSignalManager(ComponentBase):
             logger.warning("TIME_SIGNAL configuration is missing.")
             return False
 
+        # Although there is a warning about an unnecessary `isinstance` call,
+        # type checking is essential as this involves external data.
         enabled: bool = getattr(self._time_signal, "ENABLED", False)
         if not isinstance(enabled, bool) or not enabled:
             logger.info("TIME_SIGNAL is disabled in the configuration.")
@@ -191,7 +193,7 @@ class TimeSignalManager(ComponentBase):
         _hour: int = _tim.hour
         _minute: int = _tim.minute
         logger.debug(
-            "event_timesignal: %04d-%02d-%02d %02d:%02d:%02d",
+            "event_timesignal: '%04d-%02d-%02d %02d:%02d:%02d'",
             _tim.year,
             _tim.month,
             _tim.day,
@@ -225,7 +227,7 @@ class TimeSignalManager(ComponentBase):
             if self._is_text:
                 self.print_console_message(_time_word)
             if self._is_voice:
-                time_signal_param = TimeSignalParam(content=_time_word, content_lang=self._language)
+                time_signal_param: TimeSignalParam = TimeSignalParam(content=_time_word, content_lang=self._language)
                 logger.debug("Dispatching `time_signal_message` event")
                 self.bot.safe_dispatch("time_signal_message", payload=time_signal_param)
 
@@ -238,7 +240,7 @@ class TimeSignalManager(ComponentBase):
         _tim: datetime = self.next_time()
         self.event_time_signal.change_interval(time=_tim)
         logger.debug(
-            "next time: %04d-%02d-%02d %02d:%02d:%02d",
+            "next time: '%04d-%02d-%02d %02d:%02d:%02d'",
             _tim.year,
             _tim.month,
             _tim.day,

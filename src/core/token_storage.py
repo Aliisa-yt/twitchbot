@@ -43,7 +43,7 @@ class TokenStorage:
         Raises:
             RuntimeError: If the database path is empty.
         """
-        logger.debug("Initializing %s", self.__class__.__name__)
+        logger.debug("Initializing '%s'", self.__class__.__name__)
 
         db_path = Path(db_path)
         if str(db_path).strip() == "":
@@ -52,7 +52,7 @@ class TokenStorage:
 
         self.db_path: Path = db_path
         self._connection: sqlite3.Connection | None = None
-        logger.debug("Database path set to: %s", self.db_path)
+        logger.debug("Database path set to: '%s'", self.db_path)
 
     def __enter__(self) -> Self:
         """Enter context manager; initialize database connection."""
@@ -129,7 +129,7 @@ class TokenStorage:
         row = cursor.fetchone()
 
         if row is None:
-            logger.debug("No tokens found for key: %s", key)
+            logger.debug("No tokens found for key: '%s'", key)
             return {}
 
         # Convert row to dictionary
@@ -144,7 +144,7 @@ class TokenStorage:
             except json.JSONDecodeError:
                 logger.warning("Failed to parse scope JSON; using as-is")
 
-        logger.debug("Loaded tokens for key: %s", key)
+        logger.debug("Loaded tokens for key: '%s'", key)
         return tokens
 
     def save_tokens(self, data: dict[str, Any], key: str = "twitch_bot") -> None:
@@ -180,7 +180,7 @@ class TokenStorage:
                 data.get("token_type", "bearer"),
             ),
         )
-        logger.debug("Saved tokens for key: %s", key)
+        logger.debug("Saved tokens for key: '%s'", key)
 
     def is_expired(self, tokens: dict[str, Any]) -> bool:
         """Check if the access token is expired.
@@ -213,7 +213,7 @@ class TokenStorage:
             "DELETE FROM tokens WHERE key = ?",
             (key,),
         )
-        logger.debug("Deleted tokens for key: %s", key)
+        logger.debug("Deleted tokens for key: '%s'", key)
 
     def close(self) -> None:
         """Close the database connection."""

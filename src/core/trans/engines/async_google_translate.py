@@ -9,18 +9,20 @@ Original repository:
 """
 
 import json
-import logging
 import random
 import re
 from json import JSONDecodeError
 from re import Match
-from typing import Any, Final, override
+from typing import TYPE_CHECKING, Any, Final, override
 from urllib.parse import quote
 
 import aiohttp
 
 from core.trans.engines.const_google import DEFAULT_SERVICE_URLS, LANGUAGES
 from utils.logger_utils import LoggerUtils
+
+if TYPE_CHECKING:
+    import logging
 
 __all__: list[str] = [
     "AsyncTranslator",
@@ -36,10 +38,11 @@ __all__: list[str] = [
 ]
 
 logger: logging.Logger = LoggerUtils.get_logger(__name__)
-logger.addHandler(logging.NullHandler())
 
 URL_SUFFIX_DEFAULT: Final[str] = "com"
 URLS_SUFFIX: Final[list[str]] = []
+
+ENABLE_DEBUG_LOGGING: Final[bool] = False
 
 for _url in DEFAULT_SERVICE_URLS:
     _match: Match[str] | None = re.search("translate.google.(.*)", _url.strip())
@@ -170,13 +173,12 @@ class AsyncTranslator:
         return self.__session
 
     async def close(self) -> None:
-        logger.debug("'%s': 'termination process'", self.__class__.__name__)
         try:
             await self.__session.close()
         except NameError, AttributeError:
             pass
         finally:
-            logger.debug("'%s': 'finished'", self.__class__.__name__)
+            logger.info("'%s' process termination", self.__class__.__name__)
 
     def _package_rpc(self, text: str, lang_src: str = "auto", lang_tgt: str = "auto") -> str:
         _google_tts_rpc: list[str] = ["MkEWBc"]
@@ -324,7 +326,8 @@ class AsyncTranslator:
             if "MkEWBc" not in line:
                 continue
 
-            logger.debug(line)
+            if ENABLE_DEBUG_LOGGING:
+                logger.debug(line)
             try:
                 decoded_data = json.loads(json.loads(line)[0][2])
                 detect_lang = decoded_data[1][3]

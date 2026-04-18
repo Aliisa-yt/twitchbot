@@ -81,7 +81,7 @@ class TransManager:
         self._rate_limit_last_error: float = 0.0
         self._rate_limit_until: float = 0.0
         self._rate_limit_last_log: float = 0.0
-        logger.debug("Registered translation engines: %s", TransInterface.registered)
+        logger.debug("Registered translation engines: '%s'", TransInterface.registered.__class__.__name__)
 
     async def initialize(self) -> None:
         """Initialize translation engines based on the configuration."""
@@ -127,7 +127,7 @@ class TransManager:
         valid: list[str] = [n for n in engine_names if n in TransInterface.registered]
         invalid: list[str] = [n for n in engine_names if n not in TransInterface.registered]
         if invalid:
-            logger.warning("Ignoring unregistered translation engines: %s", invalid)
+            logger.warning("Ignoring unregistered translation engines: '%s'", invalid)
         cls._trans_engine = valid
 
     @property

@@ -62,7 +62,7 @@ class TTSManager:
         # This set is used to manage and monitor the background tasks that are running.
         self.background_tasks: set[asyncio.Task[None]] = set()
 
-        logger.debug("Registered TTS classes: %s", Interface.get_registered())
+        logger.debug("Registered TTS classes: '%s'", Interface.get_registered().__class__.__name__)
 
     def _reset_runtime_managers(self) -> None:
         """Recreate runtime primitives and managers used by background tasks."""

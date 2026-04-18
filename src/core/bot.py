@@ -187,7 +187,7 @@ class Bot(commands.Bot):
 
         self.validate_dependencies(ComponentBase.component_registry)
         attach_order: list[str] = self.resolve_dependencies(ComponentBase.component_registry)
-        logger.debug("Component attach order: %s", attach_order)
+        logger.debug("Component attach order: '%s'", attach_order)
 
         for component_name in attach_order:
             await self.attach_component(ComponentBase.component_registry[component_name].component(self))
@@ -263,15 +263,15 @@ class Bot(commands.Bot):
         Args:
             component (Base): The component to attach.
         """
-        logger.debug("Attaching component: %s", component.__class__.__name__)
+        logger.debug("Attaching component: '%s'", component.__class__.__name__)
         try:
             await self.add_component(component)
         except ComponentLoadError as err:
-            logger.error("Failed to load component %s: %s", component.__class__.__name__, err)
+            logger.error("Failed to load component '%s': %s", component.__class__.__name__, err)
             return
 
         self.attached_components.append(component)
-        logger.debug("Successfully attached component: %s", component.__class__.__name__)
+        logger.debug("Successfully attached component: '%s'", component.__class__.__name__)
 
     async def detach_component(self, component: ComponentBase) -> None:
         """Detach a component from the bot.
@@ -279,15 +279,15 @@ class Bot(commands.Bot):
         Args:
             component (Base): The component to detach.
         """
-        logger.debug("Detaching component: %s", component.__class__.__name__)
+        logger.debug("Detaching component: '%s'", component.__class__.__name__)
         try:
             await self.remove_component(component.__class__.__name__)
         except ValueError as err:
-            logger.error("Failed to detach component %s: %s", component.__class__.__name__, err)
+            logger.error("Failed to detach component '%s': %s", component.__class__.__name__, err)
         except Exception:  # noqa: BLE001
-            logger.exception("Unexpected error while detaching component %s", component.__class__.__name__)
+            logger.exception("Unexpected error while detaching component '%s'", component.__class__.__name__)
         else:
-            logger.debug("Successfully detached component: %s", component.__class__.__name__)
+            logger.debug("Successfully detached component: '%s'", component.__class__.__name__)
         finally:
             with suppress(ValueError):
                 self.attached_components.remove(component)
@@ -302,7 +302,7 @@ class Bot(commands.Bot):
         # As the error messages within `payload.error` may contain tokens, the error messages themselves are not logged.
         # Instead, the log records which listener caused the error.
         listener_name: str = getattr(payload.listener, "__name__", str(payload.listener))
-        logger.error("Error occurred in listener: %s", listener_name)
+        logger.error("Error occurred in listener: '%s'", listener_name)
 
     async def event_ready(self) -> None:
         """Called when the bot is ready and connected to Twitch.
@@ -332,6 +332,7 @@ class Bot(commands.Bot):
         using EventSub webhooks.
         """
         logger.debug("Subscribing to chat messages and events for the bot's owner")
+        logger.debug("Adding bot's own token for EventSub subscriptions")
         await self.add_token(self.access_token, self.refresh_token)
         payload: ChatMessageSubscription = eventsub.ChatMessageSubscription(
             broadcaster_user_id=self.owner_id, user_id=self.bot_id
@@ -345,13 +346,13 @@ class Bot(commands.Bot):
             ChatClearUserMessagesSubscription(broadcaster_user_id=self.owner_id, user_id=self.bot_id),
         ]
         for sub in subscriptions:
-            logger.debug("Subscribing to event: %s", type(sub))
+            logger.debug("Subscribing to event: '%s'", sub.__class__.__name__)
             try:
                 await self.subscribe_websocket(sub)
             except ValueError as err:
-                logger.error("Failed to subscribe to event %s: %s", type(sub), err)
+                logger.error("Failed to subscribe to event '%s': %s", sub.__class__.__name__, err)
             except twitchio.HTTPException as err:
-                logger.error("TwitchIO HTTP error while subscribing to event %s: %s", type(sub), err)
+                logger.error("TwitchIO HTTP error while subscribing to event '%s': %s", sub.__class__.__name__, err)
 
     @override
     async def event_command_error(self, payload: CommandErrorPayload) -> None:
@@ -362,7 +363,8 @@ class Bot(commands.Bot):
         """
         error: Exception = payload.exception
         user_name: str | None = payload.context.author.name
-        logger.error("Command error: %s, by user: %s", error, user_name)
+        logger.debug("Command error occurred in command '%s' invoked by user '%s'", payload.context.command, user_name)
+        logger.error("Command error: %s", error)
 
     # event_message is overridden in the components, so do nothing here
     # async def event_message(self, payload: TwitchMessage) -> None:

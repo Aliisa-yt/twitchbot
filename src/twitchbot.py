@@ -96,7 +96,7 @@ def configure_logging(log_setup: LoggerUtils, config: Config) -> None:
     """Configure logging level from configuration."""
     if config.GENERAL.DEBUG:
         log_setup.set_level("DEBUG")
-        logger.warning("======== Launch in Debug Mode ========")
+        logger.warning("'The application is currently running in debug mode.'")
 
 
 def token_db_has_data(db_path: Path) -> bool:
@@ -114,10 +114,10 @@ def token_db_has_data(db_path: Path) -> bool:
         bool: True if database exists and contains valid tokens, False otherwise.
     """
     if not db_path.exists():
-        logger.debug("Token database does not exist: %s", db_path)
+        logger.debug("Token database does not exist: '%s'", db_path)
         return False
     if db_path.stat().st_size <= 0:
-        logger.debug("Token database is empty: %s", db_path)
+        logger.debug("Token database is empty: '%s'", db_path)
         return False
 
     try:
@@ -212,7 +212,7 @@ async def _gui_bootstrap(app: GUIApp, args: argparse.Namespace, log_setup: Logge
         app.update_status("Verifying tokens...", STATUS_WAKEUP_COLOR)
         token_db_path: Path = FileUtils.resolve_path(TOKEN_DB_FILE)
         if not token_db_has_data(token_db_path):
-            logger.error("Token database is missing or invalid: %s", token_db_path)
+            logger.error("Token database is missing or invalid: '%s'", token_db_path)
             show_token_setup_dialog(app)
             msg = "Token database is missing or invalid."
             raise RuntimeError(msg)
