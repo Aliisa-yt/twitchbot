@@ -58,6 +58,8 @@ keywords: [unit-test, pytest, pytest-asyncio, mocking, fixture, assertion, repro
 - 戻り値だけでなく、副作用（呼び出し回数、引数、状態遷移、ログ出力）も検証する。
 - 例外検証は `pytest.raises` を使用し、例外型だけでなくメッセージの要点も確認する。
 - モックの `assert_called_*` は過剰に広くせず、仕様に必要な最小条件へ絞る。
+- 複雑なオブジェクト・コレクションの比較には `testfixtures.compare` を優先する（詳細は「11. testfixtures 活用ガイド」参照）。
+- ログ出力の検証には `testfixtures.LogCapture` を使用する（詳細は「11. testfixtures 活用ガイド」参照）。
 
 ## 8. カバレッジ運用
 
@@ -78,3 +80,142 @@ keywords: [unit-test, pytest, pytest-asyncio, mocking, fixture, assertion, repro
 ## 10. テストのドキュメント
 
 - テストの目的や前提条件が自明でない場合は、英語でコメントを補足する（仕様意図の補足に限定し、自明な処理説明は避ける）。
+
+## 11. testfixtures 活用ガイド
+
+`testfixtures` はインストール済みであり、以下の場面で積極的に活用する。
+
+### 11-1. `compare` — 詳細な比較アサーション
+
+`assert ==` や `assertEqual` の代わりに使用する。差分が明確に表示されるため、失敗時の原因特定が容易になる。
+
+```python
+from testfixtures import compare
+
+# dict: どのキーが違うか、値がどう違うかを表示
+compare(expected={'a': 1, 'b': 2}, actual={'a': 1, 'b': 3})
+
+# list/tuple: どの位置から差異があるかを表示
+compare(expected=[1, 2, 3], actual=[1, 2, 4])
+
+# 複雑なオブジェクトの属性比較（__eq__ 不要）
+compare(expected=MyObj(name='foo'), actual=MyObj(name='bar'))
+
+# タイムスタンプなど比較不要な属性を除外する
+compare(expected=obj1, actual=obj2, ignore_attributes=['timestamp'])
+```
+
+使用場面:
+- `dict` / `list` / `set` / `namedtuple` の内容検証
+- `__eq__` を持たない独自クラスのインスタンス比較
+- ネストした複合データ構造の比較
+- 長い文字列・複数行文字列（unified diff で差分を表示）
+
+### 11-2. `LogCapture` — ログ出力の検証
+
+Python の `logging` モジュール経由で出力されたログを捕捉して検証する。
+
+```python
+from testfixtures import LogCapture
+
+def test_something_logs_error():
+    with LogCapture() as lc:
+        call_target_function()
+        lc.check(
+            ('my_logger', 'ERROR', 'expected error message'),
+        )
+
+# 複数ログのうち特定のものだけ確認したい場合
+def test_partial_log_check():
+    with LogCapture() as lc:
+        call_target_function()
+        lc.check_present(
+            ('my_logger', 'WARNING', 'important warning'),
+        )
+```
+
+pytest の `conftest.py` にフィクスチャとして定義すると再利用しやすい:
+
+```python
+import pytest
+from testfixtures import LogCapture
+
+@pytest.fixture()
+def log_capture():
+    with LogCapture() as lc:
+        yield lc
+```
+
+使用場面:
+- マネージャーやエンジンが正しいログレベル・メッセージを出力するかの検証
+- 例外発生時にエラーログが出力されることの確認
+- 警告ログが適切な条件下でのみ発生することの確認
+
+### 11-3. `Comparison` (`C`) — 部分一致・型一致による比較
+
+モックの呼び出し引数に特定の型や属性だけを検証したい場合に使用する。
+
+```python
+from testfixtures import Comparison as C
+
+# 型だけ確認
+assert some_mock.call_args[0][0] == C(MyException)
+
+# 型 + 属性の部分一致
+assert result == C(MyObj, name='expected', partial=True)
+```
+
+`Comparison` は `==` の左辺に置くこと（右辺に置くと `__eq__` の評価順で誤動作する場合がある）。
+
+### 11-4. `StringComparison` (`S`) — 正規表現による文字列マッチ
+
+```python
+from testfixtures import StringComparison as S
+
+# ログメッセージの正規表現チェック
+lc.check(('root', 'ERROR', S(r'Connection failed: .+')))
+
+# フラグ指定
+lc.check(('root', 'INFO', S(r'started.*thread', re.IGNORECASE)))
+```
+
+### 11-5. 型安全な比較ヘルパー
+
+mypy を使用している本プロジェクトでは、型エラーを避けるため以下のヘルパーを活用する。
+
+| ヘルパー | 用途 |
+|---|---|
+| `like(MyClass, x=1)` | 型を保ちながら部分一致比較 |
+| `sequence(partial=True, ordered=False)([...])` | 順序不問・部分一致のシーケンス比較 |
+| `contains([item1, item2])` | 指定要素が含まれているか確認 |
+| `unordered([item1, item2])` | 全要素一致・順序不問の比較 |
+
+```python
+from testfixtures import compare, like
+
+# 部分一致（型安全）
+compare(expected=[like(MyObj, name='foo')], actual=result_list)
+```
+
+### 11-6. `RoundComparison` / `RangeComparison` — 数値比較
+
+```python
+from testfixtures import RoundComparison as R, RangeComparison as Range
+
+# 小数点以下2桁で四捨五入して一致確認
+assert score == R(1.234, 2)
+
+# 値が範囲内にあることを確認
+assert duration == Range(0.0, 5.0)
+```
+
+### 11-7. 使い分けの判断基準
+
+| 状況 | 推奨 |
+|---|---|
+| シンプルな値の比較 | `assert ==` |
+| `dict` / `list` / ネストオブジェクトの比較 | `compare()` |
+| ログ出力の検証 | `LogCapture` |
+| モック引数の型・属性チェック | `Comparison` (`C`) |
+| ログメッセージのパターンチェック | `StringComparison` (`S`) |
+| 型チェッカーを通しつつ部分一致 | `like()` / `sequence()` / `contains()` |
