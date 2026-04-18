@@ -24,18 +24,18 @@ def _make_context(*, broadcaster: bool = True) -> MagicMock:
 
 @pytest.fixture
 def cache_bundle() -> SimpleNamespace:
-    cache_manager = MagicMock()
+    cache_manager: MagicMock = MagicMock()
     cache_manager.is_initialized = False
     cache_manager.get_cache_statistics = AsyncMock()
     cache_manager.export_cache_detailed = AsyncMock(return_value=True)
 
-    shared = MagicMock()
+    shared: MagicMock = MagicMock()
     shared.config = MagicMock()
     shared.trans_manager = MagicMock()
     shared.tts_manager = MagicMock()
     shared.cache_manager = cache_manager
 
-    bot = MagicMock()
+    bot: MagicMock = MagicMock()
     bot.shared_data = shared
     bot.print_console_message = MagicMock()
 
@@ -54,6 +54,7 @@ async def test_cache_stats_reports_not_initialized(cache_bundle: SimpleNamespace
     cache_bundle.bot.print_console_message.assert_called_once_with(
         "Translation cache is not initialized.", header=None, footer=None
     )
+    context.send.assert_called_once_with("Translation cache is not initialized.")
 
 
 @pytest.mark.asyncio
@@ -77,6 +78,7 @@ async def test_cache_stats_prints_summary_lines(cache_bundle: SimpleNamespace) -
     assert "Total hits: 7" in sent_lines
     assert "By engine: common: 1, deepl: 2" in sent_lines
     assert any("5 hits: 1 entries" in line for line in sent_lines)
+    context.send.assert_called_once_with("Cache statistics displayed in console.")
 
 
 @pytest.mark.asyncio
@@ -89,6 +91,7 @@ async def test_cache_export_reports_not_initialized(cache_bundle: SimpleNamespac
     cache_bundle.bot.print_console_message.assert_called_once_with(
         "Translation cache is not initialized.", header=None, footer=None
     )
+    context.send.assert_called_once_with("Translation cache is not initialized.")
 
 
 @pytest.mark.asyncio
@@ -101,6 +104,7 @@ async def test_cache_export_prints_success_message(cache_bundle: SimpleNamespace
 
     sent_lines: list[str] = [call.args[0] for call in cache_bundle.bot.print_console_message.call_args_list]
     assert any("Cache data exported to: " in line for line in sent_lines)
+    context.send.assert_called_once_with("Cache data export completed successfully.")
 
 
 @pytest.mark.asyncio
@@ -114,3 +118,4 @@ async def test_cache_export_prints_failure_message(cache_bundle: SimpleNamespace
     cache_bundle.bot.print_console_message.assert_called_once_with(
         "Failed to export cache data.", header=None, footer=None
     )
+    context.send.assert_called_once_with("Failed to export cache data.")

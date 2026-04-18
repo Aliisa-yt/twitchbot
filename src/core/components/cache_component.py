@@ -102,6 +102,7 @@ class CacheServiceComponent(ComponentBase):
         cache_manager: TranslationCacheManager = self.shared.cache_manager
         if not cache_manager.is_initialized:
             self.print_console_message("Translation cache is not initialized.")
+            await context.send("Translation cache is not initialized.")
             return
 
         stats: CacheStatistics = await cache_manager.get_cache_statistics()
@@ -132,7 +133,7 @@ class CacheServiceComponent(ComponentBase):
             self.print_console_message(line)
 
         logger.info("Cache statistics displayed")
-        await self.send_chat_message("Cache statistics displayed in console.")
+        await context.send("Cache statistics displayed in console.")
 
     @commands.command()
     @commands.is_broadcaster()
@@ -151,6 +152,7 @@ class CacheServiceComponent(ComponentBase):
         cache_manager: TranslationCacheManager = self.shared.cache_manager
         if not cache_manager.is_initialized:
             self.print_console_message("Translation cache is not initialized.")
+            await context.send("Translation cache is not initialized.")
             return
 
         cfg_cache: Cache | None = getattr(self.config, "CACHE", None)
@@ -177,9 +179,9 @@ class CacheServiceComponent(ComponentBase):
             msg = f"Cache data exported to: {output_path}"
             self.print_console_message(msg)
             logger.info(msg)
-            await self.send_chat_message("Cache data export completed successfully.")
+            await context.send("Cache data export completed successfully.")
         else:
             msg = "Failed to export cache data."
             self.print_console_message(msg)
             logger.error(msg)
-            await self.send_chat_message("Failed to export cache data.")
+            await context.send("Failed to export cache data.")
