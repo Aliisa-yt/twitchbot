@@ -1,5 +1,5 @@
 from contextlib import suppress
-from typing import TYPE_CHECKING, Any, ClassVar, override
+from typing import TYPE_CHECKING, ClassVar, override
 
 from twitchio.ext import commands
 
@@ -52,7 +52,7 @@ class TranslationServiceComponent(ComponentBase):
 
     @commands.command(name="te")
     @commands.is_broadcaster()
-    async def change_translation_engine(self, context: commands.Context, *args: Any) -> None:
+    async def change_translation_engine(self, context: commands.Context, *args: str) -> None:
         """Display or change the current translation engine.
 
         If no arguments are provided, the current engine is displayed.
