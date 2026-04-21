@@ -5,7 +5,7 @@ Requires google-cloud-translate library and proper authentication setup.
 """
 
 import asyncio
-from typing import TYPE_CHECKING, Any, override
+from typing import TYPE_CHECKING, Any, Literal, override
 
 from google.api_core.exceptions import (
     BadRequest,
@@ -61,7 +61,7 @@ class APIKeySession:
         Returns:
             HTTP response object.
         """
-        separator = "&" if "?" in url else "?"
+        separator: Literal["&", "?"] = "&" if "?" in url else "?"
         url_with_key: str = f"{url}{separator}key={self.api_key}"
         return self._session.request(method, url_with_key, **kwargs)
 
@@ -238,18 +238,6 @@ class GoogleCloudTranslation(TransInterface):
         try:
             detection = await asyncio.to_thread(self._inst.detect_language, content)
             logger.debug("Language detection result: %s", detection)
-
-            detected_lang = detection["language"].lower()
-
-            # Update character count for quota tracking
-            logger.debug("Detected language: '%s' with confidence: %s", detected_lang, detection.get("confidence"))
-
-            result = Result(
-                text=None,
-                detected_source_lang=detected_lang,
-                metadata={"engine": "google_cloud", "confidence": str(detection.get("confidence"))},
-            )
-
         except (TooManyRequests, ResourceExhausted) as err:
             logger.error("Google API rate limit during language detection: %s", err)
             msg = f"Language detection rate limited: {err}"
@@ -262,8 +250,19 @@ class GoogleCloudTranslation(TransInterface):
             logger.exception("Unexpected non-Google error during language detection: %s", content[:50])
             raise
         else:
-            logger.debug("Detected language: '%s' with confidence: %s", detected_lang, detection.get("confidence"))
-            return result
+            detected_lang = detection["language"].lower()
+            confidence = detection.get("confidence")
+            try:
+                confidence: str = str(float(confidence))
+            except ValueError, TypeError:
+                confidence = "unknown"
+
+            logger.debug("Detected language: '%s' with confidence: '%s'", detected_lang, confidence)
+            return Result(
+                text=None,
+                detected_source_lang=detected_lang,
+                metadata={"engine": "google_cloud", "confidence": confidence},
+            )
 
     @override
     async def translation(self, content: str, tgt_lang: str, src_lang: str | None = None) -> Result:
@@ -282,26 +281,14 @@ class GoogleCloudTranslation(TransInterface):
             TranslateExceptionError: If translation fails.
         """
         logger.info("'%s': 'start translation'", self.__class__.__name__)
-        logger.debug("'content': '%s', 'src_lang': '%s', 'tgt_lang': '%s'", content, src_lang, tgt_lang)
+        logger.debug("'content': '%s', 'src_lang': '%s', 'tgt_lang': '%s'", content[:50], src_lang, tgt_lang)
 
         try:
-            # Perform translation
+            # Unless `format_='text'` is explicitly specified,
+            # certain characters will be converted to entity references.
             translation_result = await asyncio.to_thread(
-                self._inst.translate, content, target_language=tgt_lang, source_language=src_lang
+                self._inst.translate, content, target_language=tgt_lang, format_="text", source_language=src_lang
             )
-
-            # Extract results
-            translated_text = translation_result["translatedText"]
-            detected_lang = translation_result.get("detectedSourceLanguage", src_lang)
-            if detected_lang:
-                detected_lang = detected_lang.lower()
-
-            result = Result(
-                text=translated_text,
-                detected_source_lang=detected_lang,
-                metadata={"engine": "google_cloud"},
-            )
-
         except BadRequest as err:
             logger.error("Invalid language code: %s", err)
             msg = f"Unsupported language pair (src: '{src_lang}', tgt: '{tgt_lang}'): {err}"
@@ -318,6 +305,16 @@ class GoogleCloudTranslation(TransInterface):
             logger.exception("Unexpected non-Google error during translation: %s", content[:50])
             raise
         else:
+            translated_text = translation_result["translatedText"]
+            detected_lang = translation_result.get("detectedSourceLanguage", src_lang)
+            if detected_lang:
+                detected_lang = detected_lang.lower()
+
+            result: Result = Result(
+                text=translated_text,
+                detected_source_lang=detected_lang,
+                metadata={"engine": "google_cloud"},
+            )
             logger.info("translation completed (%s > %s)", src_lang or detected_lang, tgt_lang)
             logger.debug("'return': '%s'", result)
             return result
