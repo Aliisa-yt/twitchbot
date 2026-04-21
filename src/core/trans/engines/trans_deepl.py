@@ -313,10 +313,6 @@ class DeeplTranslation(TransInterface):
                 source_lang=_src_lang,
                 target_lang=_tgt_lang,
             )
-
-            logger.info("translation completed (%s > %s)", _src_lang, _tgt_lang)
-            return self._build_result(results)
-
         except QuotaExceededException as err:
             self.__available = False
             raise TranslationQuotaExceededError(err) from None
@@ -335,6 +331,9 @@ class DeeplTranslation(TransInterface):
         except ValueError, TypeError:
             msg = "An anomaly occurred during the translation process at DeepL"
             raise TranslateExceptionError(msg) from None
+        else:
+            logger.info("translation completed (%s > %s)", _src_lang, _tgt_lang)
+            return self._build_result(results)
 
     def _build_result(self, results: TextResult | list[TextResult]) -> Result:
         """Builds a Result object from the translation results.
@@ -380,7 +379,6 @@ class DeeplTranslation(TransInterface):
         """
         try:
             self._usage = self._inst.get_usage()
-            self.__available = not self.limit_reached
         except TooManyRequestsException as err:
             msg = "DeepL rate limit reached"
             raise TranslationRateLimitError(msg) from err
@@ -393,6 +391,8 @@ class DeeplTranslation(TransInterface):
         except DeepLException:
             msg = "An anomaly occurred during the translation process at DeepL"
             raise TranslateExceptionError(msg) from None
+        else:
+            self.__available = not self.limit_reached
 
     @override
     async def get_quota_status(self) -> CharacterQuota:

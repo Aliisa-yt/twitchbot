@@ -109,7 +109,7 @@ class MessageFormatter:
 
         # Get the appropriate template based on context
         template: str = self._get_message_template(language, is_translated=is_translated)
-        logger.debug("Message template: %s", template)
+        logger.debug("Message template: '%s'", template)
 
         # Build all format variables
         variables: FormatVariables = self._build_format_variables(content, language, is_speak=is_speak)
@@ -120,7 +120,7 @@ class MessageFormatter:
         # Normalize whitespace
         formatted_message = " ".join(formatted_message.split())
 
-        logger.debug("Formatted message: %s", formatted_message)
+        logger.debug("Formatted message: '%s'", formatted_message)
         return formatted_message
 
     def _get_message_template(self, language: str, *, is_translated: bool = False) -> str:
@@ -169,7 +169,7 @@ class MessageFormatter:
         Returns:
             FormatVariables: Container with all prepared format variables.
         """
-        variables = FormatVariables(message=content or "")
+        variables: FormatVariables = FormatVariables(message=content or "")
 
         if is_speak:
             # For speech synthesis, include linguistic separators and author information

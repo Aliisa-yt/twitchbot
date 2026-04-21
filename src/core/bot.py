@@ -99,7 +99,7 @@ class Bot(commands.Bot):
         self.config: Config = config
         self._token_manager: TokenManager = token_manager
 
-        self.shared_data: SharedData = SharedData(config)
+        self.shared_data: SharedData = SharedData(_config=config)
         self._closed: bool = False
         self._pending_stt_level_callback: LevelEventCallback | None = None
 
@@ -187,7 +187,7 @@ class Bot(commands.Bot):
 
         self.validate_dependencies(ComponentBase.component_registry)
         attach_order: list[str] = self.resolve_dependencies(ComponentBase.component_registry)
-        logger.debug("Component attach order: '%s'", attach_order)
+        logger.debug("Component attach order: %s", attach_order)
 
         for component_name in attach_order:
             await self.attach_component(ComponentBase.component_registry[component_name].component(self))
@@ -390,19 +390,19 @@ class Bot(commands.Bot):
             return
 
         if payload.user_id == self.bot_id:
-            logger.info("Bot is authorized with user ID: %s", payload.user_id)
+            logger.info("Bot is authorized with user ID: '%s'", payload.user_id)
             return
 
-        logger.info("Subscribing to chat messages for user ID: %s", payload.user_id)
+        logger.info("Subscribing to chat messages for user ID: '%s'", payload.user_id)
         chat: ChatMessageSubscription = eventsub.ChatMessageSubscription(
             broadcaster_user_id=payload.user_id, user_id=self.bot_id
         )
         if not chat:
-            logger.error("Failed to create ChatMessageSubscription for user ID: %s", payload.user_id)
+            logger.error("Failed to create ChatMessageSubscription for user ID: '%s'", payload.user_id)
             return
         try:
             await self.subscribe_websocket(chat)
-            logger.info("Successfully subscribed to chat messages for user ID: %s", payload.user_id)
+            logger.info("Successfully subscribed to chat messages for user ID: '%s'", payload.user_id)
         except ValueError as err:
             logger.error("Failed to subscribe to chat messages: %s", err)
             return
@@ -425,7 +425,7 @@ class Bot(commands.Bot):
         # Owner tokens are managed by TwitchIO internally and must not overwrite the bot's stored token.
         if validation_payload.user_id != self.bot_id:
             logger.debug(
-                "Skipping token DB update: token belongs to user %s, expected bot %s",
+                "Skipping token DB update: token belongs to user '%s', expected bot '%s'",
                 validation_payload.user_id,
                 self.bot_id,
             )
@@ -447,11 +447,11 @@ class Bot(commands.Bot):
                 "scopes": validation_payload.scopes,
             }
         except KeyError as err:
-            logger.error("Failed to retrieve token information for bot ID %s: %s", self.bot_id, err)
+            logger.error("Failed to retrieve token information for bot ID '%s': %s", self.bot_id, err)
             return
         else:
             self._token_manager.converted_save_tokens(_bot_tokens)
-            logger.debug("Token validated and saved successfully for bot user ID: %s", validation_payload.user_id)
+            logger.debug("Token validated and saved successfully for bot user ID: '%s'", validation_payload.user_id)
             logger.info("OAuth token refreshed successfully")
 
     @override
@@ -475,13 +475,15 @@ class Bot(commands.Bot):
         bot_token_data: dict[str, Any] | None = token_data.get(self.bot_id)
 
         if bot_token_data is None:
-            msg = f"No token found for bot ID {self.bot_id} in TokenManager"
+            msg = f"No token found for bot ID '{self.bot_id}' in TokenManager"
             logger.error(msg)
             raise RuntimeError(msg)
 
         try:
             if bot_token_data["user_id"] != self.bot_id:
-                msg = f"Loaded token bot_id {bot_token_data['user_id']} does not match expected bot_id {self.bot_id}"
+                msg = (
+                    f"Loaded token bot_id '{bot_token_data['user_id']}' does not match expected bot_id '{self.bot_id}'"
+                )
                 logger.error(msg)
                 raise RuntimeError(msg)
 
@@ -490,12 +492,12 @@ class Bot(commands.Bot):
             # the 'tokens' dictionary.
             await self.add_token(bot_token_data["token"], bot_token_data["refresh"])
         except KeyError as err:
-            logger.error("Failed to load tokens for bot ID %s from TokenManager: missing key %s", self.bot_id, err)
+            logger.error("Failed to load tokens for bot ID '%s' from TokenManager: missing key %s", self.bot_id, err)
             msg = "Invalid token data structure in TokenManager"
             raise RuntimeError(msg) from err
         except RuntimeError:
             raise
-        logger.info("Tokens loaded successfully for bot user ID: %s", self.bot_id)
+        logger.info("Tokens loaded successfully for bot user ID: '%s'", self.bot_id)
 
     @override
     async def save_tokens(self, path: str | None = None, /) -> None:
@@ -577,14 +579,14 @@ class Bot(commands.Bot):
             logger.warning("Failed to truncate message: %s", err)
             return
 
-        logger.debug("Send message: %s", content)
-        logger.debug("Send channel: %s", chatter.name)
+        logger.debug("Send message: '%s'", content[:50])
+        logger.debug("Send channel: '%s'", chatter.name)
         try:
             sent_message: SentMessage = await chatter.send_message(
                 message=content, sender=sender or self.bot_id, token_for=self.access_token
             )
             if not sent_message.sent:
-                logger.warning("Failed to send message: %s", content)
+                logger.warning("Failed to send message: '%s'", content[:50])
 
             self.send_message_cache.add(sent_message.id)
         except ValueError as err:
@@ -622,7 +624,7 @@ class Bot(commands.Bot):
                     _tmp += footer
                 length_ratio: float = max(min(float(len(_tmp.encode("utf-8")) / len(_tmp)), 2.0), 1.0)
             except (ZeroDivisionError, UnicodeDecodeError) as err:
-                logger.debug(err)
+                logger.debug("Failed to calculate length ratio: %s", err)
                 return
 
             try:
@@ -630,7 +632,7 @@ class Bot(commands.Bot):
             except ValueError as err:
                 logger.warning("Failed to truncate message for console output: %s", err)
                 return
-            print(content)
+            print(content, flush=True)
 
     def pause_exit(self) -> None:
         """Pause the program and wait for user input before exiting.

@@ -233,7 +233,7 @@ async def _gui_bootstrap(app: GUIApp, args: argparse.Namespace, log_setup: Logge
         # Create temporary directory for TTS audio files
         with tempfile.TemporaryDirectory(prefix="tmp_", dir=Path.cwd()) as tmpdirname:
             config.GENERAL.TMP_DIR = FileUtils.resolve_path(tmpdirname)
-            logger.info("Created temporary directory: %s", config.GENERAL.TMP_DIR)
+            logger.info("Created temporary directory: '%s'", config.GENERAL.TMP_DIR)
 
             async with Bot(config, token_manager) as bot:
                 app.bot = bot
@@ -312,7 +312,7 @@ async def _console_bootstrap(args: argparse.Namespace, log_setup: LoggerUtils) -
 
     with tempfile.TemporaryDirectory(prefix="tmp_", dir=Path.cwd()) as tmpdirname:
         config.GENERAL.TMP_DIR = FileUtils.resolve_path(tmpdirname)
-        logger.info("Created temporary directory: %s", config.GENERAL.TMP_DIR)
+        logger.info("Created temporary directory: '%s'", config.GENERAL.TMP_DIR)
 
         async with Bot(config, token_manager) as bot:
             await bot.start(with_adapter=False)

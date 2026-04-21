@@ -351,11 +351,11 @@ class E2KConverter:
             "HELLO123" -> "ハロー123"
             "HELLO_WORLD!" -> "ハロー_ワールド!"
         """
-        logger.debug("Original message: %s", msg)
+        logger.debug("Original message: '%s'", msg)
 
         # Find all sequences of alphabetic characters, including trailing spaces
         matched_alphabets: list[str] = re.findall(r"['A-Za-z]+ ?", msg)
-        logger.debug("Matching alphabet strings: %s", matched_alphabets)
+        logger.debug("Matching alphabet strings: '%s'", matched_alphabets)
 
         # Process from longest to shortest to avoid partial replacements
         for found in sorted(matched_alphabets, key=len, reverse=True):
@@ -379,7 +379,7 @@ class E2KConverter:
                 )
                 converted = converted.replace(word, kata)
 
-            logger.debug("Converted string: %s", converted)
+            logger.debug("Converted string: '%s'", converted)
             # Handle remaining all-uppercase sequences that may not have been replaced
             kata = cls.e2kata_dict.get(
                 converted.upper(), cls._replace_nonconversion_characters(Romaji.romanize(converted))
@@ -389,7 +389,7 @@ class E2KConverter:
                 kata += " "
             # Replace the original substring with converted version
             msg = msg.replace(found, kata)
-        logger.debug("Final converted message: %s", msg)
+        logger.debug("Final converted message: '%s'", msg)
         return msg
 
     @classmethod

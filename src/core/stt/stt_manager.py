@@ -64,6 +64,7 @@ class STTManager:
         self._on_level_event: LevelEventCallback | None = None
         self._enabled: bool = False
         self._mute: bool = False
+        logger.debug("Registered STT engines: %s", list(STTInterface.registered.keys()))
 
     @property
     def enabled(self) -> bool:
@@ -83,6 +84,7 @@ class STTManager:
         on_level_event: LevelEventCallback | None = None,
     ) -> None:
         """Initialize STT manager and start background processor task."""
+        logger.info("STTManager initialization started")
         if self._enabled:
             logger.warning("STT manager is already initialized")
             return
@@ -104,12 +106,13 @@ class STTManager:
         try:
             self._engine = engine_cls()
             self._engine.initialize(self.config)
-            logger.info("STT engine initialized: '%s'", engine_name)
-            print(f"Loaded Speech-to-Text engine: {engine_name}")
         except RuntimeError as err:
             logger.warning("STT engine '%s' could not be initialized: %s", engine_name, err)
             self._engine = None
             return
+        else:
+            logger.info("STT engine initialized: '%s'", engine_name)
+            print(f"Loaded Speech-to-Text engine: {engine_name}")
 
         tmp_dir_path: Path = self._resolve_tmp_dir()
         input_device: str = str(getattr(stt_config, "INPUT_DEVICE", "default"))
@@ -150,7 +153,9 @@ class STTManager:
             level_interval_ms=level_interval_ms,
         )
         self._recorder.set_mute(mute=self._mute)
-        options = ProcessorOptions(language=language, retry_max=retry_max, retry_backoff_ms=retry_backoff_ms)
+        options: ProcessorOptions = ProcessorOptions(
+            language=language, retry_max=retry_max, retry_backoff_ms=retry_backoff_ms
+        )
         self._processor = STTProcessor(
             segment_queue=self._segment_queue,
             terminate_event=self._terminate_event,

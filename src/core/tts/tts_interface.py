@@ -151,11 +151,11 @@ class Interface(ProcessMixin, ABC):
         Args:
             _param (UserTypeInfo): User type information
         """
-        logger.info("%s process initialised", self.__class__.__name__)
+        logger.info("'%s' process initialised", self.__class__.__name__)
 
     async def close(self) -> None:
         """Termination process (override if necessary)"""
-        logger.info("%s process termination", self.__class__.__name__)
+        logger.info("'%s' process termination", self.__class__.__name__)
 
     @property
     def audio_save_directory(self) -> Path:
@@ -196,7 +196,7 @@ class Interface(ProcessMixin, ABC):
             msg = "Must be a subclass of Interface"
             raise TypeError(msg)
         cls._registered_engines[name] = engine_cls
-        logger.debug("Registered engine: %s", name)
+        logger.debug("Registered engine: '%s'", name)
 
     @classmethod
     def get_engine(cls, name: str) -> type[Interface]:

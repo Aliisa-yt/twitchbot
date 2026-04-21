@@ -77,30 +77,30 @@ class InFlightManager:
                 loop: asyncio.AbstractEventLoop = asyncio.get_running_loop()
                 fut: asyncio.Future[Result] = loop.create_future()
                 self._inflight[cache_key] = fut
-                logger.debug("Marked in-flight start for key: %s", cache_key[:16])
+                logger.debug("Marked in-flight start for key: '%s'", cache_key[:16])
                 return None
             fut = self._inflight[cache_key]
-            logger.debug("In-flight translation detected for key: %s", cache_key[:16])
+            logger.debug("In-flight translation detected for key: '%s'", cache_key[:16])
 
         try:
             result: Result = await asyncio.wait_for(asyncio.shield(fut), timeout=self.INFLIGHT_TIMEOUT_SEC)
 
-            logger.debug("Received in-flight translation result for key: %s", cache_key[:16])
+            logger.debug("Received in-flight translation result for key: '%s'", cache_key[:16])
         except TimeoutError:
-            logger.warning("In-flight translation timeout for key: %s", cache_key[:16])
+            logger.warning("In-flight translation timeout for key: '%s'", cache_key[:16])
             async with self._lock:
                 current: asyncio.Future[Result] | None = self._inflight.get(cache_key)
                 if current is fut:
                     self._inflight.pop(cache_key, None)
-            msg: str = f"In-flight translation timed out for key: {cache_key[:16]}"
+            msg: str = f"In-flight translation timed out for key: '{cache_key[:16]}'"
             raise TimeoutError(msg) from None
         except asyncio.CancelledError:
-            logger.warning("In-flight translation cancelled for key: %s", cache_key[:16])
+            logger.warning("In-flight translation cancelled for key: '%s'", cache_key[:16])
             async with self._lock:
                 current = self._inflight.get(cache_key)
                 if current is fut:
                     self._inflight.pop(cache_key, None)
-            msg = f"In-flight translation cancelled for key: {cache_key[:16]}"
+            msg = f"In-flight translation cancelled for key: '{cache_key[:16]}'"
             raise TimeoutError(msg) from None
         else:
             return result
@@ -120,10 +120,10 @@ class InFlightManager:
             fut: asyncio.Future[Result] | None = self._inflight.pop(cache_key, None)
             if fut and not fut.done():
                 fut.set_result(result)
-                logger.debug("Set in-flight translation result for key: %s", cache_key[:16])
+                logger.debug("Set in-flight translation result for key: '%s'", cache_key[:16])
             else:
                 logger.warning(
-                    "No in-flight future found or already done for key: %s when storing result", cache_key[:16]
+                    "No in-flight future found or already done for key: '%s' when storing result", cache_key[:16]
                 )
 
     async def store_inflight_exception(self, cache_key: str | None, exc: Exception) -> None:
@@ -141,8 +141,8 @@ class InFlightManager:
             fut: asyncio.Future[Result] | None = self._inflight.pop(cache_key, None)
             if fut and not fut.done():
                 fut.set_exception(exc)
-                logger.debug("Set in-flight translation exception for key: %s", cache_key[:16])
+                logger.debug("Set in-flight translation exception for key: '%s'", cache_key[:16])
             else:
                 logger.warning(
-                    "No in-flight future found or already done for key: %s when storing exception", cache_key[:16]
+                    "No in-flight future found or already done for key: '%s' when storing exception", cache_key[:16]
                 )

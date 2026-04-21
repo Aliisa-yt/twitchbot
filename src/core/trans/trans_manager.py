@@ -81,7 +81,7 @@ class TransManager:
         self._rate_limit_last_error: float = 0.0
         self._rate_limit_until: float = 0.0
         self._rate_limit_last_log: float = 0.0
-        logger.debug("Registered translation engines: '%s'", TransInterface.registered.__class__.__name__)
+        logger.debug("Registered translation engines: %s", list(TransInterface.registered.keys()))
 
     async def initialize(self) -> None:
         """Initialize translation engines based on the configuration."""
@@ -97,16 +97,17 @@ class TransManager:
             try:
                 # Initialise the translation engine using the configuration and perform authentication if necessary.
                 _instance.initialize(self.config)
+            except RuntimeError as err:
+                logger.critical("RuntimeError in '%s' translation setup: %s", _name, err)
+            except TranslateExceptionError as err:
+                logger.critical("Exception in '%s' translation setup: %s", _name, err)
+            else:
                 self._trans_instance[_name] = _instance
                 logger.info("Translation engine initialized: '%s'", _name)
                 logger.debug("Engine attributes: %s", _instance.engine_attributes)
                 # Output a message to the console
                 print(f"Loaded translation engine: {_name}")
                 TransManager._trans_engine.append(_name)
-            except RuntimeError as err:
-                logger.critical("RuntimeError in '%s' translation setup: %s", _name, err)
-            except TranslateExceptionError as err:
-                logger.critical("Exception in '%s' translation setup: %s", _name, err)
 
     @classmethod
     def fetch_engine_names(cls) -> list[str]:
@@ -173,11 +174,12 @@ class TransManager:
         try:
             engine_list: list[str] = self.fetch_engine_names().copy()
             remove_engine_name: str = engine_list.pop(0)
+        except IndexError:
+            logger.error("No translation engines available after removal attempt.")
+        else:
             logger.error("Translation engine disabled: '%s'", remove_engine_name)
             # Update the translation engines list in the class
             self.update_engine_names(engine_list)
-        except IndexError:
-            logger.error("No translation engines available after removal attempt.")
 
     def _rate_limit_blocked(self) -> bool:
         """Check if translation is currently blocked due to rate limiting.
@@ -269,6 +271,17 @@ class TransManager:
             result: Result = await trans_info.engine.detect_language(
                 content=trans_info.content, tgt_lang=self.config.TRANSLATION.SECOND_LANGUAGE
             )
+        except TranslationQuotaExceededError as err:
+            logger.error("Translation quota exceeded: %s", err)
+            return False
+        except NotSupportedLanguagesError as err:
+            logger.error("Language detection failed: %s", err)
+            return False
+        except TranslateExceptionError as err:
+            if not self._handle_rate_limit_error(trans_info, err):
+                logger.error("Language detection failed: %s", err)
+            return False
+        else:
             src_lang: str | None = result.detected_source_lang
 
             # Twitch treats URL-like strings as URLs (e.g., "test.py" becomes "http://test.py").
@@ -283,9 +296,10 @@ class TransManager:
                 trans_info.translated_text = trans_info.content
                 trans_info.is_translate = False
             elif src_lang is None:
-                # Detection should always return a language code; None indicates an error.
-                msg = "An unknown error occurred during language detection."
-                raise TranslateExceptionError(msg)
+                # Detection should always return a language code; None indicates an engine bug.
+                # Raising here would bypass the except clauses above, so log and return False instead.
+                logger.error("Language detection returned None unexpectedly.")
+                return False
             else:
                 trans_info.src_lang = src_lang
                 # Engines without dedicated detection API return translated text during detection.
@@ -293,17 +307,6 @@ class TransManager:
                     trans_info.translated_text = StringUtils.ensure_str(result.text)
 
                 await self.write_language_detection_cache(trans_info)
-
-        except TranslationQuotaExceededError as err:
-            logger.error("Translation quota exceeded: %s", err)
-            return False
-        except NotSupportedLanguagesError as err:
-            logger.error("Language detection failed: %s", err)
-            return False
-        except TranslateExceptionError as err:
-            if not self._handle_rate_limit_error(trans_info, err):
-                logger.error("Language detection failed: %s", err)
-            return False
 
         logger.debug("Final detected language: '%s'", trans_info.src_lang)
         return trans_info.is_translate
@@ -462,16 +465,11 @@ class TransManager:
         if inflight_result is not None:
             return inflight_result
 
+        logger.debug("Using translation engine. Source: '%s', Target: '%s'", trans_info.src_lang, trans_info.tgt_lang)
         try:
-            logger.debug(
-                "Using translation engine. Source: '%s', Target: '%s'", trans_info.src_lang, trans_info.tgt_lang
-            )
             result: Result = await trans_info.engine.translation(
                 content=trans_info.content, tgt_lang=trans_info.tgt_lang, src_lang=trans_info.src_lang
             )
-            trans_info.translated_text = StringUtils.ensure_str(result.text)
-            await self.write_translation_cache(trans_info)
-            await self._store_inflight_result(hash_key, result)
         except TranslateExceptionError as err:
             await self._store_inflight_exception(hash_key, err)
             return self._handle_translation_failure(trans_info, err, context="Translation")
@@ -479,6 +477,9 @@ class TransManager:
             await self._store_inflight_exception(hash_key, err)
             return self._handle_translation_failure(trans_info, err, context="Translation")
         else:
+            trans_info.translated_text = StringUtils.ensure_str(result.text)
+            await self.write_translation_cache(trans_info)
+            await self._store_inflight_result(hash_key, result)
             logger.debug(
                 "Final translation result (src: '%s', tgt: '%s'): %s",
                 trans_info.src_lang,

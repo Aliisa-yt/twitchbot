@@ -7,11 +7,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, ClassVar, override
 
-from utils.logger_utils import LoggerUtils
-
 if TYPE_CHECKING:
-    import logging
-
     from models.config_models import Config
     from models.translation_models import CharacterQuota
 
@@ -25,7 +21,7 @@ __all__: list[str] = [
     "TranslationRateLimitError",
 ]
 
-logger: logging.Logger = LoggerUtils.get_logger(__name__)
+# logger: logging.Logger = LoggerUtils.get_logger(__name__)
 # logger.addHandler(logging.NullHandler())
 
 

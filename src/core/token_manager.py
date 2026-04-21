@@ -104,7 +104,7 @@ class TokenManager:
                 raise RuntimeError(msg)
             return value
 
-        logger.debug("Initializing %s", self.__class__.__name__)
+        logger.debug("Initializing '%s'", self.__class__.__name__)
 
         # Initialize the token storage backend
         self.storage: TokenStorage = TokenStorage(db_path)

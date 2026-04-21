@@ -279,7 +279,7 @@ class TranslationCacheManager:
             entry: TranslationCacheEntry | None = await self._search_translation_entry(cache_key)
 
             if entry is None and provided_engine:
-                logger.debug("Engine-specific cache miss for key: %s, trying fallback", cache_key[:16])
+                logger.debug("Engine-specific cache miss for key: '%s', trying fallback", cache_key[:16])
 
                 common_cache_key: str = CacheUtils.generate_hash_key(
                     normalized_source, source_lang, target_lang, translation_profile, engine=""
@@ -320,7 +320,7 @@ class TranslationCacheManager:
                 row = cursor.fetchone()
 
                 if row is None:
-                    logger.debug("Cache miss for key: %s", cache_key[:16])
+                    logger.debug("Cache miss for key: '%s'", cache_key[:16])
                     return None
 
                 entry = TranslationCacheEntry(
@@ -341,7 +341,7 @@ class TranslationCacheManager:
                 if last_used_epoch < cutoff_epoch:
                     self._db_conn.execute("DELETE FROM translation_cache WHERE cache_key = ?", (cache_key,))
                     self._db_conn.commit()
-                    logger.debug("Cache entry expired for key: %s", cache_key[:16])
+                    logger.debug("Cache entry expired for key: '%s'", cache_key[:16])
                     return None
 
                 now_epoch: int = TimeUtils.get_current_epoch()
@@ -354,7 +354,7 @@ class TranslationCacheManager:
                 entry.hit_count += 1
                 entry.last_used_at = TimeUtils.epoch_to_datetime(now_epoch)
 
-                logger.debug("Cache hit for key: %s (hit_count: %d)", cache_key[:16], entry.hit_count)
+                logger.debug("Cache hit for key: '%s' (hit_count: %d)", cache_key[:16], entry.hit_count)
 
         except sqlite3.Error as err:
             logger.error("Error searching translation cache entry: %s", err)
@@ -423,7 +423,7 @@ class TranslationCacheManager:
                 )
                 self._db_conn.commit()
 
-            logger.debug("Translation cached for key: %s", cache_key[:16])
+            logger.debug("Translation cached for key: '%s'", cache_key[:16])
 
             await self._enforce_capacity_limit(engine)
 
@@ -571,7 +571,7 @@ class TranslationCacheManager:
                 )
                 self._db_conn.commit()
 
-            logger.debug("Language detection cached: %s", detected_lang)
+            logger.debug("Language detection cached: '%s'", detected_lang)
 
         except sqlite3.Error as err:
             logger.error("Error registering language detection cache: %s", err)
@@ -654,7 +654,7 @@ class TranslationCacheManager:
                     last_used_dt: str = TimeUtils.epoch_to_datetime(row[7]).isoformat()
                     f.write(
                         f'{row[2]} -> {row[3]}, "{row[1]}", "{row[4]}", Engine: {row[5]}, Hit Count: {row[6]}, '
-                         f"Last Used: {last_used_dt}, Cache Key: {row[0]}\n"
+                        f"Last Used: {last_used_dt}, Cache Key: {row[0]}\n"
                     )
 
             logger.info("Cache data exported to: %s", output_path)
