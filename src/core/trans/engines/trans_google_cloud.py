@@ -251,9 +251,8 @@ class GoogleCloudTranslation(TransInterface):
             raise
         else:
             detected_lang = detection["language"].lower()
-            confidence = detection.get("confidence")
             try:
-                confidence: str = str(float(confidence))
+                confidence: str = str(float(detection.get("confidence")))
             except ValueError, TypeError:
                 confidence = "unknown"
 
