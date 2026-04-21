@@ -502,7 +502,7 @@ class TranslationCacheManager:
                     logger.debug("Language detection cache miss")
                     return None
 
-                entry = LanguageDetectionCacheEntry(
+                entry: LanguageDetectionCacheEntry = LanguageDetectionCacheEntry(
                     normalized_source=row[0],
                     detected_lang=row[1],
                     confidence=row[2],
