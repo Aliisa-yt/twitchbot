@@ -39,8 +39,10 @@ class DummyClient:
             raise err
         return type(self).detect_result
 
-    def translate(self, content: str, target_language: str, source_language: str | None = None) -> dict[str, Any]:
-        _ = content, target_language, source_language
+    def translate(
+        self, content: str, target_language: str, format_: str = "text", source_language: str | None = None
+    ) -> dict[str, Any]:
+        _ = content, target_language, format_, source_language
         err = type(self).translate_error
         if err is not None:
             raise err
