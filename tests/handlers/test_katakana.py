@@ -87,6 +87,26 @@ def test_camelcase_with_space(tmp_path: Path) -> None:
     assert out == "eブaイー サーバー"
 
 
+def test_katakanaize_repeated_kana_no_sokuon(tmp_path: Path) -> None:
+    # Regression: repeated Katakana produced by romanization must not be misidentified
+    # as sokuon (ッ). is_sokuon must only match ASCII romaji consonants.
+    lines: list[str] = ["TEST テスト"]
+    p: Path = _write_dict(tmp_path, lines)
+    E2KConverter.load(p)
+
+    romaji_p: Path = _write_json(tmp_path, {"a": "ア"})
+    Romaji.load(romaji_p)
+
+    out: str = E2KConverter.katakanaize("test01Aaaa")
+    assert out == "テスト01アアアア"
+
+    out: str = E2KConverter.katakanaize("test02Mmmm")
+    assert out == "テスト02ンンンm"
+
+    out: str = E2KConverter.katakanaize("test03Cccc")
+    assert out == "テスト03ッッック"
+
+
 def test_abbreviation_uppercase(tmp_path: Path) -> None:
     lines: list[str] = ["NASA ナサ"]
     p: Path = _write_dict(tmp_path, lines)

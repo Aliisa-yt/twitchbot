@@ -185,8 +185,14 @@ class Romaji:
         Returns:
             bool: True if the position should convert to 'ッ', False otherwise.
         """
-        # Exclude 'n' and 'm' from gemination
-        return s + 1 < len(tokens) and tokens[s].isalpha() and tokens[s] not in "nm" and tokens[s] == tokens[s + 1]
+        # Exclude 'n' and 'm' from gemination; restrict to ASCII to avoid false positives on Katakana
+        return (
+            s + 1 < len(tokens)
+            and tokens[s].isascii()
+            and tokens[s].isalpha()
+            and tokens[s] not in "nm"
+            and tokens[s] == tokens[s + 1]
+        )
 
     @classmethod
     def get_sokuon(cls, tokens: str, s: int = 0) -> tuple[str, int]:
