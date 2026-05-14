@@ -38,7 +38,7 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = [
-    "basedpyright>=1.39.3",
+    "basedpyright>=1.39.4",
     "coverage>=7.14.0",
     "mypy==2.1.0",
     "mypy_extensions==1.1.0",
