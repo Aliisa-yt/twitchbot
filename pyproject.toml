@@ -15,7 +15,7 @@ dependencies = [
     "google-cloud-speech==2.39.0",
     "google-cloud-translate==3.26.0",
     "gTTS==2.5.4",
-    "numpy==2.4.4",
+    "numpy==2.4.5",
     "onnxruntime==1.26.0",
     "pywin32; platform_system == 'Windows'",
     "pywin32-ctypes==0.2.3; platform_system == 'Windows'",
