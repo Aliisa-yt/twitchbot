@@ -12,7 +12,7 @@ dependencies = [
     "deepl==1.30.0",
     "emoji==2.15.0",
     "google-api-python-client-stubs==1.37.0",
-    "google-cloud-speech==2.39.0",
+    "google-cloud-speech==2.40.0",
     "google-cloud-translate==3.26.0",
     "gTTS==2.5.4",
     "numpy==2.4.6",
