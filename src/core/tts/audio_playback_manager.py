@@ -31,7 +31,7 @@ if TYPE_CHECKING:
 
 # soundfile -> sounddevice conversion tables
 # PCM_S8, PCM_U8, PCM_24 are commented out because they have not been confirmed to play
-FORMAT_CONV: Final[dict[str, str]] = {
+FORMAT_CONV: Final[dict[str, soundfile.dtype_str]] = {
     # "PCM_S8": "int16",
     "PCM_16": "int16",
     # "PCM_24": "int32",
@@ -59,7 +59,7 @@ def _stream_callback_logic(
     frames: int,
     /,
     sf: soundfile.SoundFile,
-    dtype: str,
+    dtype: soundfile.dtype_str,
     loop: asyncio.AbstractEventLoop,
     terminate_event: asyncio.Event,
     cancel_playback_event: asyncio.Event,
@@ -250,7 +250,7 @@ class AudioPlaybackManager:
     def _create_stream_callback(
         self,
         sf: soundfile.SoundFile,
-        dtype: str,
+        dtype: soundfile.dtype_str,
         loop: asyncio.AbstractEventLoop,
         task_terminate_event: asyncio.Event,
     ) -> Callable[[NDArray[Any], int, Any, CallbackFlags], None]:
@@ -277,7 +277,7 @@ class AudioPlaybackManager:
     def _open_output_stream(
         self,
         sf: soundfile.SoundFile,
-        dtype: str,
+        dtype: soundfile.dtype_str,
         frame_buffer_size: int,
         callback_fn: Callable[[NDArray[Any], int, Any, CallbackFlags], None],
     ) -> bool:
@@ -332,7 +332,7 @@ class AudioPlaybackManager:
         try:
             with soundfile.SoundFile(file_path) as sf:
                 try:
-                    _dtype: str = FORMAT_CONV[sf.subtype]
+                    _dtype: soundfile.dtype_str = FORMAT_CONV[sf.subtype]
                 except KeyError:
                     logger.error("Unsupported wav file format: '%s'", sf.subtype)
                     return
