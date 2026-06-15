@@ -24,7 +24,7 @@ dependencies = [
     "twitchio[starlette]==3.2.2",
     "types-cffi==2.0.0.20260518",
     "types-dataclasses-json==0.5.9",
-    "types-grpcio==1.0.0.20260607",
+    "types-grpcio==1.0.0.20260614",
     "types-grpcio-status==1.0.0.20260408",
     "types-httplib2==0.31.2.20260408",
     "types-pyasn1==0.6.0.20260408",
