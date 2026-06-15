@@ -44,7 +44,7 @@ dev = [
     "mypy_extensions==1.1.0",
     "pyinstaller==6.20.0",
     "pyinstaller-hooks-contrib==2026.6",
-    "pytest==9.0.3",
+    "pytest==9.1.0",
     "pytest-asyncio==1.4.0",
     "ruff==0.15.17",
     "testfixtures==12.0.1",
