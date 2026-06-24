@@ -46,7 +46,7 @@ dev = [
     "pyinstaller-hooks-contrib==2026.6",
     "pytest==9.1.0",
     "pytest-asyncio==1.4.0",
-    "ruff==0.15.17",
+    "ruff==0.15.19",
     "testfixtures==12.1.0",
 ]
 
