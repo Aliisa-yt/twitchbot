@@ -33,7 +33,7 @@ dependencies = [
     "types-requests==2.33.0.20260518",
     "types-setuptools==82.0.0.20260518",
     "typing-inspect==0.9.0",
-    "typing_extensions==4.15.0",
+    "typing_extensions==4.16.0",
 ]
 
 [project.optional-dependencies]
