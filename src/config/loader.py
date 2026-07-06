@@ -12,7 +12,7 @@ from dataclasses import dataclass, fields
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, ClassVar, cast
 
-from models.config_models import Config
+from models.config_models import STT, VAD, Config, LevelsVAD, SileroVAD
 from models.voice_models import TTSInfo, TTSInfoPerLanguage, UserTypeInfo, Voice
 from utils.logger_utils import LoggerUtils
 
@@ -151,7 +151,7 @@ class ConfigLoader:
         script_name: str,
         **args: dict[str, str | bool | None],
     ) -> None:
-        config_path = Path(config_filename)
+        config_path: Path = Path(config_filename)
         msg: str
         if not config_path.exists():
             msg = (
@@ -192,7 +192,7 @@ class ConfigLoader:
         Raises:
             ConfigFormatError: If a value cannot be parsed or coerced to the expected type.
         """
-        formatter = _ConfigFormatter(self.config, parser)
+        formatter: _ConfigFormatter = _ConfigFormatter(self.config, parser)
         for section in fields(cast("DataclassInstance", self.config)):
             # VOICE_PARAMETERS is a parameter that will be automatically generated later.
             # Skip it now as it has no content.
@@ -237,7 +237,7 @@ class ConfigLoader:
         """
         default_voice_params: TTSInfoPerLanguage = self._check_voice_parameters(self.config.CAST.DEFAULT)
 
-        voice_params_dict = UserTypeInfo()
+        voice_params_dict: UserTypeInfo = UserTypeInfo()
         for user_type in [
             "STREAMER",
             "MODERATOR",
@@ -389,7 +389,7 @@ class ConfigLoader:
 
     def _validate_stt_engine(self) -> None:
         """Validate STT.ENGINE value."""
-        stt = self.config.STT
+        stt: STT = self.config.STT
         if not stt.ENGINE:
             msg = "'STT.ENGINE' is required when STT is enabled."
             raise ConfigValueError(msg)
@@ -399,17 +399,17 @@ class ConfigLoader:
 
     def _validate_vad_mode(self) -> None:
         """Validate VAD.MODE value."""
-        vad = self.config.VAD
+        vad: VAD = self.config.VAD
         if vad.MODE not in ALLOWED_STT_VAD_MODES:
             msg = f"Unsupported value for 'VAD.MODE': {vad.MODE}"
             raise ConfigValueError(msg)
 
     def _build_stt_validation_rules(self) -> list[_NumericRule | _RequiredNotEmptyRule]:
         """Build the declarative validation rule list for all STT/VAD fields."""
-        stt = self.config.STT
-        vad = self.config.VAD
-        lvad = self.config.LEVELS_VAD
-        svad = self.config.SILERO_VAD
+        stt: STT = self.config.STT
+        vad: VAD = self.config.VAD
+        lvad: LevelsVAD = self.config.LEVELS_VAD
+        svad: SileroVAD = self.config.SILERO_VAD
 
         def is_stt_enabled() -> bool:
             return stt.ENABLED
@@ -457,7 +457,7 @@ class ConfigLoader:
 
     def _validate_level_vad_cross_field(self) -> None:
         """Validate that LEVELS_VAD.START >= LEVELS_VAD.STOP."""
-        levels_vad = self.config.LEVELS_VAD
+        levels_vad: LevelsVAD = self.config.LEVELS_VAD
         if levels_vad.START < levels_vad.STOP:
             msg = "'LEVELS_VAD.START' must be greater than or equal to 'LEVELS_VAD.STOP'."
             raise ConfigValueError(msg)
@@ -489,7 +489,7 @@ class ConfigLoader:
         Raises:
             ConfigTypeError: If the configured value is neither list nor str.
         """
-        value: str | list[str] = getattr(getattr(self.config, section_name), key_name)
+        value: Any = getattr(getattr(self.config, section_name), key_name)
         field_name: str = f"{section_name}.{key_name}"
 
         if isinstance(value, (list, str)):

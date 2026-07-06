@@ -111,7 +111,7 @@ class TextResult:
     ) -> None:
         if isinstance(sentences, str):
             self.text: str = sentences
-        elif isinstance(sentences, list):
+        elif isinstance(sentences, list):  # pyright: ignore[reportUnnecessaryIsInstance]
             # The specification for when it becomes a list is unclear.
             # e.g. when translating simultaneously into multiple languages?
             # Given the current implementation, it should never return as a list, so for now, return the combined list.
@@ -231,7 +231,7 @@ class AsyncTranslator:
         timeout: float = 300.0,  # noqa: ASYNC109
         proxies: dict[str, str] | None = None,
     ) -> str:
-        if proxies is None or not isinstance(proxies, dict):
+        if proxies is None or not isinstance(proxies, dict):  # pyright: ignore[reportUnnecessaryIsInstance]
             proxies = {}
 
         try:

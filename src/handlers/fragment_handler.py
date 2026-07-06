@@ -110,7 +110,7 @@ class EmoteHandler:
             ValueError: If same_limit is negative or not an integer.
             RuntimeError: If called after parse() has been invoked.
         """
-        if not isinstance(same_limit, int) or same_limit < 0:
+        if not isinstance(same_limit, int) or same_limit < 0:  # pyright: ignore[reportUnnecessaryIsInstance]
             msg: str = f"Invalid same_emote_limit value: {same_limit}. Must be a non-negative integer."
             raise ValueError(msg)
         if self._parsed:
@@ -131,7 +131,7 @@ class EmoteHandler:
             ValueError: If total_limit is negative or not an integer.
             RuntimeError: If called after parse() has been invoked.
         """
-        if not isinstance(total_limit, int) or total_limit < 0:
+        if not isinstance(total_limit, int) or total_limit < 0:  # pyright: ignore[reportUnnecessaryIsInstance]
             msg: str = f"Invalid total_emotes_limit value: {total_limit}. Must be a non-negative integer."
             raise ValueError(msg)
         if self._parsed:

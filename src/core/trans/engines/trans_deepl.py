@@ -350,7 +350,7 @@ class DeeplTranslation(TransInterface):
         """
         if isinstance(results, TextResult):
             result: TextResult = results
-        elif isinstance(results, list):
+        elif isinstance(results, list):  # pyright: ignore[reportUnnecessaryIsInstance]
             # Although this app does not return list types, type checking is performed.
             logger.debug("The return value is of type list.")
             result = results[0]

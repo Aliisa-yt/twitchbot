@@ -2,7 +2,7 @@ import asyncio
 from contextlib import suppress
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, ClassVar, Final, override
+from typing import TYPE_CHECKING, Any, ClassVar, Final, override
 from uuid import uuid4
 
 from core.components.base import ComponentBase
@@ -65,7 +65,7 @@ class STTServiceComponent(ComponentBase):
                     self._confidence_threshold = None
 
             self._debug_mode = getattr(self.config.STT, "DEBUG", False)
-            stt_enabled: bool = self.config.STT.ENABLED
+            stt_enabled: Any = self.config.STT.ENABLED
             if isinstance(stt_enabled, bool) and stt_enabled:
                 await self.stt_manager.async_init(on_result=self._on_stt_result)
                 logger.debug("'%s' component loaded", self.__class__.__name__)
@@ -95,7 +95,7 @@ class STTServiceComponent(ComponentBase):
             result (STTResult): The result from the STT service, containing the transcribed text and confidence score.
         """
         # Although `result.text` is guaranteed to be of type `str`, we will check it just to be on the safe side.
-        if not isinstance(result.text, str):
+        if not isinstance(result.text, str):  # pyright: ignore[reportUnnecessaryIsInstance]
             logger.warning("Received STT result with non-string text: %s", result.text)
             return
 
@@ -208,7 +208,7 @@ class STTServiceComponent(ComponentBase):
         dto: ChatMessageDTO = self._create_stt_chat_message_dto(text=text)
 
         async def predicate(payload: ChatMessageDTO) -> bool:
-            return isinstance(payload, ChatMessageDTO) and payload.message_id == dto.message_id
+            return isinstance(payload, ChatMessageDTO) and payload.message_id == dto.message_id  # pyright: ignore[reportUnnecessaryIsInstance]
 
         waiter_task: asyncio.Task[ChatMessageDTO] = asyncio.create_task(
             self.bot.wait_for(

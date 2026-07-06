@@ -188,7 +188,7 @@ class CevioCore(Interface):
         if not self.talk_preset:
             self.talk_preset = self._get_preset_parameters(self.talker)
 
-        sel_cast: str = ttsparam.tts_info.voice.cast if isinstance(ttsparam.tts_info.voice.cast, str) else "none"
+        sel_cast: str = ttsparam.tts_info.voice.cast if isinstance(ttsparam.tts_info.voice.cast, str) else "none"  # pyright: ignore[reportUnnecessaryIsInstance]
         logger.info("Selected cast: %s", sel_cast)
 
         if sel_cast.lower() == "none":

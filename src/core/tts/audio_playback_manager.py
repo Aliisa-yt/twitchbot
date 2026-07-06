@@ -165,7 +165,7 @@ class AudioPlaybackManager:
         """
         try:
             while True:
-                tts_param: TTSParam = await self.playback_queue.get()
+                tts_param: Any = await self.playback_queue.get()
                 try:
                     if not isinstance(tts_param, TTSParam):
                         logger.warning("Invalid TTSParam in playback queue: %s", tts_param)

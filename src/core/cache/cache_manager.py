@@ -7,7 +7,7 @@ Provides cache search, registration, in-flight request management, and cleanup f
 import asyncio
 import sqlite3
 from pathlib import Path
-from typing import TYPE_CHECKING, ClassVar, Final
+from typing import TYPE_CHECKING, Any, ClassVar, Final
 
 from models.cache_models import (
     CacheStatistics,
@@ -91,9 +91,9 @@ class TranslationCacheManager:
         Returns:
             int: Configuration value from config or default.
         """
-        section = getattr(self.config, "CACHE", None)
+        section: Any = getattr(self.config, "CACHE", None)
         if section is not None:
-            value = getattr(section, name, default)
+            value: Any = getattr(section, name, default)
             if isinstance(value, int) and value > 0:
                 return value
         logger.warning("Invalid or missing cache config for %s, using default: %d", name, default)

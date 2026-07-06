@@ -6,7 +6,7 @@ The time signal can be configured to output text to the console or to output spe
 """
 
 from datetime import datetime, timedelta
-from typing import TYPE_CHECKING, ClassVar, Final, override
+from typing import TYPE_CHECKING, Any, ClassVar, Final, override
 
 from twitchio.ext import routines
 
@@ -79,7 +79,7 @@ class TimeSignalManager(ComponentBase):
         self.event_time_signal.cancel()
         logger.debug("'%s' component unloaded", self.__class__.__name__)
 
-    def _configure_time_signal(self) -> bool:
+    def _configure_time_signal(self) -> bool:  # noqa: PLR0915
         """Configure the time signal settings from the configuration.
 
         Retrieves the necessary settings from the configuration and validates them.
@@ -95,20 +95,22 @@ class TimeSignalManager(ComponentBase):
 
         # Although there is a warning about an unnecessary `isinstance` call,
         # type checking is essential as this involves external data.
-        enabled: bool = getattr(self._time_signal, "ENABLED", False)
+        enabled: Any = getattr(self._time_signal, "ENABLED", False)
         if not isinstance(enabled, bool) or not enabled:
             logger.info("TIME_SIGNAL is disabled in the configuration.")
             return False
 
-        self._language = getattr(self._time_signal, "LANGUAGE", self.config.TRANSLATION.NATIVE_LANGUAGE)
-        if self._language == "" or not isinstance(self._language, str):
+        language: Any = getattr(self._time_signal, "LANGUAGE", self.config.TRANSLATION.NATIVE_LANGUAGE)
+        if language == "" or not isinstance(language, str):
             logger.warning("Invalid LANGUAGE value in TIME_SIGNAL config; defaulting to TRANSLATION.NATIVE_LANGUAGE")
-            self._language = self.config.TRANSLATION.NATIVE_LANGUAGE
+            language = self.config.TRANSLATION.NATIVE_LANGUAGE
+        self._language = language
 
-        self._clock12 = getattr(self.config.TIME_SIGNAL, "CLOCK12", True)
-        if not isinstance(self._clock12, bool):
+        clock12: Any = getattr(self.config.TIME_SIGNAL, "CLOCK12", True)
+        if not isinstance(clock12, bool):
             logger.warning("Invalid CLOCK12 value in TIME_SIGNAL config; defaulting to True")
-            self._clock12 = True
+            clock12 = True
+        self._clock12 = clock12
 
         # Although defining 24 slots per time period would allow for greater flexibility, we have determined
         # that the current eight-slot system is sufficient.
@@ -162,21 +164,23 @@ class TimeSignalManager(ComponentBase):
             if self._time_announcement == "":
                 return False
 
-        self._is_text = getattr(self.config.TIME_SIGNAL, "TEXT", False)
-        if not isinstance(self._is_text, bool):
-            self._is_text = False
+        is_text: Any = getattr(self.config.TIME_SIGNAL, "TEXT", False)
+        if not isinstance(is_text, bool):
+            is_text = False
             logger.warning("Invalid TEXT value in TIME_SIGNAL config; defaulting to False")
+        self._is_text = is_text
 
-        self._is_voice = getattr(self.config.TIME_SIGNAL, "VOICE", False)
-        if not isinstance(self._is_voice, bool):
-            self._is_voice = False
+        is_voice: Any = getattr(self.config.TIME_SIGNAL, "VOICE", False)
+        if not isinstance(is_voice, bool):
+            is_voice = False
             logger.warning("Invalid VOICE value in TIME_SIGNAL config; defaulting to False")
+        self._is_voice = is_voice
 
         return True
 
     def _get_attribute(self, name: str) -> str:
         """Helper method to retrieve attributes from the TIME_SIGNAL configuration."""
-        value = getattr(self.config.TIME_SIGNAL, name, "")
+        value: Any = getattr(self.config.TIME_SIGNAL, name, "")
         if value == "" or not isinstance(value, str):
             logger.warning("TIME_SIGNAL configuration is missing or invalid for '%s'.", name)
             return ""

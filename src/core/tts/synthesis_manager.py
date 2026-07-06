@@ -40,7 +40,7 @@ logger: logging.Logger = LoggerUtils.get_logger(__name__)
 
 # alias declaration
 # TTSEngineHandlerMap is a dictionary type that stores TTSEngineHandler with engine name as a key
-TTSEngineHandlerMap = dict[str, EngineHandler]
+type TTSEngineHandlerMap = dict[str, EngineHandler]
 
 
 class SynthesisManager:
@@ -103,7 +103,7 @@ class SynthesisManager:
             # This allows for flexibility in engine configuration.
             tts_engine: TTSEngine = getattr(self.config, engine_name.upper(), TTSEngine())
 
-            tmp_dir = self.config.GENERAL.TMP_DIR
+            tmp_dir: Any = self.config.GENERAL.TMP_DIR
             if tmp_dir is None:
                 logger.error("TMP_DIR is not configured; failed to initialize TTS engine '%s'", engine_name)
                 continue
@@ -184,7 +184,7 @@ class SynthesisManager:
         Validates the item and dispatches synthesis to the selected engine.
         Designed to keep the main processing loop concise and testable.
         """
-        if not isinstance(tts_param, TTSParam):
+        if not isinstance(tts_param, TTSParam):  # pyright: ignore[reportUnnecessaryIsInstance]
             logger.debug("Received non-TTSParam item: %r", tts_param)
             return
 

@@ -200,7 +200,7 @@ class VVCore(Interface, ABC):
         """
         try:
             logger.debug("Starting TTS synthesis with parameters: %s", ttsparam)
-            audio_data: bytes = await self.api_command_procedure(ttsparam)
+            audio_data: Any = await self.api_command_procedure(ttsparam)
             if not audio_data or not isinstance(audio_data, bytes):
                 msg = "TTS synthesis failed: No audio data received."
                 raise TTSNotSupportedError(msg)
@@ -357,7 +357,7 @@ class VVCore(Interface, ABC):
             value = float(value) / 100.0
             return max(min(value, upper_limit), lower_limit)
 
-        if isinstance(value, float):
+        if isinstance(value, float):  # pyright: ignore[reportUnnecessaryIsInstance]
             return max(min(value, upper_limit), lower_limit)
 
         logger.warning("Invalid type for value: %s, expected int or float", type(value).__name__)

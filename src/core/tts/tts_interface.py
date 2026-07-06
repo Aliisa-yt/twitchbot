@@ -329,12 +329,12 @@ class Interface(ProcessMixin, ABC):
             TTSFileCreateError: If there is an error creating the file
             TTSNotSupportedError: If the data format is not supported
         """
-        if isinstance(data, BytesIO):
-            data = data.getvalue()
-        elif not isinstance(data, bytes):
+        if not isinstance(data, (bytes, BytesIO)):  # pyright: ignore[reportUnnecessaryIsInstance]
             msg: str = f"Data format not supported. type='{type(data)}'"
             raise TTSNotSupportedError(msg)
 
+        if isinstance(data, BytesIO):
+            data = data.getvalue()
         try:
             with filepath.open(mode="xb") as fhdl:
                 fhdl.write(data)

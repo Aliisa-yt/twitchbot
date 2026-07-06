@@ -129,14 +129,15 @@ class TransInterface(ABC):
             msg = "Subclasses of TransInterface must implement the static method fetch_engine_name()."
             raise TypeError(msg)
 
-        if not isinstance(cls.fetch_engine_name(), str) or cls.fetch_engine_name() == "":
+        engine_name: Any = cls.fetch_engine_name()
+        if not isinstance(engine_name, str) or engine_name == "":
             return  # Allow registration of engines with empty names, but they won't be added to the registry.
 
-        if cls.fetch_engine_name() in cls.registered:
-            msg = f"A translation engine with the name '{cls.fetch_engine_name()}' is already registered."
+        if engine_name in cls.registered:
+            msg = f"A translation engine with the name '{engine_name}' is already registered."
             raise ValueError(msg)
 
-        cls.registered[cls.fetch_engine_name()] = cls
+        cls.registered[engine_name] = cls
 
     def __init__(self) -> None:
         """Initialize the TransInterface base class."""
