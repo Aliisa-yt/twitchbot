@@ -28,7 +28,7 @@ __all__: list[str] = ["AsyncCommError", "AsyncCommTimeoutError", "AsyncHttp", "A
 
 logger: logging.Logger = LoggerUtils.get_logger(__name__)
 
-HTTPMethod = Literal["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"]
+type HTTPMethod = Literal["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"]
 
 CONNECT_TIMEOUT: Final[float] = 1.0
 

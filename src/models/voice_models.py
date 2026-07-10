@@ -23,7 +23,7 @@ __all__: list[str] = [
 ]
 
 # Type alias: int value or None if not applicable to the engine.
-VoiceParamType = int | None
+type VoiceParamType = int | None
 
 
 @dataclass

@@ -8,9 +8,9 @@ from core.tts._tts_engine_config import (
     DEFAULT_PORT_RANGE,
     DEFAULT_PROTOCOL,
     DEFAULT_TIMEOUT,
+    ProtocolType,
     TTSConfig,
     TTSExceptionError,
-    protocol_type,
 )
 from core.tts._tts_process_mixin import ProcessMixin
 from utils.logger_utils import LoggerUtils
@@ -233,7 +233,7 @@ class Interface(ProcessMixin, ABC):
         return True
 
     @property
-    def protocol(self) -> protocol_type:
+    def protocol(self) -> ProtocolType:
         return self._tts_config.protocol
 
     @property

@@ -26,16 +26,16 @@ __all__: list[str] = [
     "DEFAULT_PORT_RANGE",
     "DEFAULT_PROTOCOL",
     "DEFAULT_TIMEOUT",
+    "ProtocolType",
     "TTSConfig",
     "TTSExceptionError",
-    "protocol_type",
 ]
 
 logger: logging.Logger = LoggerUtils.get_logger(__name__)
 
-protocol_type = Literal["http", "https"]
+type ProtocolType = Literal["http", "https"]
 
-DEFAULT_PROTOCOL: Final[protocol_type] = "http"
+DEFAULT_PROTOCOL: Final[ProtocolType] = "http"
 DEFAULT_HOST: Final[str] = "127.0.0.1"
 DEFAULT_PORT: Final[int] = 65535
 DEFAULT_TIMEOUT: Final[float] = 10.0
@@ -53,7 +53,7 @@ class TTSConfig:
     """Dataclass holding TTS engine configuration.
 
     Attributes:
-        protocol (protocol_type): Protocol for the TTS server (http or https).
+        protocol (ProtocolType): Protocol for the TTS server (http or https).
         host (str): Host address of the TTS server.
         port (int): Port number of the TTS server.
         timeout (float): Request timeout in seconds.
@@ -62,7 +62,7 @@ class TTSConfig:
         exec_path (Path | None): Path to the TTS engine executable.
     """
 
-    protocol: protocol_type = DEFAULT_PROTOCOL
+    protocol: ProtocolType = DEFAULT_PROTOCOL
     host: str = DEFAULT_HOST
     port: int = DEFAULT_PORT
     timeout: float = DEFAULT_TIMEOUT
@@ -102,7 +102,7 @@ class TTSConfig:
     @staticmethod
     def _parse_server_config(
         server_str: str, port_range: tuple[int, int] = DEFAULT_PORT_RANGE
-    ) -> tuple[protocol_type, str, int]:
+    ) -> tuple[ProtocolType, str, int]:
         """Parse a server configuration string and return the protocol, host, and port."""
         try:
             match: Match[str] | None = re.match(SERVER_CONFIG_PATTERN, server_str)
@@ -121,7 +121,7 @@ class TTSConfig:
             else:
                 protocol_str = DEFAULT_PROTOCOL
 
-            protocol: protocol_type = cast("protocol_type", protocol_str.lower())
+            protocol: ProtocolType = cast("ProtocolType", protocol_str.lower())
 
             if not (port_range[0] <= port <= port_range[1]):
                 msg = f"Port number must be in range {port_range}."
