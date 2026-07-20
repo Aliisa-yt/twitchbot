@@ -11,7 +11,7 @@ dependencies = [
     "dataclasses-json==0.6.7",
     "deepl==1.30.0",
     "emoji==2.15.0",
-    "google-api-python-client-stubs==1.38.0",
+    "google-api-python-client-stubs==1.39.0",
     "google-cloud-speech==2.40.0",
     "google-cloud-translate==3.27.0",
     "gTTS==2.5.4",
