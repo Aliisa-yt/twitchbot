@@ -1,6 +1,6 @@
 """Configuration and version information for Twitchbot."""
 
-__version__ = "1.9.2"
+__version__ = "1.9.3"
 
 __config_file__ = "twitchbot.ini"
 __log_file__ = "debug.log"
