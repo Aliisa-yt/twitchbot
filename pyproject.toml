@@ -40,7 +40,7 @@ dependencies = [
 dev = [
     "basedpyright>=1.39.9",
     "coverage>=7.15.0",
-    "mypy==2.2.0",
+    "mypy==2.3.0",
     "mypy_extensions==1.1.0",
     "pyinstaller==6.21.0",
     "pyinstaller-hooks-contrib==2026.6",
