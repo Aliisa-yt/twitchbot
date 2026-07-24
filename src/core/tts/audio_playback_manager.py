@@ -57,7 +57,7 @@ logger: logging.Logger = LoggerUtils.get_logger(__name__)
 def _stream_callback_logic(
     outdata: NDArray[Any],
     frames: int,
-    /,
+    *,
     sf: soundfile.SoundFile,
     dtype: soundfile.dtype_str,
     loop: asyncio.AbstractEventLoop,

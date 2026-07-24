@@ -114,6 +114,7 @@ class STTRecorder:
 
     def __init__(
         self,
+        *,
         segment_queue: asyncio.Queue[STTSegment],
         tmp_directory: Path,
         sample_rate: int = 16000,
@@ -463,7 +464,7 @@ class STTRecorder:
     def _list_available_input_device_indices(self) -> list[int]:
         try:
             devices: list[dict[str, Any]] = list(sd.query_devices())
-        except (sd.PortAudioError, OSError, ValueError, RuntimeError):
+        except sd.PortAudioError, OSError, ValueError, RuntimeError:
             return []
 
         indices: list[int] = []

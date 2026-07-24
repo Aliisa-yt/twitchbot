@@ -424,7 +424,7 @@ class TransManager:
             if not self._handle_rate_limit_error(trans_info, err):
                 logger.error("%s failed: %s", context, err)
         else:
-            logger.exception("%s failed with unexpected error.", context)
+            logger.error("%s failed with unexpected error.", context)
 
         trans_info.translated_text = ""
         return False

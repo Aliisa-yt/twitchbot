@@ -281,6 +281,7 @@ class VVCore(Interface, ABC):
         self,
         method: str,
         url: str,
+        *,
         model: type[T] | None = None,
         params: dict[str, str] | None = None,
         data: Any = None,

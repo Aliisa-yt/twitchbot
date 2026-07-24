@@ -145,7 +145,7 @@ class SynthesisManager:
         engine_names: list[str] = []
 
         for engine_name, handler in handler_map.items():
-            method: Callable[[None | UserTypeInfo | TTSParam], Awaitable[None]] | None = getattr(
+            method: Callable[[UserTypeInfo | TTSParam | None], Awaitable[None]] | None = getattr(
                 handler, method_name, None
             )
             if method is None:
@@ -173,7 +173,7 @@ class SynthesisManager:
         if not tasks:
             return
 
-        results: list[None | BaseException] = await asyncio.gather(*tasks, return_exceptions=True)
+        results: list[BaseException | None] = await asyncio.gather(*tasks, return_exceptions=True)
         for engine_name, result in zip(engine_names, results, strict=False):
             if isinstance(result, Exception):
                 logger.error("Exception in TTS engine '%s' during method '%s': %s", engine_name, method_name, result)

@@ -103,7 +103,7 @@ class LoggerUtils:
         warnings.showwarning = self.warning_to_log
         LoggerUtils._configured = True
 
-    def warning_to_log(
+    def warning_to_log(  # noqa: PLR0917
         self,
         message: Warning | str,
         category: type[Warning],
