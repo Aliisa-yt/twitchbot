@@ -29,7 +29,7 @@ dependencies = [
     "types-httplib2==0.31.2.20260712",
     "types-pyasn1==0.6.0.20260408",
     "types-pywin32==312.0.0.20260609; platform_system == 'Windows'",
-    "types-PyYAML==6.0.12.20260518",
+    "types-PyYAML==6.0.12.20260724",
     "types-requests==2.33.0.20260712",
     "types-setuptools==83.0.0.20260706",
     "typing-inspect==0.9.0",
