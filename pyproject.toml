@@ -1,6 +1,6 @@
 [project]
 name = "twitchbot"
-version = "2026.4" # unused
+version = "2026.7" # unused
 description = "A Twitch chatbot built with Python, designed to enhance viewer engagement and provide interactive features for Twitch streamers."
 authors = [{ name = "Allisa_yt" }]
 requires-python = ">=3.14"
@@ -17,7 +17,7 @@ dependencies = [
     "gTTS==2.5.4",
     "numpy==2.5.1",
     "onnxruntime==1.27.0",
-    "pywin32; platform_system == 'Windows'",
+    "pywin32==312; platform_system == 'Windows'",
     "pywin32-ctypes==0.2.3; platform_system == 'Windows'",
     "setuptools>=83.0.0",
     "sounddevice==0.5.5",
