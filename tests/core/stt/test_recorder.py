@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Any, cast
 import numpy as np
 import pytest
 
-from core.stt.recorder import SegmentMode, STTLevelEvent, STTRecorder, STTSegment
+from core.stt.recorder import RecorderConfig, SegmentMode, STTLevelEvent, STTRecorder, STTSegment
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -45,6 +45,33 @@ class _FakeInputStream:
         self.closed = True
 
 
+def test_init_uses_recorder_config_values(tmp_path: Path) -> None:
+    queue: asyncio.Queue[STTSegment] = asyncio.Queue()
+    config = RecorderConfig(
+        sample_rate=22050,
+        channels=2,
+        input_device="7",
+        level_interval_ms=25,
+        start_level_db=-30.0,
+        stop_level_db=-50.0,
+        pre_buffer_ms=40,
+        post_buffer_ms=60,
+        max_segment_sec=7,
+    )
+
+    recorder = STTRecorder(segment_queue=queue, tmp_directory=tmp_path, config=config)
+
+    assert recorder.sample_rate == 22050
+    assert recorder.channels == 2
+    assert recorder.input_device == "7"
+    assert recorder.start_level_db == -30.0
+    assert recorder.stop_level_db == -50.0
+    assert recorder._pre_buffer_ms == 40
+    assert recorder._post_buffer_ms == 60
+    assert recorder._max_segment_sec == 7
+    assert recorder._level_interval_sec == pytest.approx(0.025)
+
+
 @pytest.mark.asyncio
 async def test_start_input_monitoring_applies_device_rate_channels(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
@@ -53,10 +80,7 @@ async def test_start_input_monitoring_applies_device_rate_channels(
     recorder = STTRecorder(
         segment_queue=queue,
         tmp_directory=tmp_path,
-        sample_rate=22050,
-        channels=1,
-        input_device="default",
-        level_interval_ms=10,
+        config=RecorderConfig(sample_rate=22050, channels=1, input_device="default", level_interval_ms=10),
     )
 
     created_streams: list[_FakeInputStream] = []
@@ -105,10 +129,7 @@ async def test_input_monitoring_emits_muted_level(monkeypatch: pytest.MonkeyPatc
     recorder = STTRecorder(
         segment_queue=queue,
         tmp_directory=tmp_path,
-        sample_rate=16000,
-        channels=1,
-        input_device="2",
-        level_interval_ms=10,
+        config=RecorderConfig(sample_rate=16000, channels=1, input_device="2", level_interval_ms=10),
     )
 
     created_streams: list[_FakeInputStream] = []
@@ -150,15 +171,17 @@ async def test_threshold_segmentation_queues_pcm_file(monkeypatch: pytest.Monkey
     recorder = STTRecorder(
         segment_queue=queue,
         tmp_directory=tmp_path,
-        sample_rate=16000,
-        channels=1,
-        input_device="default",
-        level_interval_ms=10,
-        start_level_db=-34.0,
-        stop_level_db=-40.0,
-        pre_buffer_ms=100,
-        post_buffer_ms=20,
-        max_segment_sec=10,
+        config=RecorderConfig(
+            sample_rate=16000,
+            channels=1,
+            input_device="default",
+            level_interval_ms=10,
+            start_level_db=-34.0,
+            stop_level_db=-40.0,
+            pre_buffer_ms=100,
+            post_buffer_ms=20,
+            max_segment_sec=10,
+        ),
     )
 
     created_streams: list[_FakeInputStream] = []
@@ -192,15 +215,17 @@ async def test_max_segment_duration_flushes_without_silence(monkeypatch: pytest.
     recorder = STTRecorder(
         segment_queue=queue,
         tmp_directory=tmp_path,
-        sample_rate=16000,
-        channels=1,
-        input_device="default",
-        level_interval_ms=10,
-        start_level_db=-40.0,
-        stop_level_db=-60.0,
-        pre_buffer_ms=0,
-        post_buffer_ms=1000,
-        max_segment_sec=1,
+        config=RecorderConfig(
+            sample_rate=16000,
+            channels=1,
+            input_device="default",
+            level_interval_ms=10,
+            start_level_db=-40.0,
+            stop_level_db=-60.0,
+            pre_buffer_ms=0,
+            post_buffer_ms=1000,
+            max_segment_sec=1,
+        ),
     )
 
     created_streams: list[_FakeInputStream] = []
@@ -237,10 +262,7 @@ async def test_start_input_monitoring_logs_available_input_devices_on_open_failu
     recorder = STTRecorder(
         segment_queue=queue,
         tmp_directory=tmp_path,
-        sample_rate=16000,
-        channels=1,
-        input_device="Mic Device Name",
-        level_interval_ms=10,
+        config=RecorderConfig(sample_rate=16000, channels=1, input_device="Mic Device Name", level_interval_ms=10),
     )
 
     def failing_input_stream(**kwargs) -> _FakeInputStream:
@@ -273,10 +295,7 @@ async def test_set_mute_drops_queued_segments(monkeypatch: pytest.MonkeyPatch, t
     recorder = STTRecorder(
         segment_queue=queue,
         tmp_directory=tmp_path,
-        sample_rate=16000,
-        channels=1,
-        input_device="default",
-        level_interval_ms=10,
+        config=RecorderConfig(sample_rate=16000, channels=1, input_device="default", level_interval_ms=10),
     )
 
     def fake_input_stream(**kwargs) -> _FakeInputStream:
@@ -307,15 +326,17 @@ async def test_set_mute_resets_active_segmentation(monkeypatch: pytest.MonkeyPat
     recorder = STTRecorder(
         segment_queue=queue,
         tmp_directory=tmp_path,
-        sample_rate=16000,
-        channels=1,
-        input_device="default",
-        level_interval_ms=10,
-        start_level_db=-34.0,
-        stop_level_db=-40.0,
-        pre_buffer_ms=100,
-        post_buffer_ms=20,
-        max_segment_sec=10,
+        config=RecorderConfig(
+            sample_rate=16000,
+            channels=1,
+            input_device="default",
+            level_interval_ms=10,
+            start_level_db=-34.0,
+            stop_level_db=-40.0,
+            pre_buffer_ms=100,
+            post_buffer_ms=20,
+            max_segment_sec=10,
+        ),
     )
 
     created_streams: list[_FakeInputStream] = []
@@ -352,10 +373,7 @@ async def test_watch_input_health_attempts_reconnect_when_stalled(
     recorder = STTRecorder(
         segment_queue=queue,
         tmp_directory=tmp_path,
-        sample_rate=16000,
-        channels=1,
-        input_device="default",
-        level_interval_ms=10,
+        config=RecorderConfig(sample_rate=16000, channels=1, input_device="default", level_interval_ms=10),
     )
 
     recorder._monitoring = True
@@ -405,10 +423,7 @@ def test_open_input_stream_fallback_from_default_to_available_index(
     recorder = STTRecorder(
         segment_queue=queue,
         tmp_directory=tmp_path,
-        sample_rate=16000,
-        channels=1,
-        input_device="default",
-        level_interval_ms=10,
+        config=RecorderConfig(sample_rate=16000, channels=1, input_device="default", level_interval_ms=10),
     )
 
     created_streams: list[_FakeInputStream] = []
@@ -445,10 +460,7 @@ async def test_watch_input_health_attempts_reconnect_when_stream_unavailable(
     recorder = STTRecorder(
         segment_queue=queue,
         tmp_directory=tmp_path,
-        sample_rate=16000,
-        channels=1,
-        input_device="default",
-        level_interval_ms=10,
+        config=RecorderConfig(sample_rate=16000, channels=1, input_device="default", level_interval_ms=10),
     )
 
     recorder._monitoring = True
@@ -489,7 +501,7 @@ async def test_watch_input_health_attempts_reconnect_when_stream_unavailable(
 
 def test_normalize_threshold_pair_swaps_when_start_less_than_stop(tmp_path: Path) -> None:
     queue: asyncio.Queue[STTSegment] = asyncio.Queue()
-    recorder = STTRecorder(segment_queue=queue, tmp_directory=tmp_path)
+    recorder = STTRecorder(segment_queue=queue, tmp_directory=tmp_path, config=RecorderConfig())
 
     start, stop = recorder._normalize_threshold_pair(-50.0, -20.0)
 
@@ -499,7 +511,7 @@ def test_normalize_threshold_pair_swaps_when_start_less_than_stop(tmp_path: Path
 
 def test_normalize_threshold_pair_preserves_order_when_start_greater(tmp_path: Path) -> None:
     queue: asyncio.Queue[STTSegment] = asyncio.Queue()
-    recorder = STTRecorder(segment_queue=queue, tmp_directory=tmp_path)
+    recorder = STTRecorder(segment_queue=queue, tmp_directory=tmp_path, config=RecorderConfig())
 
     start, stop = recorder._normalize_threshold_pair(-20.0, -40.0)
 
@@ -509,7 +521,7 @@ def test_normalize_threshold_pair_preserves_order_when_start_greater(tmp_path: P
 
 def test_set_thresholds_updates_db_values_and_propagates_to_vad(tmp_path: Path) -> None:
     queue: asyncio.Queue[STTSegment] = asyncio.Queue()
-    recorder = STTRecorder(segment_queue=queue, tmp_directory=tmp_path)
+    recorder = STTRecorder(segment_queue=queue, tmp_directory=tmp_path, config=RecorderConfig())
 
     recorder.set_thresholds(start_level_db=-25.0, stop_level_db=-45.0)
 
@@ -521,7 +533,7 @@ def test_set_thresholds_updates_db_values_and_propagates_to_vad(tmp_path: Path) 
 
 def test_set_thresholds_swaps_when_start_less_than_stop(tmp_path: Path) -> None:
     queue: asyncio.Queue[STTSegment] = asyncio.Queue()
-    recorder = STTRecorder(segment_queue=queue, tmp_directory=tmp_path)
+    recorder = STTRecorder(segment_queue=queue, tmp_directory=tmp_path, config=RecorderConfig())
 
     recorder.set_thresholds(start_level_db=-50.0, stop_level_db=-20.0)
 
@@ -532,7 +544,7 @@ def test_set_thresholds_swaps_when_start_less_than_stop(tmp_path: Path) -> None:
 
 def test_set_vad_threshold_clamps_above_one(tmp_path: Path) -> None:
     queue: asyncio.Queue[STTSegment] = asyncio.Queue()
-    recorder = STTRecorder(segment_queue=queue, tmp_directory=tmp_path)
+    recorder = STTRecorder(segment_queue=queue, tmp_directory=tmp_path, config=RecorderConfig())
 
     result = recorder.set_vad_threshold(threshold=2.5)
 
@@ -542,7 +554,7 @@ def test_set_vad_threshold_clamps_above_one(tmp_path: Path) -> None:
 
 def test_set_vad_threshold_clamps_below_zero(tmp_path: Path) -> None:
     queue: asyncio.Queue[STTSegment] = asyncio.Queue()
-    recorder = STTRecorder(segment_queue=queue, tmp_directory=tmp_path)
+    recorder = STTRecorder(segment_queue=queue, tmp_directory=tmp_path, config=RecorderConfig())
 
     result = recorder.set_vad_threshold(threshold=-0.3)
 
@@ -553,7 +565,11 @@ def test_set_vad_threshold_clamps_below_zero(tmp_path: Path) -> None:
 @pytest.mark.asyncio
 async def test_record_mock_segment_white_noise_produces_nonzero_pcm(tmp_path: Path) -> None:
     queue: asyncio.Queue[STTSegment] = asyncio.Queue()
-    recorder = STTRecorder(segment_queue=queue, tmp_directory=tmp_path, sample_rate=16000, channels=1)
+    recorder = STTRecorder(
+        segment_queue=queue,
+        tmp_directory=tmp_path,
+        config=RecorderConfig(sample_rate=16000, channels=1),
+    )
 
     segment = await recorder.record_mock_segment(duration_sec=0.05, mode=SegmentMode.WHITE_NOISE)
 
@@ -570,7 +586,7 @@ async def test_record_mock_segment_white_noise_produces_nonzero_pcm(tmp_path: Pa
 @pytest.mark.asyncio
 async def test_close_without_start_input_monitoring_completes_normally(tmp_path: Path) -> None:
     queue: asyncio.Queue[STTSegment] = asyncio.Queue()
-    recorder = STTRecorder(segment_queue=queue, tmp_directory=tmp_path)
+    recorder = STTRecorder(segment_queue=queue, tmp_directory=tmp_path, config=RecorderConfig())
 
     # Should not raise even when monitoring was never started
     await recorder.close()
@@ -581,7 +597,7 @@ async def test_close_without_start_input_monitoring_completes_normally(tmp_path:
 @pytest.mark.asyncio
 async def test_dispatch_level_events_skips_when_callback_is_none(tmp_path: Path) -> None:
     queue: asyncio.Queue[STTSegment] = asyncio.Queue()
-    recorder = STTRecorder(segment_queue=queue, tmp_directory=tmp_path)
+    recorder = STTRecorder(segment_queue=queue, tmp_directory=tmp_path, config=RecorderConfig())
     recorder._on_level_event = None
 
     # Enqueue an event and run dispatch briefly — no callback set, no exception expected

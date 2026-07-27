@@ -3,6 +3,7 @@ from typing import TYPE_CHECKING, Any, cast, override
 
 import pytest
 
+from core.stt.recorder import RecorderConfig
 from core.stt.stt_interface import STTInterface, STTResult
 from core.stt.stt_manager import STTManager
 
@@ -194,12 +195,36 @@ async def test_async_init_passes_vad_settings_to_recorder(monkeypatch: pytest.Mo
     await manager.async_init(on_result=None)
 
     assert _FakeRecorder.last_kwargs is not None
-    assert _FakeRecorder.last_kwargs["vad_mode"] == "silero_onnx"
-    assert _FakeRecorder.last_kwargs["vad_silero_model_path"] == "data/stt/silero/silero_vad.onnx"
-    assert _FakeRecorder.last_kwargs["vad_threshold"] == pytest.approx(0.42)
-    assert _FakeRecorder.last_kwargs["vad_onnx_threads"] == 2
+    config_arg = _FakeRecorder.last_kwargs.get("config")
+    assert isinstance(config_arg, RecorderConfig)
+    assert config_arg.vad_mode == "silero_onnx"
+    assert config_arg.vad_silero_model_path == "data/stt/silero/silero_vad.onnx"
+    assert config_arg.vad_threshold == pytest.approx(0.42)
+    assert config_arg.vad_onnx_threads == 2
 
     await manager.close()
+
+
+def test_build_recorder_config_uses_config_values() -> None:
+    manager = STTManager(cast("Config", _make_config(enabled=True)))
+
+    config = manager._build_recorder_config(
+        stt_config=cast("Any", manager.config.STT),
+        vad_config=cast("Any", manager.config.VAD),
+        levels_vad_config=cast("Any", manager.config.LEVELS_VAD),
+        silero_vad_config=cast("Any", manager.config.SILERO_VAD),
+        input_device="mic-1",
+        level_interval_ms=25,
+    )
+
+    assert config.input_device == "mic-1"
+    assert config.sample_rate == 16000
+    assert config.channels == 1
+    assert config.level_interval_ms == 25
+    assert config.start_level_db == pytest.approx(0.6)
+    assert config.stop_level_db == pytest.approx(0.4)
+    assert config.vad_mode == "level"
+    assert config.vad_threshold == pytest.approx(0.5)
 
 
 def test_set_vad_threshold_delegates_to_recorder() -> None:

@@ -89,6 +89,41 @@ class STTLevelEvent:
     timestamp: float
 
 
+@dataclass(frozen=True)
+class RecorderConfig:
+    """Configuration bundle for recorder initialization.
+
+    Attributes:
+        sample_rate (int): Audio sample rate in Hz.
+        channels (int): Audio channel count.
+        input_device (str | int | None): Audio input device selection.
+        level_interval_ms (int): Interval between emitted level events in milliseconds.
+        start_level_db (float): Start threshold in dB.
+        stop_level_db (float): Stop threshold in dB.
+        pre_buffer_ms (int): Pre-buffer duration in milliseconds.
+        post_buffer_ms (int): Post-buffer duration in milliseconds.
+        max_segment_sec (int): Maximum segment duration in seconds.
+        vad_mode (str): VAD mode selector.
+        vad_silero_model_path (str): Silero ONNX model path.
+        vad_threshold (float): VAD probability threshold.
+        vad_onnx_threads (int): Silero ONNX thread count.
+    """
+
+    sample_rate: int = 16000
+    channels: int = 1
+    input_device: str | int | None = "default"
+    level_interval_ms: int = DEFAULT_LEVEL_INTERVAL_MS
+    start_level_db: float = DEFAULT_START_LEVEL_dB
+    stop_level_db: float = DEFAULT_STOP_LEVEL_dB
+    pre_buffer_ms: int = DEFAULT_PRE_BUFFER_MS
+    post_buffer_ms: int = DEFAULT_POST_BUFFER_MS
+    max_segment_sec: int = DEFAULT_MAX_SEGMENT_SEC
+    vad_mode: str = DEFAULT_VAD_MODE
+    vad_silero_model_path: str = DEFAULT_SILERO_ONNX_MODEL_PATH
+    vad_threshold: float = DEFAULT_SILERO_VAD_THRESHOLD
+    vad_onnx_threads: int = 1
+
+
 type LevelEventCallback = Callable[[STTLevelEvent], Awaitable[None] | None]
 
 
@@ -117,26 +152,16 @@ class STTRecorder:
         *,
         segment_queue: asyncio.Queue[STTSegment],
         tmp_directory: Path,
-        sample_rate: int = 16000,
-        channels: int = 1,
-        input_device: str | int | None = "default",
-        level_interval_ms: int = DEFAULT_LEVEL_INTERVAL_MS,
-        start_level_db: float = DEFAULT_START_LEVEL_dB,
-        stop_level_db: float = DEFAULT_STOP_LEVEL_dB,
-        pre_buffer_ms: int = DEFAULT_PRE_BUFFER_MS,
-        post_buffer_ms: int = DEFAULT_POST_BUFFER_MS,
-        max_segment_sec: int = DEFAULT_MAX_SEGMENT_SEC,
-        vad_mode: str = DEFAULT_VAD_MODE,
-        vad_silero_model_path: str = DEFAULT_SILERO_ONNX_MODEL_PATH,
-        vad_threshold: float = DEFAULT_SILERO_VAD_THRESHOLD,
-        vad_onnx_threads: int = 1,
+        config: RecorderConfig | None = None,
     ) -> None:
+        resolved_config: RecorderConfig = config if config is not None else RecorderConfig()
+
         self._segment_queue: asyncio.Queue[STTSegment] = segment_queue
         self._tmp_directory: Path = tmp_directory
-        self._sample_rate: int = sample_rate
-        self._channels: int = channels
-        self._input_device: str | int | None = input_device
-        self._level_interval_sec: float = max(level_interval_ms, 10) / 1000.0
+        self._sample_rate: int = resolved_config.sample_rate
+        self._channels: int = resolved_config.channels
+        self._input_device: str | int | None = resolved_config.input_device
+        self._level_interval_sec: float = max(resolved_config.level_interval_ms, 10) / 1000.0
         self._muted: bool = False
         self._stream: sd.InputStream | None = None
         self._loop: asyncio.AbstractEventLoop | None = None
@@ -146,25 +171,28 @@ class STTRecorder:
         self._last_level_emit_time: float = 0.0
         self._monitoring: bool = False
         self._current_level: float = 0.0
-        normalized_start, normalized_stop = self._normalize_threshold_pair(start_level_db, stop_level_db)
+        normalized_start, normalized_stop = self._normalize_threshold_pair(
+            resolved_config.start_level_db,
+            resolved_config.stop_level_db,
+        )
         self._start_level_db: float = normalized_start
         self._stop_level_db: float = normalized_stop
         self._start_level: float = self._normalize_level(TTSUtils.log_to_linear(normalized_start))
         self._stop_level: float = self._normalize_level(TTSUtils.log_to_linear(normalized_stop))
-        self._pre_buffer_ms: int = max(0, int(pre_buffer_ms))
-        self._post_buffer_ms: int = max(0, int(post_buffer_ms))
-        self._max_segment_sec: int = max(1, int(max_segment_sec))
+        self._pre_buffer_ms: int = max(0, int(resolved_config.pre_buffer_ms))
+        self._post_buffer_ms: int = max(0, int(resolved_config.post_buffer_ms))
+        self._max_segment_sec: int = max(1, int(resolved_config.max_segment_sec))
         self._pre_buffer_chunks: deque[np.ndarray] = deque()
         self._pre_buffer_frames: int = 0
         self._segment_chunks: list[np.ndarray] = []
         self._segment_frames: int = 0
-        self._vad_mode: VADMode = self._normalize_vad_mode(vad_mode)
-        self._vad_threshold: float = max(0.0, min(1.0, float(vad_threshold)))
+        self._vad_mode: VADMode = self._normalize_vad_mode(resolved_config.vad_mode)
+        self._vad_threshold: float = max(0.0, min(1.0, float(resolved_config.vad_threshold)))
         self._vad_processor: VADProcessorInterface = self._create_vad_processor(
             vad_mode=self._vad_mode,
-            vad_silero_model_path=vad_silero_model_path,
+            vad_silero_model_path=resolved_config.vad_silero_model_path,
             vad_threshold=self._vad_threshold,
-            vad_onnx_threads=vad_onnx_threads,
+            vad_onnx_threads=resolved_config.vad_onnx_threads,
         )
         self._pending_segment_tasks: set[asyncio.Task[None]] = set()
         self._input_watchdog_task: asyncio.Task[None] | None = None

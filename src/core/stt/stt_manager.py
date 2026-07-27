@@ -15,6 +15,7 @@ from core.stt.recorder import (
     DEFAULT_SILERO_VAD_THRESHOLD,
     DEFAULT_VAD_MODE,
     LevelEventCallback,
+    RecorderConfig,
     SegmentMode,
     STTRecorder,
     STTSegment,
@@ -78,7 +79,7 @@ class STTManager:
     def is_muted(self) -> bool:
         return self._recorder.muted if self._recorder is not None else self._mute
 
-    async def async_init(  # noqa: PLR0915
+    async def async_init(
         self,
         on_result: Callable[[STTResult], Awaitable[None]] | None = None,
         on_level_event: LevelEventCallback | None = None,
@@ -115,47 +116,17 @@ class STTManager:
             print(f"Loaded Speech-to-Text engine: {engine_name}")
 
         tmp_dir_path: Path = self._resolve_tmp_dir()
-        input_device: str = str(getattr(stt_config, "INPUT_DEVICE", "default"))
-        start_level: float = float(getattr(levels_vad_config, "START", -20.0))
-        stop_level: float = float(getattr(levels_vad_config, "STOP", -40.0))
-        pre_buffer_ms: int = int(getattr(vad_config, "PRE_BUFFER_MS", 300))
-        post_buffer_ms: int = int(getattr(vad_config, "POST_BUFFER_MS", 500))
-        max_segment_sec: int = int(getattr(vad_config, "MAX_SEGMENT_SEC", 20))
-        vad_mode: str = str(getattr(vad_config, "MODE", DEFAULT_VAD_MODE))
-        vad_silero_model_path: str = str(getattr(silero_vad_config, "MODEL_PATH", DEFAULT_SILERO_ONNX_MODEL_PATH))
-        vad_threshold: float = float(getattr(silero_vad_config, "THRESHOLD", DEFAULT_SILERO_VAD_THRESHOLD))
-        vad_onnx_threads: int = int(getattr(silero_vad_config, "ONNX_THREADS", 1))
-        language: str = str(getattr(stt_config, "LANGUAGE", "ja-JP"))
-        retry_max: int = int(getattr(stt_config, "RETRY_MAX", 3))
-        retry_backoff_ms: int = int(getattr(stt_config, "RETRY_BACKOFF_MS", 500))
-        self._mute = bool(getattr(stt_config, "MUTE", False))
-
-        refresh_rate: int = int(getattr(self.config.GUI, "LEVEL_METER_REFRESH_RATE", 10))
-        refresh_rate = max(10, min(100, refresh_rate))  # 10fps to 100fps
-        level_interval_ms: int = int(1000 / refresh_rate)
-
-        self._recorder = STTRecorder(
-            segment_queue=self._segment_queue,
-            tmp_directory=tmp_dir_path,
-            # Keep these fixed: recognition quality and current pipeline assumptions depend on them.
-            sample_rate=self._FIXED_SAMPLE_RATE,
-            channels=self._FIXED_CHANNELS,
-            input_device=input_device,
-            start_level_db=start_level,
-            stop_level_db=stop_level,
-            pre_buffer_ms=pre_buffer_ms,
-            post_buffer_ms=post_buffer_ms,
-            max_segment_sec=max_segment_sec,
-            vad_mode=vad_mode,
-            vad_silero_model_path=vad_silero_model_path,
-            vad_threshold=vad_threshold,
-            vad_onnx_threads=vad_onnx_threads,
-            level_interval_ms=level_interval_ms,
+        recorder_config: RecorderConfig = self._build_recorder_config(
+            stt_config=stt_config,
+            vad_config=vad_config,
+            levels_vad_config=levels_vad_config,
+            silero_vad_config=silero_vad_config,
+            input_device=str(getattr(stt_config, "INPUT_DEVICE", "default")),
+            level_interval_ms=self._resolve_level_interval_ms(),
         )
+        self._recorder = self._create_recorder(tmp_dir_path=tmp_dir_path, recorder_config=recorder_config)
         self._recorder.set_mute(mute=self._mute)
-        options: ProcessorOptions = ProcessorOptions(
-            language=language, retry_max=retry_max, retry_backoff_ms=retry_backoff_ms
-        )
+        options: ProcessorOptions = self._build_processor_options(stt_config=stt_config)
         self._processor = STTProcessor(
             segment_queue=self._segment_queue,
             terminate_event=self._terminate_event,
@@ -180,6 +151,65 @@ class STTManager:
         self._enabled = True
 
         logger.info("STT manager initialized")
+
+    def _build_recorder_config(
+        self,
+        *,
+        stt_config: STT | None,
+        vad_config: VAD | None,
+        levels_vad_config: LevelsVAD | None,
+        silero_vad_config: SileroVAD | None,
+        input_device: str,
+        level_interval_ms: int,
+    ) -> RecorderConfig:
+        """Build a recorder configuration bundle from STT config values."""
+        start_level: float = float(getattr(levels_vad_config, "START", -20.0))
+        stop_level: float = float(getattr(levels_vad_config, "STOP", -40.0))
+        pre_buffer_ms: int = int(getattr(vad_config, "PRE_BUFFER_MS", 300))
+        post_buffer_ms: int = int(getattr(vad_config, "POST_BUFFER_MS", 500))
+        max_segment_sec: int = int(getattr(vad_config, "MAX_SEGMENT_SEC", 20))
+        vad_mode: str = str(getattr(vad_config, "MODE", DEFAULT_VAD_MODE))
+        vad_silero_model_path: str = str(getattr(silero_vad_config, "MODEL_PATH", DEFAULT_SILERO_ONNX_MODEL_PATH))
+        vad_threshold: float = float(getattr(silero_vad_config, "THRESHOLD", DEFAULT_SILERO_VAD_THRESHOLD))
+        vad_onnx_threads: int = int(getattr(silero_vad_config, "ONNX_THREADS", 1))
+        self._mute = bool(getattr(stt_config, "MUTE", False))
+
+        return RecorderConfig(
+            sample_rate=self._FIXED_SAMPLE_RATE,
+            channels=self._FIXED_CHANNELS,
+            input_device=input_device,
+            level_interval_ms=level_interval_ms,
+            start_level_db=start_level,
+            stop_level_db=stop_level,
+            pre_buffer_ms=pre_buffer_ms,
+            post_buffer_ms=post_buffer_ms,
+            max_segment_sec=max_segment_sec,
+            vad_mode=vad_mode,
+            vad_silero_model_path=vad_silero_model_path,
+            vad_threshold=vad_threshold,
+            vad_onnx_threads=vad_onnx_threads,
+        )
+
+    def _resolve_level_interval_ms(self) -> int:
+        """Resolve the level event refresh interval from GUI settings."""
+        refresh_rate: int = int(getattr(self.config.GUI, "LEVEL_METER_REFRESH_RATE", 10))
+        refresh_rate = max(10, min(100, refresh_rate))  # 10fps to 100fps
+        return int(1000 / refresh_rate)
+
+    def _create_recorder(self, *, tmp_dir_path: Path, recorder_config: RecorderConfig) -> STTRecorder:
+        """Create and initialize the STT recorder from a recorder configuration bundle."""
+        return STTRecorder(
+            segment_queue=self._segment_queue,
+            tmp_directory=tmp_dir_path,
+            config=recorder_config,
+        )
+
+    def _build_processor_options(self, *, stt_config: STT | None) -> ProcessorOptions:
+        """Build processor options from STT configuration values."""
+        language: str = str(getattr(stt_config, "LANGUAGE", "ja-JP"))
+        retry_max: int = int(getattr(stt_config, "RETRY_MAX", 3))
+        retry_backoff_ms: int = int(getattr(stt_config, "RETRY_BACKOFF_MS", 500))
+        return ProcessorOptions(language=language, retry_max=retry_max, retry_backoff_ms=retry_backoff_ms)
 
     def set_level_event_callback(self, callback: LevelEventCallback | None) -> None:
         """Set callback for STT level events.
