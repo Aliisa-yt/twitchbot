@@ -22,7 +22,7 @@ dependencies = [
     "setuptools>=83.0.0",
     "sounddevice==0.5.5",
     "soundfile==0.14.0",
-    "twitchio[starlette]==3.2.2",
+    "twitchio[starlette]==3.3.0",
     "types-cffi==2.0.0.20260518",
     "types-dataclasses-json==0.5.9",
     "types-grpcio==1.83.0.20260730",
