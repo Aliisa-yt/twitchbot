@@ -4,7 +4,7 @@ import json
 import os
 from importlib import import_module
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, cast, override
+from typing import TYPE_CHECKING, Any, NamedTuple, cast, override
 
 from core.stt.stt_interface import (
     STTExceptionError,
@@ -17,8 +17,8 @@ from core.stt.stt_interface import (
 from core.stt.stt_location_model_loader import (
     STABLE_LOCATIONS,
     STTLanguageInfo,
-    get_stt_language_info,
     load_stt_language_index,
+    normalize_bcp47,
 )
 from utils.file_utils import FileUtils
 from utils.logger_utils import LoggerUtils
@@ -46,6 +46,17 @@ NON_RETRIABLE_GOOGLE_ERROR_NAMES: frozenset[str] = frozenset(
 
 STT_V2_SUPPORTED_LANGUAGES_FILE: Path = FileUtils.resource_path("data/stt/google-cloud-stt-v2_supported-languages.txt")
 STT_V2_PREFERRED_LOCATIONS: tuple[str, ...] = ("global", "us", "eu", "us-central1")
+DEFAULT_STT_LANGUAGE: str = "ja-JP"
+DEFAULT_STT_V2_LOCATION: str = "global"
+DEFAULT_STT_V2_MODEL: str = "chirp_2"
+
+
+class STTLocationModelResolution(NamedTuple):
+    """Resolved STT language/location/model values."""
+
+    language: str
+    location: str
+    model: str
 
 
 class GoogleCloudSpeechToTextV2(STTInterface):
@@ -71,11 +82,11 @@ class GoogleCloudSpeechToTextV2(STTInterface):
         self._client: Any | None = None
         self._speech_module: ModuleType | None = None
         self._project_id: str | None = None
-        self._language: str = "ja-JP"
-        self._location: str = "global"
+        self._language: str = DEFAULT_STT_LANGUAGE
+        self._location: str = DEFAULT_STT_V2_LOCATION
         self._recognizer: str = ""
         self._recognizer_name: str = ""
-        self._model: str = "chirp_2"
+        self._model: str = DEFAULT_STT_V2_MODEL
 
     @property
     @override
@@ -96,63 +107,73 @@ class GoogleCloudSpeechToTextV2(STTInterface):
         self._speech_module = None
         self._project_id = None
         self._recognizer_name = ""
-        self._language = "ja-JP"
+        self._language = DEFAULT_STT_LANGUAGE
+        self._location = DEFAULT_STT_V2_LOCATION
+        self._model = DEFAULT_STT_V2_MODEL
+        self._recognizer = ""
         stt_config = getattr(config, "STT", None)
         location = str(getattr(stt_config, "GOOGLE_CLOUD_STT_V2_LOCATION", "")).strip()
         model = str(getattr(stt_config, "GOOGLE_CLOUD_STT_V2_MODEL", "")).strip()
         recognizer = str(getattr(stt_config, "GOOGLE_CLOUD_STT_V2_RECOGNIZER", "")).strip()
         language = str(getattr(stt_config, "LANGUAGE", "")).strip()
 
-        if language:
-            self._language = language
+        api_oauth: str = os.getenv("GOOGLE_CLOUD_API_OAUTH", "").strip()
+        credentials_path: str = os.getenv("GOOGLE_APPLICATION_CREDENTIALS", "").strip()
 
-        location, model = self._resolve_location_model(
+        if not credentials_path:
+            if api_oauth:
+                msg = (
+                    "GOOGLE_CLOUD_API_OAUTH is configured, but STT V2 requires service-account auth via "
+                    "GOOGLE_APPLICATION_CREDENTIALS"
+                )
+                logger.warning(msg)
+                return
+
+            logger.warning("Google Cloud STT V2 auth is not configured. Set GOOGLE_APPLICATION_CREDENTIALS")
+            return
+
+        credentials_file = Path(credentials_path)
+        if not credentials_file.is_file():
+            logger.warning("GOOGLE_APPLICATION_CREDENTIALS does not point to a valid file: %s", credentials_path)
+            return
+
+        resolution = self._resolve_location_model(
             language=language,
             location=location,
             model=model,
         )
 
-        self._location = location
-        self._model = model
+        self._language = resolution.language
+        self._location = resolution.location
+        self._model = resolution.model
         self._recognizer = recognizer
+        self._auth_source = "GOOGLE_APPLICATION_CREDENTIALS"
+        self._project_id = self._resolve_project_id(credentials_file)
+        self._initialize_client_mode()
 
-        api_oauth: str = os.getenv("GOOGLE_CLOUD_API_OAUTH", "").strip()
-        credentials_path: str = os.getenv("GOOGLE_APPLICATION_CREDENTIALS", "").strip()
+    def _resolve_location_model(self, *, language: str, location: str, model: str) -> STTLocationModelResolution:
+        """Resolve STT V2 language/location/model from config and language metadata.
 
-        if credentials_path:
-            credentials_file = Path(credentials_path)
-            if not credentials_file.is_file():
-                logger.warning("GOOGLE_APPLICATION_CREDENTIALS does not point to a valid file: %s", credentials_path)
-                return
-            self._auth_source = "GOOGLE_APPLICATION_CREDENTIALS"
-            self._project_id = self._resolve_project_id(credentials_file)
-            self._initialize_client_mode()
-            return
+        Args:
+            language: The configured STT language.
+            location: The configured location.
+            model: The configured model.
 
-        if api_oauth:
-            logger.warning(
-                "GOOGLE_CLOUD_API_OAUTH is configured, but STT V2 requires service-account auth via "
-                 "GOOGLE_APPLICATION_CREDENTIALS"
-            )
-            return
-
-        logger.warning("Google Cloud STT V2 auth is not configured. Set GOOGLE_APPLICATION_CREDENTIALS")
-
-    def _resolve_location_model(self, *, language: str, location: str, model: str) -> tuple[str, str]:
-        """Resolve STT V2 location/model from config and language metadata."""
+        Returns:
+            A resolved STTLocationModelResolution instance.
+        """
+        resolved_language: str = DEFAULT_STT_LANGUAGE
         resolved_location: str = location
         resolved_model: str = model
 
-        if resolved_location and resolved_model:
-            return resolved_location, resolved_model
-
         if language:
             try:
+                normalized_language = normalize_bcp47(language)
                 preferred_locations = STT_V2_PREFERRED_LOCATIONS
                 if resolved_location:
                     preferred_locations = (
                         resolved_location,
-                        *tuple(item for item in STT_V2_PREFERRED_LOCATIONS if item != resolved_location),
+                        *(item for item in STT_V2_PREFERRED_LOCATIONS if item != resolved_location),
                     )
 
                 language_index: dict[str, STTLanguageInfo] = load_stt_language_index(
@@ -160,47 +181,67 @@ class GoogleCloudSpeechToTextV2(STTInterface):
                     preferred_locations=preferred_locations,
                     allowed_locations=STABLE_LOCATIONS,
                 )
-                language_info: STTLanguageInfo | None = get_stt_language_info(language_index, language)
+                language_info: STTLanguageInfo | None = language_index.get(normalized_language)
 
                 if language_info is None:
                     logger.warning(
-                        "STT language metadata was not found for STT.LANGUAGE=%s. Falling back to static defaults.",
+                        (
+                            "STT language metadata was not found for STT.LANGUAGE=%s."
+                            " Falling back to default STT.LANGUAGE=%s."
+                        ),
                         language,
+                        DEFAULT_STT_LANGUAGE,
                     )
                 else:
+                    resolved_language = normalized_language
                     if not resolved_location:
                         resolved_location = language_info["location"]
                         logger.warning(
-                            "GOOGLE_CLOUD_STT_V2_LOCATION is not configured in ini. "
-                             "Auto-assigned '%s' from STT.LANGUAGE=%s.",
+                            (
+                                "GOOGLE_CLOUD_STT_V2_LOCATION is not configured in ini. "
+                                "Auto-assigned '%s' from STT.LANGUAGE=%s."
+                            ),
                             resolved_location,
-                            language,
+                            normalized_language,
                         )
 
                     if not resolved_model:
                         resolved_model = language_info["default_model"]
                         logger.warning(
-                            "GOOGLE_CLOUD_STT_V2_MODEL is not configured in ini. "
-                             "Auto-assigned '%s' from STT.LANGUAGE=%s.",
+                            (
+                                "GOOGLE_CLOUD_STT_V2_MODEL is not configured in ini. "
+                                "Auto-assigned '%s' from STT.LANGUAGE=%s."
+                            ),
                             resolved_model,
-                            language,
+                            normalized_language,
                         )
             except Exception as err:  # noqa: BLE001
                 logger.warning(
-                    "Failed to load STT V2 language metadata from %s: %s",
+                    "Failed to load STT V2 language metadata from %s: %s. Falling back to default STT.LANGUAGE=%s.",
                     STT_V2_SUPPORTED_LANGUAGES_FILE,
                     err,
+                    DEFAULT_STT_LANGUAGE,
                 )
 
         if not resolved_location:
-            logger.warning("GOOGLE_CLOUD_STT_V2_LOCATION is not configured in ini. Falling back to 'global'.")
-            resolved_location = "global"
+            logger.warning(
+                "GOOGLE_CLOUD_STT_V2_LOCATION is not configured in ini. Falling back to '%s'.",
+                DEFAULT_STT_V2_LOCATION,
+            )
+            resolved_location = DEFAULT_STT_V2_LOCATION
 
         if not resolved_model:
-            logger.warning("GOOGLE_CLOUD_STT_V2_MODEL is not configured in ini. Falling back to 'chirp_2'.")
-            resolved_model = "chirp_2"
+            logger.warning(
+                "GOOGLE_CLOUD_STT_V2_MODEL is not configured in ini. Falling back to '%s'.",
+                DEFAULT_STT_V2_MODEL,
+            )
+            resolved_model = DEFAULT_STT_V2_MODEL
 
-        return resolved_location, resolved_model
+        return STTLocationModelResolution(
+            language=resolved_language,
+            location=resolved_location,
+            model=resolved_model,
+        )
 
     @override
     def transcribe(self, stt_input: STTInput) -> STTResult:
@@ -277,10 +318,11 @@ class GoogleCloudSpeechToTextV2(STTInterface):
         try:
             return speech_module.SpeechClient(client_options={"api_endpoint": api_endpoint})
         except TypeError:
-            logger.warning(
+            msg = (
                 "SpeechClient does not support client_options. Falling back to default endpoint. "
-                 "To fix this, update google-cloud-speech package to a version that supports client_options."
+                "To fix this, update google-cloud-speech package to a version that supports client_options."
             )
+            logger.warning(msg)
             return speech_module.SpeechClient()
 
     @staticmethod
@@ -351,10 +393,11 @@ class GoogleCloudSpeechToTextV2(STTInterface):
             # Keep compatibility by translating "-" to the current default recognizer id "_".
             if recognizer_id == "-":
                 recognizer_id = "_"
-                logger.warning(
+                msg = (
                     "GOOGLE_CLOUD_STT_V2_RECOGNIZER is set to '-', which is deprecated. "
-                     "Using '_' for default recognizer instead."
+                    "Using '_' for default recognizer instead."
                 )
+                logger.warning(msg)
             return recognizer_id
 
         recognizer_id = f"twitchbot-{self._location}-default"

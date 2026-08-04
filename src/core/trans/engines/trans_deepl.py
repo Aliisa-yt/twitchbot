@@ -62,8 +62,10 @@ class DeeplTranslation(TransInterface):
         # If regional language codes have been added or changed in an update, it may not function correctly.
         if version.VERSION != _EXPECTED_DEEPL_VERSION:
             logger.warning(
-                "The version of the DeepL library is '%s', which may not be compatible with this implementation. "
-                "Please ensure you are using version '%s' for optimal performance.",
+                (
+                    "The version of the DeepL library is '%s', which may not be compatible with this implementation. "
+                    "Please ensure you are using version '%s' for optimal performance."
+                ),
                 version.VERSION,
                 _EXPECTED_DEEPL_VERSION,
             )
