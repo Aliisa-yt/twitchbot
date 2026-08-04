@@ -377,6 +377,7 @@ class ChatEventsManager(ComponentBase):
         Returns:
             bool: True if the message should be ignored, False otherwise.
         """
+        # echo messages sent by the bot itself should be ignored to prevent loops
         if payload.id in self.bot.send_message_cache:
             self.bot.send_message_cache.remove(payload.id)
             return True
