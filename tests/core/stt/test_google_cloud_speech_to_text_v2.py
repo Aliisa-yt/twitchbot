@@ -293,6 +293,38 @@ def test_initialize_falls_back_when_location_and_model_missing(
     assert "GOOGLE_CLOUD_STT_V2_MODEL is not configured in ini" in caplog.text
 
 
+def test_initialize_keeps_default_language_when_language_metadata_is_invalid(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    creds_file = tmp_path / "gcp.json"
+    creds_file.write_text('{"project_id": "test-project"}', encoding="utf-8")
+    monkeypatch.setenv("GOOGLE_APPLICATION_CREDENTIALS", str(creds_file))
+
+    fake_client = _FakeClient(response=SimpleNamespace(results=[]), recognizer_exists=True)
+
+    config = SimpleNamespace(
+        STT=SimpleNamespace(
+            LANGUAGE="invalid-language",
+            GOOGLE_CLOUD_STT_V2_LOCATION="",
+            GOOGLE_CLOUD_STT_V2_MODEL="",
+            GOOGLE_CLOUD_STT_V2_RECOGNIZER="",
+        )
+    )
+
+    engine = GoogleCloudSpeechToTextV2()
+    monkeypatch.setattr(engine, "_import_speech_module", _fake_speech_module)
+    monkeypatch.setattr(engine, "_create_client", lambda _module: fake_client)
+
+    caplog.set_level("WARNING")
+    engine.initialize(config=cast("Config", config))
+
+    assert engine.is_available is True
+    assert engine._language == "ja-JP"
+    assert "STT language metadata was not found for STT.LANGUAGE=invalid-language." in caplog.text
+
+
 def test_initialize_auto_assigns_location_and_model_from_language_metadata(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path,
