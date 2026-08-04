@@ -46,9 +46,11 @@ COMMAND_PATTERN: Final[Pattern[str]] = re.compile(
 # Regular expressions that match URLs and URL-like appearances
 # Examples: "http://example.com", "https://www.example.com/path", "www.example.com", "example.com/path"
 URL_PATTERN: Final[Pattern[str]] = re.compile(
-    r"((?:(?:https?://)?(?:www\.)?)"
-     r"[a-zA-Z0-9\-]+(?:\.[a-zA-Z0-9\-]+)+"
-     r"(?:/[^\s]*)?)"
+    pattern=(
+        r"((?:(?:https?://)?(?:www\.)?)"
+        r"[a-zA-Z0-9\-]+(?:\.[a-zA-Z0-9\-]+)+"
+        r"(?:/[^\s]*)?)"
+    )
 )
 
 # Regular expression that matches mentions in the format of @username
@@ -68,8 +70,10 @@ MENTION_PATTERN: Final[Pattern[str]] = re.compile(
 #   message [by display_name] (src_lang > tgt_lang)
 #   message [by display_name]
 REPLY_PATTERN: Final[Pattern[str]] = re.compile(
-    r"\[by\s+(?P<display_name>\w+)(?:\s+\((?P<name>\w+)\))?\]"
-     r"(?:\s+\((?P<src_lang>[\w-]+)\s*>\s*(?P<tgt_lang>[\w-]+)\))?$"
+    pattern=(
+        r"\[by\s+(?P<display_name>\w+)(?:\s+\((?P<name>\w+)\))?\]"
+        r"(?:\s+\((?P<src_lang>[\w-]+)\s*>\s*(?P<tgt_lang>[\w-]+)\))?$"
+    )
 )
 
 # Regular expression that matches single language designation patterns

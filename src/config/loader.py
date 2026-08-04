@@ -518,8 +518,10 @@ class ConfigLoader:
         if value.lower() in (api.lower() for api in CHAT_COMMAND_COLORS):
             new_value: str = chat_to_api_color_map[value.lower()]
             logger.info(
-                "'%s' is set to '%s', which is a chat command color. "
-                "It has been changed to '%s' for API compatibility.",
+                (
+                    "'%s' is set to '%s', which is a chat command color. "
+                    "It has been changed to '%s' for API compatibility."
+                ),
                 field_name,
                 value,
                 new_value,
