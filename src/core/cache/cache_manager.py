@@ -652,10 +652,11 @@ class TranslationCacheManager:
 
                 for row in rows:
                     last_used_dt: str = TimeUtils.epoch_to_datetime(row[7]).isoformat()
-                    f.write(
+                    msg: str = (
                         f'{row[2]} -> {row[3]}, "{row[1]}", "{row[4]}", Engine: {row[5]}, Hit Count: {row[6]}, '
                         f"Last Used: {last_used_dt}, Cache Key: {row[0]}\n"
                     )
+                    f.write(msg)
 
             logger.info("Cache data exported to: %s", output_path)
 

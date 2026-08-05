@@ -540,13 +540,12 @@ class TokenManager:
                 try:
                     token_user_id: str = await self._validate_access_token_user_id(cached_access_token)
                     if token_user_id != self.bot_id:
-                        logger.warning(
-                            "Cached token belongs to user '%s', but expected bot '%s' (%s). "
-                            "Discarding cached token and re-authorizing.",
-                            token_user_id,
-                            bot_name,
-                            self.bot_id,
+                        msg: str = (
+                            f"Cached token belongs to user '{token_user_id}', "
+                            f"but expected bot '{bot_name}' (ID: {self.bot_id}). "
+                            "Discarding cached token and re-authorizing."
                         )
+                        logger.warning(msg)
                         tokens = {}
                 except RuntimeError as exc:
                     logger.warning("Cached token validation failed (%s). Attempting token refresh.", exc)
@@ -577,7 +576,7 @@ class TokenManager:
         access_token: str | None = tokens.get("access_token")
         refresh_token: str | None = tokens.get("refresh_token")
         if not access_token or not refresh_token:
-            msg: str = "Access token or refresh token is missing. Please reauthorize."
+            msg = "Access token or refresh token is missing. Please reauthorize."
             raise RuntimeError(msg)
         self.user_access_token = access_token
         self.refresh_token = refresh_token
