@@ -1,6 +1,6 @@
 """Level-based VAD processor implementation."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 from core.stt.vad.vad_interface import VADDecision
@@ -18,9 +18,12 @@ class LevelVADProcessor:
     post_buffer_ms: int
     max_segment_sec: int
 
+    # Internal state
+    _recording_active: bool = field(init=False)
+    _silence_duration_sec: float = field(init=False)
+
     def __post_init__(self) -> None:
-        self._recording_active: bool = False  # pyright: ignore[reportUninitializedInstanceVariable]
-        self._silence_duration_sec: float = 0.0  # pyright: ignore[reportUninitializedInstanceVariable]
+        self.reset()
 
     def reset(self) -> None:
         self._recording_active = False

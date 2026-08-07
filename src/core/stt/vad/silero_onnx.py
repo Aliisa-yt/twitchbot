@@ -34,6 +34,8 @@ class SileroOnnxVADProcessor:
     sample_rate: int
     window_size: int = 512  # 512 samples = 32 ms at 16 kHz; use 256 for 8 kHz
     onnx_threads: int = 1
+
+    # Internal state
     _recording_active: bool = field(init=False, default=False)
     _silence_duration_sec: float = field(init=False, default=0.0)
     _tail_buffer: np.ndarray = field(init=False, default_factory=lambda: np.empty((0,), dtype=np.float32))
