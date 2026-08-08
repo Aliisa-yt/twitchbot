@@ -33,6 +33,7 @@ from utils.logger_utils import LoggerUtils
 
 if TYPE_CHECKING:
     import logging
+    from collections.abc import Awaitable, Callable
     from types import FrameType, TracebackType
 
     from models.config_models import Config
@@ -188,7 +189,91 @@ class SignalHandler:
         signal.signal(self.sig, self.original_handler)
 
 
-async def _gui_bootstrap(app: GUIApp, args: argparse.Namespace, log_setup: LoggerUtils) -> None:  # noqa: PLR0915
+async def _run_bot_lifecycle(
+    args: argparse.Namespace,
+    log_setup: LoggerUtils,
+    *,
+    update_status: Callable[[str], None] | None = None,
+    on_config_loaded: Callable[[Config], None] | None = None,
+    on_missing_token_db: Callable[[], None] | None = None,
+    on_bot_ready: Callable[[Bot], Awaitable[None]] | None = None,
+) -> None:
+    """Initialize and run the bot, invoking optional UI lifecycle hooks.
+
+    GUI mode supplies hooks for status updates and bot-specific UI setup. Console
+    mode uses the same lifecycle without hooks.
+    """
+    if update_status is not None:
+        update_status("Loading configuration...")
+    config: Config = load_config(args)
+    configure_logging(log_setup, config)
+    if on_config_loaded is not None:
+        on_config_loaded(config)
+    logger.info("Configuration loaded")
+
+    if update_status is not None:
+        update_status("Verifying tokens...")
+    token_db_path: Path = FileUtils.resolve_path(TOKEN_DB_FILE)
+    if not token_db_has_data(token_db_path):
+        logger.error("Token database is missing or invalid: '%s'", token_db_path)
+        if on_missing_token_db is not None:
+            on_missing_token_db()
+        msg = (
+            "Token database is missing or invalid. Run 'python setup_tokens.py [--owner <name>] [--bot <name>]' first."
+        )
+        raise RuntimeError(msg)
+    logger.info("Token database verified")
+
+    if update_status is not None:
+        update_status("Loading dictionaries...")
+    load_dictionary(config)
+    logger.info("Dictionary files loaded")
+
+    if update_status is not None:
+        update_status("Starting bot...")
+    token_manager: TokenManager = TokenManager(token_db_path)
+    await token_manager.start_authorization_flow(config.TWITCH.OWNER_NAME, config.BOT.BOT_NAME)
+
+    print(f"twitchbot ver.{config.GENERAL.VERSION}")
+
+    with tempfile.TemporaryDirectory(prefix="tmp_", dir=Path.cwd()) as tmpdirname:
+        config.GENERAL.TMP_DIR = FileUtils.resolve_path(tmpdirname)
+        logger.info("Created temporary directory: '%s'", config.GENERAL.TMP_DIR)
+
+        async with Bot(config, token_manager) as bot:
+            if on_bot_ready is not None:
+                await on_bot_ready(bot)
+            await bot.start(with_adapter=False)
+
+
+async def _configure_gui_for_bot(app: GUIApp, bot: Bot) -> None:
+    """Apply GUI-specific settings after the shared lifecycle creates the bot."""
+    app.bot = bot
+    refresh_rate: int = max(10, min(100, bot.config.GUI.LEVEL_METER_REFRESH_RATE))
+    app.ema_alpha = 1.0 / (1.0 + app.STT_LEVEL_EMA_RESPONSE_TIME * refresh_rate)
+
+    stt_enabled: bool = bool(getattr(bot.config.STT, "ENABLED", False))
+    if stt_enabled:
+        vad_mode: str = str(getattr(bot.config.VAD, "MODE", "level"))
+        vad_threshold: float = float(getattr(bot.config.SILERO_VAD, "THRESHOLD", 0.5))
+        app.configure_stt_vad_mode(vad_mode=vad_mode, vad_threshold=vad_threshold)
+        app.set_stt_controls_enabled(enabled=True)
+        if vad_mode.strip().lower() == "silero_onnx":
+            app.update_stt_vad_threshold(vad_threshold)
+        else:
+            app.update_stt_thresholds(bot.config.LEVELS_VAD.START, bot.config.LEVELS_VAD.STOP)
+        is_stt_muted: bool = bool(bot.config.STT.MUTE)
+        app.set_stt_mute_state(is_muted=is_stt_muted)
+        app.set_stt_status("Muted" if is_stt_muted else "Input monitoring")
+    else:
+        app.set_stt_controls_enabled(enabled=False)
+        app.set_stt_status("Disabled")
+
+    bot.set_stt_level_callback(app.apply_stt_level_event)
+    app.update_status("Bot running...", STATUS_RUNNING_COLOR)
+
+
+async def _gui_bootstrap(app: GUIApp, args: argparse.Namespace, log_setup: LoggerUtils) -> None:
     """Bootstrap sequence for GUI mode.
 
     Args:
@@ -201,68 +286,16 @@ async def _gui_bootstrap(app: GUIApp, args: argparse.Namespace, log_setup: Logge
         RuntimeError: If token verification or bot initialization fails.
     """
     try:
-        # Step 1: Load configuration
-        app.update_status("Loading configuration...", STATUS_WAKEUP_COLOR)
-        config: Config = load_config(args)
-        configure_logging(log_setup, config)
-        app.root.title(f"{config.GENERAL.SCRIPT_NAME} - ver. {config.GENERAL.VERSION}")
-        logger.info("Configuration loaded")
-
-        # Step 2: Verify token database (file-based check only)
-        app.update_status("Verifying tokens...", STATUS_WAKEUP_COLOR)
-        token_db_path: Path = FileUtils.resolve_path(TOKEN_DB_FILE)
-        if not token_db_has_data(token_db_path):
-            logger.error("Token database is missing or invalid: '%s'", token_db_path)
-            show_token_setup_dialog(app)
-            msg = "Token database is missing or invalid."
-            raise RuntimeError(msg)
-        logger.info("Token database verified")
-
-        # Step 3: Load dictionaries
-        app.update_status("Loading dictionaries...", STATUS_WAKEUP_COLOR)
-        load_dictionary(config)
-        logger.info("Dictionary files loaded")
-
-        # Step 4: Load tokens and start bot
-        app.update_status("Starting bot...", STATUS_WAKEUP_COLOR)
-        token_manager: TokenManager = TokenManager(token_db_path)
-        await token_manager.start_authorization_flow(config.TWITCH.OWNER_NAME, config.BOT.BOT_NAME)
-
-        print(f"twitchbot ver.{config.GENERAL.VERSION}")
-
-        # Create temporary directory for TTS audio files
-        with tempfile.TemporaryDirectory(prefix="tmp_", dir=Path.cwd()) as tmpdirname:
-            config.GENERAL.TMP_DIR = FileUtils.resolve_path(tmpdirname)
-            logger.info("Created temporary directory: '%s'", config.GENERAL.TMP_DIR)
-
-            async with Bot(config, token_manager) as bot:
-                app.bot = bot
-                refresh_rate: int = max(
-                    10, min(100, bot.config.GUI.LEVEL_METER_REFRESH_RATE)
-                )  # Clamp refresh rate to reasonable range (10-100fps)
-                app.ema_alpha = 1.0 / (1.0 + app.STT_LEVEL_EMA_RESPONSE_TIME * refresh_rate)
-
-                stt_enabled: bool = bool(getattr(config.STT, "ENABLED", False))
-                if stt_enabled:
-                    vad_mode: str = str(getattr(config.VAD, "MODE", "level"))
-                    vad_threshold: float = float(getattr(config.SILERO_VAD, "THRESHOLD", 0.5))
-                    app.configure_stt_vad_mode(vad_mode=vad_mode, vad_threshold=vad_threshold)
-                    app.set_stt_controls_enabled(enabled=True)
-                    if vad_mode.strip().lower() == "silero_onnx":
-                        app.update_stt_vad_threshold(vad_threshold)
-                    else:
-                        app.update_stt_thresholds(config.LEVELS_VAD.START, config.LEVELS_VAD.STOP)
-                    is_stt_muted: bool = bool(config.STT.MUTE)
-                    app.set_stt_mute_state(is_muted=is_stt_muted)
-                    app.set_stt_status("Muted" if is_stt_muted else "Input monitoring")
-                else:
-                    app.set_stt_controls_enabled(enabled=False)
-                    app.set_stt_status("Disabled")
-
-                bot.set_stt_level_callback(app.apply_stt_level_event)
-
-                app.update_status("Bot running...", STATUS_RUNNING_COLOR)
-                await bot.start(with_adapter=False)
+        await _run_bot_lifecycle(
+            args,
+            log_setup,
+            update_status=lambda message: app.update_status(message, STATUS_WAKEUP_COLOR),
+            on_config_loaded=lambda config: app.root.title(
+                f"{config.GENERAL.SCRIPT_NAME} - ver. {config.GENERAL.VERSION}"
+            ),
+            on_missing_token_db=lambda: show_token_setup_dialog(app),
+            on_bot_ready=lambda bot: _configure_gui_for_bot(app, bot),
+        )
 
     except ConfigLoaderError as err:
         logger.error("Configuration loading failed: %s", err)
@@ -293,29 +326,7 @@ async def _console_bootstrap(args: argparse.Namespace, log_setup: LoggerUtils) -
     Raises:
         RuntimeError: If token verification fails.
     """
-    config: Config = load_config(args)
-    configure_logging(log_setup, config)
-    token_db_path: Path = FileUtils.resolve_path(TOKEN_DB_FILE)
-    if not token_db_has_data(token_db_path):
-        msg = (
-            "Token database is missing or invalid. Run 'python setup_tokens.py [--owner <name>] [--bot <name>]' first."
-        )
-        raise RuntimeError(msg)
-
-    load_dictionary(config)
-    logger.info("Dictionary files loaded")
-
-    token_manager: TokenManager = TokenManager(token_db_path)
-    await token_manager.start_authorization_flow(config.TWITCH.OWNER_NAME, config.BOT.BOT_NAME)
-
-    print(f"twitchbot ver.{config.GENERAL.VERSION}")
-
-    with tempfile.TemporaryDirectory(prefix="tmp_", dir=Path.cwd()) as tmpdirname:
-        config.GENERAL.TMP_DIR = FileUtils.resolve_path(tmpdirname)
-        logger.info("Created temporary directory: '%s'", config.GENERAL.TMP_DIR)
-
-        async with Bot(config, token_manager) as bot:
-            await bot.start(with_adapter=False)
+    await _run_bot_lifecycle(args, log_setup)
 
 
 async def main() -> None:
