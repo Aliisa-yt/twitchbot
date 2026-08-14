@@ -210,6 +210,14 @@ class DummyStyle:
         _ = args, kwargs
 
 
+class DummyFont:
+    def copy(self) -> DummyFont:
+        return DummyFont()
+
+    def configure(self, **kwargs: Any) -> None:
+        _ = kwargs
+
+
 class DummyRoot:
     def __init__(self) -> None:
         self.protocols: list[tuple[str, Any]] = []
@@ -244,6 +252,7 @@ class DummyRoot:
 @pytest.fixture
 def patched_gui(monkeypatch: pytest.MonkeyPatch) -> SimpleNamespace:
     monkeypatch.setattr(gui_module.tk, "Tk", DummyRoot)
+    monkeypatch.setattr(gui_module.tkfont, "nametofont", lambda *_args, **_kwargs: DummyFont())
     monkeypatch.setattr(gui_module.ttk, "Style", DummyStyle)
     monkeypatch.setattr(gui_module.ttk, "Frame", DummyFrame)
     monkeypatch.setattr(gui_module.ttk, "LabelFrame", DummyFrame)
