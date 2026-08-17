@@ -9,7 +9,7 @@ license = { file = "LICENSE" }
 dependencies = [
     "aiohttp==3.14.3",
     "dataclasses-json==0.6.7",
-    "deepl==1.30.0",
+    "deepl==1.32.0",
     "emoji==2.15.0",
     "google-api-python-client-stubs==1.39.0",
     "google-cloud-speech==2.40.0",
