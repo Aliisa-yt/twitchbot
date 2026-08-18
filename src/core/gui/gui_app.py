@@ -10,6 +10,7 @@ import io
 import logging
 import sys
 import tkinter as tk
+import tkinter.font as tkfont
 from dataclasses import dataclass
 from tkinter import Canvas, messagebox, scrolledtext, ttk
 from typing import TYPE_CHECKING, Any, Final, override
@@ -36,7 +37,6 @@ TEXT_COLOR: Final[str] = "#FFFAF0"  # Floral White
 STATUS_WAKEUP_COLOR: Final[str] = "#5CC8EB"  # Light Blue
 STATUS_RUNNING_COLOR: Final[str] = "#00D000"  # Green
 STATUS_ERROR_COLOR: Final[str] = "#FF2A04"  # Red
-# BUTTON_BG_COLOR: Final[str] = "#FF6347"  # Tomato
 TEXT_WIDGET_BG: Final[str] = "#0F0F0F"  # Dark background
 TEXT_WIDGET_FG: Final[str] = "#56F000"  # Green text
 BACKGROUND_COLOR: Final[str] = "#F0F0F0"  # Light background for the whole app
@@ -69,7 +69,7 @@ STT_LEVEL_WARNING_COLOR: Final[str] = "#E5AF24"  # Orange
 STT_LEVEL_DANGER_COLOR: Final[str] = "#E33B57"  # Red
 STT_LEVEL_BG_COLOR: Final[str] = "#0F0F0F"  # Dark background for level meter
 
-# Mute button color
+# Mute button colors
 MUTE_BUTTON_MUTED_COLOR: Final[str] = "#FF5537"  # Red
 MUTE_BUTTON_MUTED_ACTIVE_COLOR: Final[str] = "#FF806A"  # Red
 MUTE_BUTTON_UNMUTED_COLOR: Final[str] = "#6DEC7A"  # Green
@@ -123,7 +123,7 @@ class StreamRedirector(io.StringIO):
     Attributes:
         text_widget (scrolledtext.ScrolledText): The tkinter Text widget to write to.
         original_stream (Any): The original stdout/stderr stream to preserve.
-        max_lines (int): Maximum number of lines to keep in the buffer.
+        max_lines (int): Maximum number of lines to keep in the text widget.
     """
 
     def __init__(self, text_widget: scrolledtext.ScrolledText, original_stream: Any, max_lines: int = 30) -> None:
@@ -132,7 +132,7 @@ class StreamRedirector(io.StringIO):
         Args:
             text_widget (scrolledtext.ScrolledText): The tkinter Text widget to write to.
             original_stream (Any): The original stdout/stderr stream to preserve.
-            max_lines (int): Maximum number of lines to keep in the buffer.
+            max_lines (int): Maximum number of lines to keep in the text widget.
         """
         super().__init__()
         self.text_widget: scrolledtext.ScrolledText = text_widget
@@ -206,10 +206,12 @@ class GUIApp:
         running (bool): Whether the bot is currently running.
         gui_handler (GUILoggingHandler): The custom logging handler for GUI output.
         stream_redirector (StreamRedirector | None): The stream redirector for stdout/stderr.
-        ema_alpha (float): The smoothing factor for STT level meter width update (EMA).
+        message_font (tkfont.Font): Font used by the message display.
+        ui_font (tkfont.Font): Font used by styled controls.
+        ema_alpha (float): EMA smoothing factor for STT level-meter values.
     """
 
-    # Smoothing factor for STT level meter width update (EMA)
+    # Response-time parameter and default EMA factor for STT level-meter values.
     STT_LEVEL_EMA_RESPONSE_TIME: Final[float] = 0.300
     STT_LEVEL_EMA_ALPHA_DEFAULT: Final[float] = 1.0 / (1.0 + STT_LEVEL_EMA_RESPONSE_TIME * 10.0)
 
@@ -221,6 +223,16 @@ class GUIApp:
             geometry (str): The geometry of the window (format: "WIDTHxHEIGHT").
         """
         logger.debug("Initializing GUI application with title '%s' and geometry '%s'", window_title, geometry)
+        self._init_root_window(window_title, geometry)
+        self._init_fonts()
+        self._init_bot_state()
+        self._init_stt_state()
+        self._init_gui_components()
+        self._init_widgets_and_handlers()
+        self.root.protocol("WM_DELETE_WINDOW", self._on_closing)
+
+    def _init_root_window(self, window_title: str, geometry: str) -> None:
+        """Initialize the root window."""
         self.root: tk.Tk = tk.Tk()
         self.root.title(window_title)
         try:
@@ -229,20 +241,32 @@ class GUIApp:
             logger.warning("Invalid geometry format '%s', using default size.", geometry)
             self.root.geometry(DEFAULT_WINDOW_SIZE)
 
+    def _init_fonts(self) -> None:
+        """Copy and configure Tk named fonts for messages and styled controls."""
+        self.message_font: tkfont.Font = tkfont.nametofont("TkFixedFont", root=self.root).copy()
+        self.message_font.configure(size=10, weight="normal")
+        self.ui_font: tkfont.Font = tkfont.nametofont("TkMenuFont", root=self.root).copy()
+        self.ui_font.configure(size=10, weight="bold")
+
+    def _init_bot_state(self) -> None:
+        """Initialize bot state attributes."""
         self.bot: Bot | None = None
         self.running: bool = False
         self.bot_task: asyncio.Task[None] | None = None
         self.shutdown_event: asyncio.Event | None = None
+
+    def _init_stt_state(self) -> None:
+        """Initialize STT state, stream redirection, and level-meter state."""
         self._updating_stt_thresholds: bool = False
         self._stt_vad_mode: str = VAD_MODE_LEVEL
         self._stt_smoothed_rms: float | None = None
         self._stt_smoothed_peak: float | None = None
         self._stt_widgets: STTSectionWidgets | None = None
-        # Store original stdout/stderr for restoration
         self.stream_redirector: StreamRedirector | None = None
         self.ema_alpha: float = self.STT_LEVEL_EMA_ALPHA_DEFAULT
 
-        # GUI components (initialized in _create_widgets)
+    def _init_gui_components(self) -> None:
+        """Initialize GUI component attributes."""
         self.status_label: ttk.Label | None = None
         self.exit_button: ttk.Button | None = None
         self.text_widget: scrolledtext.ScrolledText | None = None
@@ -254,7 +278,8 @@ class GUIApp:
         self.stt_mute_button: ttk.Button | None = None
         self.stt_state_label: ttk.Label | None = None
 
-        # Create GUI components
+    def _init_widgets_and_handlers(self) -> None:
+        """Create widgets, stream redirection, and the GUI logging handler."""
         try:
             self._create_widgets()
         except tk.TclError as err:
@@ -266,23 +291,16 @@ class GUIApp:
             msg = "Failed to create text widget"
             raise RuntimeError(msg)
 
-        # Create stream redirector for stdout/stderr (dual output to GUI and console)
         self.stream_redirector = StreamRedirector(self.text_widget, sys.__stdout__, max_lines=MAX_SCROLLED_LINES)
 
-        # Create and configure logging handler
         self.gui_handler: GUILoggingHandler = GUILoggingHandler(self.text_widget, max_lines=MAX_SCROLLED_LINES)
-        # Try to get the root logger's formatter if available
         root_logger: logging.Logger = logging.getLogger()
         if root_logger.handlers:
             formatter: logging.Formatter | None = root_logger.handlers[0].formatter
             if formatter:
                 self.gui_handler.setFormatter(formatter)
         else:
-            # Use a simple format if no formatter is available
             self.gui_handler.setFormatter(logging.Formatter("%(levelname)s: %(message)s"))
-
-        # Handle window close button
-        self.root.protocol("WM_DELETE_WINDOW", self._on_closing)
 
     def _create_widgets(self) -> None:
         """Create the GUI widgets."""
@@ -330,7 +348,7 @@ class GUIApp:
             message_frame,
             state="disabled",
             wrap=tk.WORD,
-            font=("Courier", 10),
+            font=self.message_font,
             bg=TEXT_WIDGET_BG,
             fg=TEXT_WIDGET_FG,
             relief=tk.SUNKEN,
@@ -514,6 +532,7 @@ class GUIApp:
 
     @staticmethod
     def _normalize_vad_mode(vad_mode: str) -> str:
+        """Return the supported VAD mode, defaulting unknown values to level mode."""
         normalized: str = vad_mode.strip().lower()
         if normalized == VAD_MODE_SILERO_ONNX:
             return VAD_MODE_SILERO_ONNX
@@ -521,6 +540,7 @@ class GUIApp:
 
     @staticmethod
     def _clamp_vad_threshold(value: float) -> float:
+        """Clamp a Silero VAD threshold to the range 0.0 through 1.0."""
         return max(0.0, min(1.0, float(value)))
 
     @staticmethod
@@ -545,10 +565,9 @@ class GUIApp:
             vad_threshold (float): Silero VAD threshold in the range 0.0-1.0.
 
         Note:
-            - In "level" mode, "scale_1" is used as the start threshold and "scale_2" as the stop threshold,
-              and both are fully enabled.
-            - In "silero_onnx" mode, "scale_1" is used as the VAD threshold and is enabled.
-              "scale_2" is disabled and reused to display unused stop thresholds as fixed values.
+            - In "level" mode, "scale_1" is used as the start threshold and "scale_2" as the stop threshold.
+            - In "silero_onnx" mode, "scale_1" is used as the VAD threshold.
+              "scale_2" is disabled and its label and value show that it is unused.
         """
         logger.debug("Configuring STT VAD mode to '%s' with threshold %.2f", vad_mode, vad_threshold)
         widgets: STTSectionWidgets = self._require_stt_widgets()
@@ -577,10 +596,10 @@ class GUIApp:
         logger.debug("Configuring ttk widget styles for the GUI")
         style: Style = ttk.Style(self.root)
         style.theme_use("clam")
-        style.configure(BUTTON_STYLE, font=("Arial", 10, "bold"))
+        style.configure(BUTTON_STYLE, font=self.ui_font)
         style.configure(
             LABEL_STYLE,
-            font=("Arial", 10, "bold"),
+            font=self.ui_font,
             foreground=STATUS_WAKEUP_COLOR,
             background=BACKGROUND_COLOR,
         )
@@ -593,7 +612,7 @@ class GUIApp:
             forcusthickness=1,
             focuscolor=MUTE_BUTTON_MUTED_COLOR,
             background=MUTE_BUTTON_MUTED_COLOR,
-            font=("Arial", 10, "bold"),
+            font=self.ui_font,
         )
         style.map(MUTE_BUTTON_MUTED_STYLE, background=[("active", MUTE_BUTTON_MUTED_ACTIVE_COLOR)])
 
@@ -602,16 +621,16 @@ class GUIApp:
             forcusthickness=1,
             focuscolor=MUTE_BUTTON_UNMUTED_COLOR,
             background=MUTE_BUTTON_UNMUTED_COLOR,
-            font=("Arial", 10, "bold"),
+            font=self.ui_font,
         )
         style.map(MUTE_BUTTON_UNMUTED_STYLE, background=[("active", MUTE_BUTTON_UNMUTED_ACTIVE_COLOR)])
 
     @staticmethod
     def _resolve_stt_level_color(level_db: float) -> str:
-        """Resolve STT level meter color based on current RMS value.
+        """Resolve STT level-meter color from a level in dB.
 
         Args:
-            level_db (float): Current RMS level in dB.
+            level_db (float): RMS or peak level in dB.
 
         Returns:
             str: Color representing the STT level.
@@ -626,7 +645,7 @@ class GUIApp:
     def _apply_ema_smoothing(
         smoothed_data: float | None, raw_data: float, ema_alpha: float = STT_LEVEL_EMA_ALPHA_DEFAULT
     ) -> float:
-        """Apply lightweight EMA smoothing for STT level meter width.
+        """Apply lightweight EMA smoothing to an STT level-meter value.
 
         The first sample is used as-is to avoid delayed initial rendering.
 
@@ -636,14 +655,14 @@ class GUIApp:
         if smoothed_data is None:
             return raw_data
 
-        # If the level is rising, update immediately for responsiveness. If falling, apply smoothing to avoid jitter.
+        # Rising levels update immediately; falling levels are smoothed to reduce jitter.
         if raw_data > smoothed_data:
             return raw_data
 
         return (ema_alpha * raw_data) + ((1.0 - ema_alpha) * smoothed_data)
 
     def _on_closing(self) -> None:
-        """Handle window close button."""
+        """Handle a window-close request by stopping the event loop and signaling shutdown."""
         logger.info("Shutdown signal received from GUI")
         self.running = False
         # Signal shutdown
@@ -906,6 +925,7 @@ class GUIApp:
         widgets.scale_2.value_label.config(text=self._format_level_value(stop_level_db))
 
     def _normalize_stt_threshold_pair(self, start_level_db: float, stop_level_db: float) -> tuple[float, float]:
+        """Clamp thresholds and ensure the start threshold is not lower than the stop threshold."""
         clamped_start: float = self._clamp_level(start_level_db)
         clamped_stop: float = self._clamp_level(stop_level_db)
         if clamped_start < clamped_stop:
