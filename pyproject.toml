@@ -32,7 +32,7 @@ dependencies = [
     "types-pywin32==312.0.0.20260724; platform_system == 'Windows'",
     "types-PyYAML==6.0.12.20260815",
     "types-requests==2.33.0.20260712",
-    "types-setuptools==83.0.0.20260807",
+    "types-setuptools==84.0.0.20260812",
     "typing-inspect==0.9.0",
     "typing_extensions==4.16.0",
 ]
