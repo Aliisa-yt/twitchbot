@@ -20,7 +20,7 @@ dependencies = [
     "pywin32==312; platform_system == 'Windows'",
     "pywin32-ctypes==0.2.3; platform_system == 'Windows'",
     "setuptools>=84.0.0",
-    "sounddevice==0.5.5",
+    "sounddevice==0.5.6",
     "soundfile==0.14.0",
     "twitchio[starlette]==3.3.2",
     "types-cffi==2.0.0.20260518",
