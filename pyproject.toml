@@ -16,7 +16,7 @@ dependencies = [
     "google-cloud-translate==3.27.0",
     "gTTS==2.5.4",
     "numpy==2.5.2",
-    "onnxruntime==1.28.0",
+    "onnxruntime==1.29.0",
     "pywin32==312; platform_system == 'Windows'",
     "pywin32-ctypes==0.2.3; platform_system == 'Windows'",
     "setuptools>=84.0.0",
