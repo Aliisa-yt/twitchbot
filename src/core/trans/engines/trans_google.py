@@ -1,12 +1,12 @@
 """Google Translate translation engine implementation.
 
-This module provides a translation interface implementation using Google Translate API
-through the async_google_translate library.
+This module provides a translation interface implementation using Google Translate
+through the googletrans compatibility wrapper.
 """
 
 from typing import TYPE_CHECKING, override
 
-from core.trans.engines.async_google_translate import (
+from core.trans.engines.googletrans_wrapper import (
     AsyncTranslator,
     GoogleError,
     HTTPConnectionError,
