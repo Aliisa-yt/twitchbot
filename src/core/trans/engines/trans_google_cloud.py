@@ -101,18 +101,14 @@ class GoogleCloudTranslation(TransInterface):
         return self.__inst
 
     @_inst.setter
-    def _inst(self, inst: translate.Client | None) -> None:
+    def _inst(self, inst: translate.Client) -> None:
         """Set the Google Cloud Translate client instance.
 
         Args:
-            inst: Google Cloud Translate client instance or None.
+            inst: Google Cloud Translate client instance.
         """
-        if isinstance(inst, translate.Client):
-            self.__inst = inst
-            logger.debug("Google Cloud Translate client instance set successfully.")
-        else:
-            self.__inst = None
-            logger.debug("Google Cloud Translate client instance set to None or invalid type.")
+        self.__inst = inst
+        logger.debug("Google Cloud Translate client instance set successfully.")
 
     @property
     @override
