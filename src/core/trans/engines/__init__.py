@@ -12,7 +12,8 @@ Modules:
 - GoogleTranslation: Implementation for Google Translate service.
 """
 
-from core.trans.engines.async_google_translate import (
+from core.trans.engines.const_google import DEFAULT_SERVICE_URLS, LANGUAGES
+from core.trans.engines.googletrans_wrapper import (
     AsyncTranslator,
     GoogleError,
     HTTPConnectionError,
@@ -22,7 +23,6 @@ from core.trans.engines.async_google_translate import (
     ResponseFormatError,
     TextResult,
 )
-from core.trans.engines.const_google import DEFAULT_SERVICE_URLS, LANGUAGES
 from core.trans.engines.trans_deepl import DeeplTranslation
 from core.trans.engines.trans_google import GoogleTranslation
 from core.trans.engines.trans_google_cloud import GoogleCloudTranslation

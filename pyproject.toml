@@ -1,6 +1,6 @@
 [project]
 name = "twitchbot"
-version = "2026.7" # unused
+version = "2026.8" # unused
 description = "A Twitch chatbot built with Python, designed to enhance viewer engagement and provide interactive features for Twitch streamers."
 authors = [{ name = "Allisa_yt" }]
 requires-python = ">=3.14, <3.15"
@@ -15,12 +15,13 @@ dependencies = [
     "google-cloud-speech==2.40.0",
     "google-cloud-translate==3.27.0",
     "gTTS==2.5.4",
+    "googletrans==4.0.2",
     "numpy==2.5.2",
-    "onnxruntime==1.28.0",
+    "onnxruntime==1.29.0",
     "pywin32==312; platform_system == 'Windows'",
     "pywin32-ctypes==0.2.3; platform_system == 'Windows'",
     "setuptools>=84.0.0",
-    "sounddevice==0.5.5",
+    "sounddevice==0.5.6",
     "soundfile==0.14.0",
     "twitchio[starlette]==3.3.2",
     "types-cffi==2.0.0.20260518",
@@ -39,7 +40,7 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = [
-    "basedpyright>=1.39.9",
+    "basedpyright>=1.39.10",
     "coverage>=7.15.4",
     "mypy==2.3.1",
     "mypy_extensions==1.1.0",
@@ -161,6 +162,7 @@ module = [
     "gtts.*",
     "google.cloud.*",
     "onnxruntime.*",
+    "googletrans.*",
 ]
 ignore_missing_imports = true
 # follow_untyped_imports = true
@@ -227,7 +229,6 @@ reportUnusedImport = "hint"
 reportUnnecessaryIsInstance = "warning"
 reportImportCycles = "hint"
 reportImplicitStringConcatenation = "warning"
-reportPropertyTypeMismatch = "hint"
 # reportImplicitOverride = "warning"
 # reportPrivateLocalImportUsage = "warning"
 reportUninitializedInstanceVariable = "warning"
