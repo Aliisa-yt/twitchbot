@@ -1,12 +1,12 @@
 """Google Translate translation engine implementation.
 
-This module provides a translation interface implementation using Google Translate API
-through the async_google_translate library.
+This module provides a translation interface implementation using Google Translate
+through the googletrans compatibility wrapper.
 """
 
 from typing import TYPE_CHECKING, override
 
-from core.trans.engines.async_google_translate import (
+from core.trans.engines.googletrans_wrapper import (
     AsyncTranslator,
     GoogleError,
     HTTPConnectionError,
@@ -51,13 +51,9 @@ class GoogleTranslation(TransInterface):
         return self.__inst
 
     @_inst.setter
-    def _inst(self, inst: AsyncTranslator | None) -> None:
-        if isinstance(inst, AsyncTranslator):
-            self.__inst = inst
-            logger.debug("Google Translate client instance set successfully.")
-        else:
-            self.__inst = None
-            logger.debug("Google Translate client instance set to None or invalid type.")
+    def _inst(self, inst: AsyncTranslator) -> None:
+        self.__inst = inst
+        logger.debug("Google Translate client instance set successfully.")
 
     @property
     @override
