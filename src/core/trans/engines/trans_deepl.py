@@ -156,21 +156,13 @@ class DeeplTranslation(TransInterface):
         return self.__inst
 
     @_inst.setter
-    def _inst(self, inst: DeepLClient | None) -> None:
-        if isinstance(inst, DeepLClient):
-            self.__inst = inst
-            # self.__available = True
-            # Do not unconditionally set 'self.__available' to 'True' when registering an instance.
-            # 'self.__available' will be set to 'True' if 'self._get_usage()' has not reached its upper limit.
-            self._get_usage()
-            logger.debug("DeepL client instance set successfully.")
-        else:
-            self.__inst = None
-            self.__available = False
-            self.__usage = None
-            logger.debug(
-                "DeepL client instance set to None or invalid type. Availability set to False and usage reset."
-            )
+    def _inst(self, inst: DeepLClient) -> None:
+        self.__inst = inst
+        # self.__available = True
+        # Do not unconditionally set 'self.__available' to 'True' when registering an instance.
+        # 'self.__available' will be set to 'True' if 'self._get_usage()' has not reached its upper limit.
+        self._get_usage()
+        logger.debug("DeepL client instance set successfully.")
 
     @property
     def _usage(self) -> Usage:
@@ -180,13 +172,9 @@ class DeeplTranslation(TransInterface):
         return self.__usage
 
     @_usage.setter
-    def _usage(self, usage: Usage | None) -> None:
-        if usage is not None:
-            self.__usage = usage
-            usage_str = f"Character count: {usage.character.count} / Character limit: {usage.character.limit}"
-        else:
-            self.__usage = None
-            usage_str = "None"
+    def _usage(self, usage: Usage) -> None:
+        self.__usage = usage
+        usage_str = f"Character count: {usage.character.count} / Character limit: {usage.character.limit}"
         logger.debug("%s usage: '%s'", self.__class__.__name__, usage_str)
 
     @property
@@ -247,8 +235,6 @@ class DeeplTranslation(TransInterface):
             msg = "An error occurred while creating the DeepL client instance"
             raise RuntimeError(msg) from err
         except AuthorizationException:
-            # Do not set 'self._inst' to 'None' as this will cause an error in the 'Mypy Type Checker' extension.
-            # self._inst = None
             self.__inst = None
             self.__available = False
             self.__usage = None

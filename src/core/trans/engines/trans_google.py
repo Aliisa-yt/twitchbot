@@ -51,13 +51,9 @@ class GoogleTranslation(TransInterface):
         return self.__inst
 
     @_inst.setter
-    def _inst(self, inst: AsyncTranslator | None) -> None:
-        if isinstance(inst, AsyncTranslator):
-            self.__inst = inst
-            logger.debug("Google Translate client instance set successfully.")
-        else:
-            self.__inst = None
-            logger.debug("Google Translate client instance set to None or invalid type.")
+    def _inst(self, inst: AsyncTranslator) -> None:
+        self.__inst = inst
+        logger.debug("Google Translate client instance set successfully.")
 
     @property
     @override
