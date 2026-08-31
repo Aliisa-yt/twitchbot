@@ -24,7 +24,7 @@ dependencies = [
     "sounddevice==0.5.6",
     "soundfile==0.14.0",
     "twitchio[starlette]==3.3.2",
-    "types-cffi==2.0.0.20260518",
+    "types-cffi==2.1.0.20260827",
     "types-dataclasses-json==0.5.9",
     "types-grpcio==1.83.0.20260730",
     "types-grpcio-status==1.0.0.20260408",
