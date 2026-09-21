@@ -10,7 +10,7 @@ dependencies = [
     "aiohttp==3.14.3",
     "dataclasses-json==0.6.7",
     "deepl==1.32.0",
-    "emoji==2.15.0",
+    "emoji==2.16.0",
     "google-api-python-client-stubs==1.40.0",
     "google-cloud-speech==2.40.0",
     "google-cloud-translate==3.27.0",
