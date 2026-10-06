@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 5
 requires-python = "==3.14.*"
 
 [[package]]
@@ -532,7 +532,7 @@ wheels = [
 
 [[package]]
 name = "google-cloud-speech"
-version = "2.40.0"
+version = "2.41.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "google-api-core", extra = ["grpc"] },
@@ -541,14 +541,14 @@ dependencies = [
     { name = "proto-plus" },
     { name = "protobuf" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/5a/c1/5dc9795314f4aefea0b01b02e9f5486a198341ecc15fe47f89a61c68df63/google_cloud_speech-2.40.0.tar.gz", hash = "sha256:e89e688e4ce0b926754038bf992d0d0f065c5f1c3503bb20e6c46d08b63658fc", size = 404366, upload-time = "2026-06-03T16:13:59.506Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/b2/f6/1af146975bb5d9a2a411b47b61bc6321c3947f388dd7921c9b455fe89da1/google_cloud_speech-2.41.0.tar.gz", hash = "sha256:f1abf0c3260fbf3a4c3df9ede8a8013bb42bdd583cbbfeeba752c7a4f781d261", size = 400610, upload-time = "2026-10-01T18:18:15.542Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/cc/78/afeca8d597fab54bdd823f857aad15d6f9c4628ff3cb72aa237d01700721/google_cloud_speech-2.40.0-py3-none-any.whl", hash = "sha256:7cc0302b3b9ca33d2eae9669da94a44316601a240942895362ac70e765b9f39c", size = 345427, upload-time = "2026-06-03T16:12:40.909Z" },
+    { url = "https://files.pythonhosted.org/packages/ad/66/ca9258847c8215a17fd58c82a7e7b04f04ed7cd2689a8d704786ae9fdb0b/google_cloud_speech-2.41.0-py3-none-any.whl", hash = "sha256:a4939b5afdc9038ce8f49ffe523532057fe647280e323a2031c76043a867301a", size = 343423, upload-time = "2026-10-01T18:12:28.404Z" },
 ]
 
 [[package]]
 name = "google-cloud-translate"
-version = "3.27.0"
+version = "3.28.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "google-api-core", extra = ["grpc"] },
@@ -559,9 +559,9 @@ dependencies = [
     { name = "proto-plus" },
     { name = "protobuf" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/f8/84/d0c865447e6c950abece00a3489aa888eaebb160b3b6544efea6899732cb/google_cloud_translate-3.27.0.tar.gz", hash = "sha256:2ae78ef1aa8dbb5ec9767a08eabce34fda7bb45a07ba67ae6e0ead8cfd5f95f7", size = 274806, upload-time = "2026-06-22T23:22:40.612Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/43/5b/83bef78d3fb23615694da66b140d15c7a2e94b8b7065aba5edc23fd18f2b/google_cloud_translate-3.28.0.tar.gz", hash = "sha256:e5f54346b802751d43f871fc7cd70468b98998308cc7568a480a36a5ef480c0d", size = 274313, upload-time = "2026-10-01T18:18:35.957Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/d1/80/b7996af4d6519cd02d46d96b55d1f912c2e3dd6dd190d79305a74f17ec5a/google_cloud_translate-3.27.0-py3-none-any.whl", hash = "sha256:173b1ece3db69b1057e331a1616817912c2d41fee832cc6e1eab7df349fe374c", size = 210464, upload-time = "2026-06-22T23:20:41.618Z" },
+    { url = "https://files.pythonhosted.org/packages/e0/f9/0d288824b6f8564c5ec215b868e48ef16471602d8f2130837a0f47820064/google_cloud_translate-3.28.0-py3-none-any.whl", hash = "sha256:458ae4a31f5dda5c3024f210ad18acd571b429b16e8aa114ebe2747c2d034698", size = 210361, upload-time = "2026-10-01T18:12:50.374Z" },
 ]
 
 [[package]]
@@ -1136,14 +1136,14 @@ wheels = [
 
 [[package]]
 name = "pyinstaller-hooks-contrib"
-version = "2026.7"
+version = "2026.8"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "packaging" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/26/60/d881fa1ba8c160c18d8e6f782bb16ec4640c08bc08fc50f704c368ad4f9e/pyinstaller_hooks_contrib-2026.7.tar.gz", hash = "sha256:5fbcaacb22c4f4aac869a127dce283f67a4b4cfcc37d496f2446603e6d68aefa", size = 175992, upload-time = "2026-08-24T21:26:58.713Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/c9/3b/fab1a12a21bf9223af012e5dd002b7d4265683d21d9fabbd0ccb347316e4/pyinstaller_hooks_contrib-2026.8.tar.gz", hash = "sha256:4d825786ad7a9b7dbcc52d612748a34562fe273461bcfd88f4d549c594bbf8f9", size = 176955, upload-time = "2026-09-30T07:53:52.56Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/0a/67/350377af7b50416344ab8792756d414eef7629c618a73e9a0b13bb1552d9/pyinstaller_hooks_contrib-2026.7-py3-none-any.whl", hash = "sha256:24257a04c7a5a7a034cf28e39dcee20fbeeb9f043076729480f2e1b69904408a", size = 459445, upload-time = "2026-08-24T21:26:57.274Z" },
+    { url = "https://files.pythonhosted.org/packages/8f/f1/3eee0263b487e571aed9204257b45bc2a0b6fec34d0a1adade4d8d8a968c/pyinstaller_hooks_contrib-2026.8-py3-none-any.whl", hash = "sha256:6d21d65323ea4467753afc21f52d7d0e69416ae8101dd88269bf273ad48db084", size = 462145, upload-time = "2026-09-30T07:53:51.167Z" },
 ]
 
 [[package]]
@@ -1363,13 +1363,13 @@ dev = [
 requires-dist = [
     { name = "aiohttp", specifier = "==3.14.3" },
     { name = "basedpyright", marker = "extra == 'dev'", specifier = ">=1.40.1" },
-    { name = "coverage", marker = "extra == 'dev'", specifier = ">=7.16.1" },
+    { name = "coverage", marker = "extra == 'dev'", specifier = ">=7.16.2" },
     { name = "dataclasses-json", specifier = "==0.6.7" },
     { name = "deepl", specifier = "==1.32.0" },
     { name = "emoji", specifier = "==2.16.0" },
     { name = "google-api-python-client-stubs", specifier = "==1.40.0" },
-    { name = "google-cloud-speech", specifier = "==2.40.0" },
-    { name = "google-cloud-translate", specifier = "==3.27.0" },
+    { name = "google-cloud-speech", specifier = "==2.41.0" },
+    { name = "google-cloud-translate", specifier = "==3.28.0" },
     { name = "googletrans", specifier = "==4.0.2" },
     { name = "gtts", specifier = "==2.5.4" },
     { name = "mypy", marker = "extra == 'dev'", specifier = "==2.3.1" },
@@ -1377,7 +1377,7 @@ requires-dist = [
     { name = "numpy", specifier = "==2.5.3" },
     { name = "onnxruntime", specifier = "==1.30.0" },
     { name = "pyinstaller", marker = "extra == 'dev'", specifier = "==6.22.3" },
-    { name = "pyinstaller-hooks-contrib", marker = "extra == 'dev'", specifier = "==2026.7" },
+    { name = "pyinstaller-hooks-contrib", marker = "extra == 'dev'", specifier = "==2026.8" },
     { name = "pytest", marker = "extra == 'dev'", specifier = "==9.1.1" },
     { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = "==1.4.0" },
     { name = "pywin32", marker = "sys_platform == 'win32'", specifier = "==312" },
@@ -1390,11 +1390,11 @@ requires-dist = [
     { name = "twitchio", extras = ["starlette"], specifier = "==3.3.2" },
     { name = "types-cffi", specifier = "==2.1.0.20260827" },
     { name = "types-dataclasses-json", specifier = "==0.5.9" },
-    { name = "types-grpcio", specifier = "==1.83.0.20260730" },
+    { name = "types-grpcio", specifier = "==1.84.0.20260928" },
     { name = "types-grpcio-status", specifier = "==1.0.0.20260408" },
     { name = "types-httplib2", specifier = "==0.32.0.20260720" },
     { name = "types-pyasn1", specifier = "==0.6.0.20260724" },
-    { name = "types-pywin32", marker = "sys_platform == 'win32'", specifier = "==312.0.0.20260827" },
+    { name = "types-pywin32", marker = "sys_platform == 'win32'", specifier = "==312.0.0.20260928" },
     { name = "types-pyyaml", specifier = "==6.0.12.20260906" },
     { name = "types-requests", specifier = "==2.33.0.20260906" },
     { name = "types-setuptools", specifier = "==84.0.0.20260812" },
@@ -1444,11 +1444,11 @@ wheels = [
 
 [[package]]
 name = "types-grpcio"
-version = "1.83.0.20260730"
+version = "1.84.0.20260928"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/70/b7/65a3ebc728ddcdfa3ac6b8872956c14193e5b95e9b43ae5d988d29f41202/types_grpcio-1.83.0.20260730.tar.gz", hash = "sha256:e2b0532526a563dbb39aa6ee39fe0961488116ac1afec3065607532c93299b64", size = 15455, upload-time = "2026-07-30T04:44:31.863Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/29/db/c27d359c03c8d77917599d046d436424d74b08fb7e657c26d593912adb12/types_grpcio-1.84.0.20260928.tar.gz", hash = "sha256:eacb229deeb94e23a37c7ed0dd739dd2098ee63c7e432cc88340109ae3ad2fc1", size = 15892, upload-time = "2026-09-28T07:50:44.444Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/d3/1f/6bd33dd7cfb782669c25e669abe0058d9dc4e1c25f34b8e6b97845c531ca/types_grpcio-1.83.0.20260730-py3-none-any.whl", hash = "sha256:400e0517d088e90ecfe302a96f09728cb9c72508d835fa0793fce552cd4e1477", size = 15917, upload-time = "2026-07-30T04:44:31.027Z" },
+    { url = "https://files.pythonhosted.org/packages/74/f2/0a9f21ae6db691facba76d7443ebb26c016e28ce2fa094642ca4a899e15b/types_grpcio-1.84.0.20260928-py3-none-any.whl", hash = "sha256:f0b54cbed12cf8fb0d8e6e7e699562da06515ca5a88014a209bf75780d6d1145", size = 15965, upload-time = "2026-09-28T07:50:43.62Z" },
 ]
 
 [[package]]
@@ -1483,11 +1483,11 @@ wheels = [
 
 [[package]]
 name = "types-pywin32"
-version = "312.0.0.20260827"
+version = "312.0.0.20260928"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/d2/ba/de660e0aa3dcde61b2cada38c79fdaafcaaf2a7c811512fbe577d03c7245/types_pywin32-312.0.0.20260827.tar.gz", hash = "sha256:348facaabb9b3dfbeec50399ef430b660f7454529acf4c7e24874019cb721d58", size = 357427, upload-time = "2026-08-27T12:07:04.192Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/cc/39/476d851d215ce19c3234bb726e1f6417f1b636723573d0c1351f138d93cc/types_pywin32-312.0.0.20260928.tar.gz", hash = "sha256:a06b6edb3dbeb3d6e9a3fada3e7fadbb97e9ae998d394ff3545efdd1090932c4", size = 357631, upload-time = "2026-09-28T07:50:48.206Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/81/53/9c90587245adee3a73af4b8c5374dcfb1f3f0d710d1ab139dfe35dd7258e/types_pywin32-312.0.0.20260827-py3-none-any.whl", hash = "sha256:f22580e0d59c9cea33cf172396a7fb2f19a934c3eb82370bb74ca98f8e3db71e", size = 419299, upload-time = "2026-08-27T12:07:03.081Z" },
+    { url = "https://files.pythonhosted.org/packages/20/e6/8c87f81a114cdb0abf4c9a55153b10e85eba7a4ef5292d4557cdcfc39f15/types_pywin32-312.0.0.20260928-py3-none-any.whl", hash = "sha256:173c0498ba0d6e3c02d05e96c999fbfbd89feef5ce2eae238ddbaac614aeb51a", size = 419382, upload-time = "2026-09-28T07:50:47.133Z" },
 ]
 
 [[package]]
