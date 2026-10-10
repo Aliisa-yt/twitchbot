@@ -49,7 +49,7 @@ dev = [
     "pytest==9.1.1",
     "pytest-asyncio==1.4.0",
     "ruff==0.16.5",
-    "testfixtures==12.3.0",
+    "testfixtures==12.4.0",
 ]
 
 [tool.setuptools]
