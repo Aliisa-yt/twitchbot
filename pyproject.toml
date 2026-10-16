@@ -3,7 +3,7 @@ name = "twitchbot"
 version = "2026.8" # unused
 description = "A Twitch chatbot built with Python, designed to enhance viewer engagement and provide interactive features for Twitch streamers."
 authors = [{ name = "Allisa_yt" }]
-requires-python = ">=3.14, <3.15"
+requires-python = ">=3.14, <3.16"
 readme = "README.md"
 license = { file = "LICENSE" }
 dependencies = [
