@@ -1,6 +1,6 @@
 [project]
 name = "twitchbot"
-version = "2026.8" # unused
+version = "2026.10"
 description = "A Twitch chatbot built with Python, designed to enhance viewer engagement and provide interactive features for Twitch streamers."
 authors = [{ name = "Allisa_yt" }]
 requires-python = ">=3.14, <3.16"
@@ -100,37 +100,37 @@ target-version = "py314"
 [tool.ruff.lint]
 select = ["ALL"]
 ignore = [
-    "D",
-    "ANN",
-    "CPY001",
-    "ERA001",
-    "T201",
-    "FBT003",
-    "PLR0913",
-    "PLR2004",
-    "RUF001",
-    "RUF002",
-    "RUF003",
-    "RUF100",
-    "E741",
-    "COM812",
-    "TD002",
-    "TD003",
-    "FIX002",
-    "TRY301",
-    "TRY400",
-    "S101",
-    "S105",
-    "UP036",
+    "D",       # Docstring rules
+    "ANN",     # Type annotation rules
+    "CPY001",  # Missing copyright notice
+    "ERA001",  # Commented-out code
+    "T201",    # Print statements
+    "FBT003",  # Boolean positional values in function calls
+    "PLR0913", # Too many arguments in function definition
+    "PLR2004", # Magic value used in comparison
+    "RUF001",  # Ambiguous Unicode characters in string literals
+    "RUF002",  # Ambiguous Unicode characters in docstrings
+    "RUF003",  # Ambiguous Unicode characters in comments
+    "RUF100",  # Unused noqa directives
+    "E741",    # Ambiguous variable name
+    "COM812",  # Missing trailing comma
+    "TD002",   # Missing TODO author
+    "TD003",   # Missing TODO link
+    "FIX002",  # Line contains TODO or FIXME
+    "TRY301",  # Abstract raise to an inner function
+    "TRY400",  # Use logging.exception instead of logging.error
+    "S101",    # Use of assert
+    "S105",    # Possible hardcoded password
+    "UP036",   # Outdated version block
 ]
 fixable = ["ALL"]
 unfixable = []
 dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
 extend-per-file-ignores = { "tests/**/*" = [
-    "INP001",
-    "S106",
-    "S108",
-    "SLF001",
+    "INP001", # Missing __init__.py in package
+    "S106",   # Possible hardcoded password in function call
+    "S108",   # Insecure temporary file or directory
+    "SLF001", # Private member access
 ] }
 
 [tool.ruff.format]
