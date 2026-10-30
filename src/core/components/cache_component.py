@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 import asyncio
+import csv
+from contextlib import suppress
 from datetime import timedelta
+from pathlib import Path
 from typing import TYPE_CHECKING, ClassVar, Final, override
 
 from twitchio.ext import commands, routines
@@ -14,7 +17,6 @@ from utils.logger_utils import LoggerUtils
 
 if TYPE_CHECKING:
     import logging
-    from pathlib import Path
 
     from core.cache.cache_manager import TranslationCacheManager
     from models.cache_models import CacheStatistics
@@ -26,6 +28,7 @@ logger: logging.Logger = LoggerUtils.get_logger(__name__)
 
 # Setting the file extension to .log excludes it from Git management.
 CACHE_EXPORT_PATH: Final[str] = "cache_export.log"
+TRANSLATION_CACHE_PRELOAD_DIC_FILENAME: Final[str] = "translation_cache.dic"
 
 CACHE_MAINTENANCE_INTERVAL: Final[float] = 2.0  # hours
 DELAYED_START_TIME: Final[float] = 20.0  # seconds
@@ -54,8 +57,78 @@ class CacheServiceComponent(ComponentBase):
     async def component_load(self) -> None:
         """Load the component and initialize cache services."""
         await self.shared.cache_manager.component_load()
+        await self._load_predefined_translation_cache()
         self.cache_maintenance.start()
         logger.debug("'%s' component loaded", self.__class__.__name__)
+
+    async def _load_predefined_translation_cache(self) -> None:
+        """Load predefined language and translation cache entries from the dictionary file."""
+        dictionary_path: Path = self._resolve_predefined_translation_cache_path()
+        try:
+            with dictionary_path.open(mode="r", encoding="utf-8", newline="") as handle:
+                rows: list[list[str]] = list(csv.reader(handle))
+        except FileNotFoundError:
+            logger.info("Predefined translation cache dictionary not found: %s", dictionary_path)
+            return
+        except OSError as err:
+            logger.warning("Failed to load predefined translation cache dictionary '%s': %s", dictionary_path, err)
+            return
+        except csv.Error as err:
+            logger.warning("Failed to parse predefined translation cache dictionary '%s': %s", dictionary_path, err)
+            return
+
+        cache_manager: TranslationCacheManager = self.shared.cache_manager
+        loaded_count: int = 0
+        for line_number, row in enumerate(rows, start=1):
+            if not row or not any(cell.strip() for cell in row):
+                continue
+            if row[0].lstrip().startswith("#"):
+                continue
+            if len(row) != 4:
+                logger.warning(
+                    "Skipping invalid predefined translation cache entry at %s:%d: expected 4 columns, got %d",
+                    dictionary_path,
+                    line_number,
+                    len(row),
+                )
+                continue
+
+            source_text, source_lang, translation_text, target_lang = (cell.strip() for cell in row)
+            if not all((source_text, source_lang, translation_text, target_lang)):
+                logger.warning(
+                    "Skipping invalid predefined translation cache entry at %s:%d: empty column",
+                    dictionary_path,
+                    line_number,
+                )
+                continue
+
+            detection_registered: bool = await cache_manager.register_language_detection_cache(
+                source_text, source_lang
+            )
+            translation_registered: bool = await cache_manager.register_translation_cache(
+                source_text=source_text,
+                source_lang=source_lang,
+                target_lang=target_lang,
+                translation_text=translation_text,
+                engine="",
+            )
+            if detection_registered and translation_registered:
+                loaded_count += 1
+            else:
+                logger.warning(
+                    "Failed to register predefined translation cache entry at %s:%d", dictionary_path, line_number
+                )
+
+        logger.info("Loaded %d predefined translation cache entry(s) from: %s", loaded_count, dictionary_path)
+
+    def _resolve_predefined_translation_cache_path(self) -> Path:
+        """Resolve the predefined translation cache dictionary path."""
+        dic_base_path: str = "dic"
+        with suppress(AttributeError):
+            raw_path: str | Path = self.config.DICTIONARY.PATH
+            if raw_path:
+                dic_base_path = str(raw_path)
+        return FileUtils.resolve_path(Path(dic_base_path) / TRANSLATION_CACHE_PRELOAD_DIC_FILENAME)
 
     @override
     async def component_teardown(self) -> None:

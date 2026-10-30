@@ -132,6 +132,22 @@ async def test_language_detection_cache(cache_manager: TranslationCacheManager) 
 
 
 @pytest.mark.asyncio
+async def test_language_detection_cache_registration_overwrites_existing_language(
+    cache_manager: TranslationCacheManager,
+) -> None:
+    """Dictionary-provided language definitions must override prior automatic detections."""
+    await cache_manager.register_language_detection_cache("Hi", "ts", 0.5)
+
+    success: bool = await cache_manager.register_language_detection_cache("Hi", "en")
+    result: LanguageDetectionCacheEntry | None = await cache_manager.search_language_detection_cache("Hi")
+
+    assert success is True
+    assert result is not None
+    assert result.detected_lang == "en"
+    assert result.confidence == 1.0
+
+
+@pytest.mark.asyncio
 async def test_cache_statistics(cache_manager: TranslationCacheManager) -> None:
     """Test cache statistics retrieval."""
     await cache_manager.register_translation_cache(
