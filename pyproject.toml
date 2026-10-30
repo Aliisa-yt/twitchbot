@@ -17,7 +17,7 @@ dependencies = [
     "gTTS==2.5.4",
     "googletrans==4.0.2",
     "numpy==2.5.4",
-    "onnxruntime==1.31.0",
+    "onnxruntime==1.31.1",
     "pywin32==312; platform_system == 'Windows'",
     "pywin32-ctypes==0.2.3; platform_system == 'Windows'",
     "setuptools>=84.2.0",
