@@ -1,3 +1,10 @@
+"""Manager for handling translation engines and language detection.
+
+This module provides the TransManager class, which manages translation engines, handles language detection,
+and performs translations. It also includes utility functions for validating language codes and
+extracting language designations from content.
+"""
+
 import time
 from typing import TYPE_CHECKING, ClassVar, Final
 
@@ -23,6 +30,7 @@ from utils.string_utils import StringUtils
 
 if TYPE_CHECKING:
     import logging
+    from re import Match
 
     from core.cache.cache_manager import TranslationCacheManager
     from core.cache.inflight_manager import InFlightManager
@@ -40,6 +48,29 @@ ADAPTIVE_LIMITER_BASE_COOLDOWN_SEC: Final[float] = 1.0
 ADAPTIVE_LIMITER_MAX_COOLDOWN_SEC: Final[float] = 30.0
 ADAPTIVE_LIMITER_RESET_SEC: Final[float] = 60.0
 ADAPTIVE_LIMITER_LOG_INTERVAL_SEC: Final[float] = 5.0
+
+
+def validate_language_code(lang: str) -> str | None:
+    """Return the canonical language code when it is supported."""
+    for code in LANGUAGES:
+        if lang.lower() == code.lower():
+            return code
+    return None
+
+
+def extract_single_language_codes(match: Match[str]) -> tuple[bool, str | None, str | None]:
+    """Extract and validate language codes from a single-language designation.
+
+    Notes:
+        - When `source_lang` is missing, return None instead of an empty string.
+        - When `target_lang` is missing, return "".
+    """
+    if source_lang := match.group("lang"):
+        return (source_lang := validate_language_code(source_lang)) is not None, source_lang, ""
+    if target_lang := match.group("tgt_lang"):
+        return (target_lang := validate_language_code(target_lang)) is not None, None, target_lang
+    source_lang = validate_language_code(match.group("src_lang"))
+    return source_lang is not None, source_lang, ""
 
 
 class TransManager:
@@ -542,25 +573,21 @@ class TransManager:
     def parse_language_prefix(trans_info: TranslationInfo) -> bool:
         """Extract forced language codes from the content of translation parameters.
 
-        Checks for patterns like "en:ja:" or "ja:" in the content and sets the source and/or
-        target language codes accordingly.
+        Checks for bracketed language designations in the content and sets the source and/or target
+        language codes accordingly. Codes may contain only letters and hyphens and must be 2 to 10
+        characters long and must be present in the predefined language list.
 
         Syntax examples:
-            "en:ja:This is a test."  # sets src_lang to 'en' and tgt_lang to 'ja'
-            "ja:This is a test."     # sets tgt_lang to 'ja'
+            "[en->ja] This is a test."  # sets src_lang to 'en' and tgt_lang to 'ja'
+            "[en] This is a test."      # sets src_lang to 'en'
+            "[en->] This is a test."    # sets src_lang to 'en'
+            "[->ja] This is a test."    # sets tgt_lang to 'ja'
 
         Args:
             trans_info (TranslationInfo): Translation parameters containing the content to analyze.
         Returns:
             bool: True if language codes were successfully extracted, False otherwise.
         """
-
-        def validate_language_code(lang: str) -> str | None:
-            """Validate if the given language string matches a known language code."""
-            for code in LANGUAGES:
-                if lang.lower() == code.lower():
-                    return code
-            return None
 
         def remove_pattern_from_content(content: str, match_start: int, match_end: int) -> str:
             """Remove matched pattern from content and compress blanks."""
@@ -573,25 +600,30 @@ class TransManager:
             logger.debug("No content to process for language extraction.")
             return False
 
-        # Check for two-language pattern (e.g., "en->ja")
+        # Check for two-language pattern (e.g., "[en->ja]")
         if match := TWO_LANGUAGE_DESIGNATIONS_PATTERN.search(content):
-            code1: str | None = validate_language_code(match.group("lang1"))
-            code2: str | None = validate_language_code(match.group("lang2"))
-            if code1 and code2:
-                trans_info.src_lang = code1
-                trans_info.tgt_lang = code2
+            source_lang = validate_language_code(match.group("lang1"))
+            target_lang = validate_language_code(match.group("lang2"))
+            if source_lang and target_lang:
+                trans_info.src_lang = source_lang
+                trans_info.tgt_lang = target_lang
                 trans_info.content = remove_pattern_from_content(content, match.start(), match.end())
-                logger.debug("Extracted languages - Source: '%s', Target: '%s'", code1, code2)
+                logger.debug("Extracted languages - Source: '%s', Target: '%s'", source_lang, target_lang)
                 return True
 
-        # Check for single-language pattern (e.g., "->ja")
-        if (match := ONE_LANGUAGE_DESIGNATION_PATTERN.search(content)) and (
-            code := validate_language_code(match.group("lang"))
-        ):
-            trans_info.tgt_lang = code
-            trans_info.content = remove_pattern_from_content(content, match.start(), match.end())
-            logger.debug("Extracted target language: '%s'", code)
-            return True
+        # Check for a single-language pattern (e.g., "[ja]", "[->ja]", or "[en->]").
+        if match := ONE_LANGUAGE_DESIGNATION_PATTERN.search(content):
+            is_valid, source_lang, target_lang = extract_single_language_codes(match)
+            if is_valid:
+                if source_lang is not None:
+                    trans_info.src_lang = source_lang
+                if target_lang is not None:
+                    trans_info.tgt_lang = target_lang
+                trans_info.content = remove_pattern_from_content(content, match.start(), match.end())
+                logger.debug(
+                    "Extracted languages - Source: '%s', Target: '%s'", trans_info.src_lang, trans_info.tgt_lang
+                )
+                return True
 
         logger.debug("No forced language code found")
         return False
