@@ -76,14 +76,16 @@ REPLY_PATTERN: Final[Pattern[str]] = re.compile(
     )
 )
 
-# Regular expression that matches single language designation patterns
-# Example: "en:" or "ja:"
-ONE_LANGUAGE_DESIGNATION_PATTERN: Final[Pattern[str]] = re.compile(r"(?:^|\s)(?P<lang>[A-Za-z]{2,3}(?:-[A-Za-z]{2})?):")
+# Regular expression that matches single language designation patterns.
+# Examples: "[ja]", "[->ja]", or "[en->]"
+ONE_LANGUAGE_DESIGNATION_PATTERN: Final[Pattern[str]] = re.compile(
+    r"\[(?:(?P<lang>[A-Za-z-]{2,10})|->(?P<tgt_lang>[A-Za-z-]{2,10})|(?P<src_lang>[A-Za-z-]{2,10})->)\]"
+)
 
-# Regular expression that matches two language designation patterns
-# Example: "en:ja:" or "fr:de:"
+# Regular expression that matches two language designation patterns.
+# Examples: "[en->ja]" or "[fr->de]"
 TWO_LANGUAGE_DESIGNATIONS_PATTERN: Final[Pattern[str]] = re.compile(
-    r"(?:^|\s)(?P<lang1>[A-Za-z]{2,3}(?:-[A-Za-z]{2})?):(?P<lang2>[A-Za-z]{2,3}(?:-[A-Za-z]{2})?):"
+    r"\[(?P<lang1>[A-Za-z-]{2,10})->(?P<lang2>[A-Za-z-]{2,10})\]"
 )
 
 # Regular expression that matches server configuration strings

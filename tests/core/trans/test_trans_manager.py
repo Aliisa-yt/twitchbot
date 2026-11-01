@@ -429,7 +429,7 @@ async def test_perform_translation_handles_quota_exceeded(config: Config) -> Non
 
 
 def test_parse_language_prefix_two_codes() -> None:
-    trans_info = TranslationInfo(content="en:ja:Hello")
+    trans_info = TranslationInfo(content="[en->ja] Hello")
 
     result: bool = TransManager.parse_language_prefix(trans_info)
 
@@ -440,23 +440,45 @@ def test_parse_language_prefix_two_codes() -> None:
 
 
 def test_parse_language_prefix_one_code() -> None:
-    trans_info = TranslationInfo(content="ja:Hello")
+    trans_info = TranslationInfo(content="[ja] Hello", tgt_lang="en")
 
     result: bool = TransManager.parse_language_prefix(trans_info)
 
     assert result is True
-    assert trans_info.tgt_lang == "ja"
+    assert trans_info.src_lang == "ja"
+    assert trans_info.tgt_lang == ""
     assert trans_info.content == "Hello"
 
 
-def test_parse_language_prefix_invalid_returns_false() -> None:
-    trans_info = TranslationInfo(content="zz:Hello")
+@pytest.mark.parametrize(
+    ("content", "expected_src_lang", "expected_tgt_lang"),
+    [
+        ("[->ja] Hello", None, "ja"),
+        ("[en->] Hello", "en", ""),
+    ],
+)
+def test_parse_language_prefix_optional_language_codes(
+    content: str, expected_src_lang: str | None, expected_tgt_lang: str | None
+) -> None:
+    trans_info = TranslationInfo(content=content)
+
+    result: bool = TransManager.parse_language_prefix(trans_info)
+
+    assert result is True
+    assert trans_info.src_lang == expected_src_lang
+    assert trans_info.tgt_lang == expected_tgt_lang
+    assert trans_info.content == "Hello"
+
+
+@pytest.mark.parametrize("content", ["[z] Hello", "[custom-lan] Hello", "[source->target] Hello"])
+def test_parse_language_prefix_invalid_returns_false(content: str) -> None:
+    trans_info = TranslationInfo(content=content)
 
     result: bool = TransManager.parse_language_prefix(trans_info)
 
     assert result is False
     assert trans_info.tgt_lang == ""
-    assert trans_info.content == "zz:Hello"
+    assert trans_info.content == content
 
 
 def test_determine_target_language_prefers_native_when_src_diff(config: Config) -> None:
