@@ -5,6 +5,8 @@ Tests cache search, registration, in-flight management, TTL, and capacity limits
 
 from __future__ import annotations
 
+import logging
+import sqlite3
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -45,6 +47,32 @@ async def test_cache_initialization(cache_manager: TranslationCacheManager) -> N
     """Test cache manager initialization."""
     assert cache_manager._is_initialized is True
     assert cache_manager._db_conn is not None
+
+
+@pytest.mark.asyncio
+async def test_cache_initialization_warns_on_schema_version_mismatch(
+    mock_config: Config, tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A schema version mismatch should be logged without preventing initialization."""
+    db_path = tmp_path / "test_cache_schema_mismatch.db"
+    with sqlite3.connect(db_path) as connection:
+        connection.execute("CREATE TABLE cache_metadata (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
+        connection.execute(
+            "INSERT INTO cache_metadata (key, value) VALUES (?, ?)",
+            ("schema_version", "0"),
+        )
+
+    manager = TranslationCacheManager(mock_config)
+    manager._db_path = db_path
+    caplog.set_level(logging.WARNING)
+
+    await manager.component_load()
+
+    try:
+        assert manager.is_initialized is True
+        assert "Cache DB schema version mismatch (db: 0, expected: 1)" in caplog.text
+    finally:
+        await manager.component_teardown()
 
 
 @pytest.mark.asyncio
