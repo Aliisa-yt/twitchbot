@@ -5,6 +5,8 @@ Tests cache search, registration, in-flight management, TTL, and capacity limits
 
 from __future__ import annotations
 
+import logging
+import sqlite3
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -45,6 +47,32 @@ async def test_cache_initialization(cache_manager: TranslationCacheManager) -> N
     """Test cache manager initialization."""
     assert cache_manager._is_initialized is True
     assert cache_manager._db_conn is not None
+
+
+@pytest.mark.asyncio
+async def test_cache_initialization_warns_on_schema_version_mismatch(
+    mock_config: Config, tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A schema version mismatch should be logged without preventing initialization."""
+    db_path = tmp_path / "test_cache_schema_mismatch.db"
+    with sqlite3.connect(db_path) as connection:
+        connection.execute("CREATE TABLE cache_metadata (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
+        connection.execute(
+            "INSERT INTO cache_metadata (key, value) VALUES (?, ?)",
+            ("schema_version", "0"),
+        )
+
+    manager = TranslationCacheManager(mock_config)
+    manager._db_path = db_path
+    caplog.set_level(logging.WARNING)
+
+    await manager.component_load()
+
+    try:
+        assert manager.is_initialized is True
+        assert "Cache DB schema version mismatch (db: 0, expected: 1)" in caplog.text
+    finally:
+        await manager.component_teardown()
 
 
 @pytest.mark.asyncio
@@ -129,6 +157,22 @@ async def test_language_detection_cache(cache_manager: TranslationCacheManager) 
     assert result is not None
     assert result.detected_lang == "en"
     assert result.confidence == 0.95
+
+
+@pytest.mark.asyncio
+async def test_language_detection_cache_registration_overwrites_existing_language(
+    cache_manager: TranslationCacheManager,
+) -> None:
+    """Dictionary-provided language definitions must override prior automatic detections."""
+    await cache_manager.register_language_detection_cache("Hi", "ts", 0.5)
+
+    success: bool = await cache_manager.register_language_detection_cache("Hi", "en")
+    result: LanguageDetectionCacheEntry | None = await cache_manager.search_language_detection_cache("Hi")
+
+    assert success is True
+    assert result is not None
+    assert result.detected_lang == "en"
+    assert result.confidence == 1.0
 
 
 @pytest.mark.asyncio
