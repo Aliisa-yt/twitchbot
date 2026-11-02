@@ -20,7 +20,7 @@ dependencies = [
     "onnxruntime==1.31.1",
     "pywin32==312; platform_system == 'Windows'",
     "pywin32-ctypes==0.2.3; platform_system == 'Windows'",
-    "setuptools>=84.2.0",
+    "setuptools>=84.2.1",
     "sounddevice==0.5.6",
     "soundfile==0.14.0",
     "twitchio[starlette]==3.3.2",
@@ -42,13 +42,13 @@ dependencies = [
 dev = [
     "basedpyright>=1.40.2",
     "coverage>=7.17.0",
-    "mypy==2.4.0",
+    "mypy==2.4.1",
     "mypy_extensions==1.1.0",
     "pyinstaller==6.22.3",
     "pyinstaller-hooks-contrib==2026.9",
     "pytest==9.1.1",
     "pytest-asyncio==1.4.1",
-    "ruff==0.17.0",
+    "ruff==0.17.3",
     "testfixtures==12.4.0",
 ]
 
@@ -60,7 +60,7 @@ py-modules = ["twitchbot", "setup_tokens"]
 where = ["src"]
 
 [build-system]
-requires = ["setuptools>=84.2.0", "wheel"]
+requires = ["setuptools>=84.2.1", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [tool.ruff]
