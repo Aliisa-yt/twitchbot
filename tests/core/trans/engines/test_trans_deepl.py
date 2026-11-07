@@ -37,6 +37,9 @@ class DummyLanguageExtended:
     JAPANESE: str = "ja"
     CHINESE_SIMPLIFIED = "zh-Hans"
     CHINESE_TRADITIONAL = "zh-Hant"
+    GERMAN: str = "de"
+    GERMAN_GERMANY: str = "de-DE"
+    GERMAN_SWISS: str = "de-CH"
 
 
 class DummyTextResult:
@@ -256,13 +259,17 @@ def test_target_codes_match_default_language_codes(monkeypatch: pytest.MonkeyPat
     trans_deepl_module.DeeplTranslation._target_codes = {}
     trans_deepl_module.DeeplTranslation._generate_langcode_mappings()
 
+    source_codes = trans_deepl_module.DeeplTranslation._source_codes
     target_codes = trans_deepl_module.DeeplTranslation._target_codes
     assert target_codes["es"].upper() == trans_deepl_module._DEFAULT_SPANISH_CODE.upper()
     assert target_codes["en"].upper() == trans_deepl_module._DEFAULT_ENGLISH_CODE.upper()
     assert target_codes["pt"].upper() == trans_deepl_module._DEFAULT_PORTUGUESE_CODE.upper()
     assert target_codes["zh"].upper() == trans_deepl_module._DEFAULT_CHINESE_CODE.upper()
+    assert source_codes["zh-CN"] == "ZH"
+    assert source_codes["zh-TW"] == "ZH"
     assert target_codes["zh-CN"].upper() == DummyLanguageExtended.CHINESE_SIMPLIFIED.upper()
     assert target_codes["zh-TW"].upper() == DummyLanguageExtended.CHINESE_TRADITIONAL.upper()
+    assert target_codes["de"].upper() == trans_deepl_module._DEFAULT_GERMAN_CODE.upper()
 
 
 def test_target_codes_follow_changed_default_language_codes(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -271,6 +278,7 @@ def test_target_codes_follow_changed_default_language_codes(monkeypatch: pytest.
     monkeypatch.setattr(trans_deepl_module, "_DEFAULT_ENGLISH_CODE", "en-GB")
     monkeypatch.setattr(trans_deepl_module, "_DEFAULT_PORTUGUESE_CODE", "pt-BR")
     monkeypatch.setattr(trans_deepl_module, "_DEFAULT_CHINESE_CODE", "zh-Hans")
+    monkeypatch.setattr(trans_deepl_module, "_DEFAULT_GERMAN_CODE", "de-DE")
 
     trans_deepl_module.DeeplTranslation._source_codes = {}
     trans_deepl_module.DeeplTranslation._target_codes = {}
@@ -284,6 +292,7 @@ def test_target_codes_follow_changed_default_language_codes(monkeypatch: pytest.
     # Confirm that the _DEFAULT_CHINESE_CODE setting does not have any effect.
     assert target_codes["zh-CN"].upper() == DummyLanguageExtended.CHINESE_SIMPLIFIED.upper()
     assert target_codes["zh-TW"].upper() == DummyLanguageExtended.CHINESE_TRADITIONAL.upper()
+    assert target_codes["de"].upper() == trans_deepl_module._DEFAULT_GERMAN_CODE.upper()
 
 
 def test_unknown_regional_language_code_skipped(monkeypatch: pytest.MonkeyPatch) -> None:
