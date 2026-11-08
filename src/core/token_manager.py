@@ -1,3 +1,5 @@
+"""OAuth2 token management for Twitch API access."""
+
 import asyncio
 import os
 import time
@@ -26,15 +28,11 @@ __all__: list[str] = ["TokenManager"]
 
 logger: logging.Logger = LoggerUtils.get_logger(__name__)
 
-# OAuth2 redirect URI for Twitch API
-# This should match the redirect URI set in your Twitch application settings.
-# It is used to receive the authorization code after user login.
+# Twitch OAuth redirect URI. This must match the redirect URL configured in the Twitch developer console.
 REDIRECT_URI: Final[str] = "http://localhost"
 # REDIRECT_URI: Final[str] = "http://localhost:4343/oauth/callback"
 
-# List of access scopes required for the bot
-# These scopes define the permissions the bot will request from the user.
-# Adjust the scopes based on your bot's functionality and requirements.
+# OAuth scopes requested for the bot account.
 ACCESS_SCOPES: Scopes = Scopes(
     chat_read=True,
     chat_edit=True,
@@ -86,18 +84,17 @@ class TokenManager:
     """
 
     def __init__(self, db_path: str | Path) -> None:
-        """Initialize the TokenManager with the path to the database file.
-
-        This database file is used to store access and refresh tokens for the Twitch API.
+        """Initialize the manager and validate the required Twitch credentials.
 
         Args:
-            db_path (str | Path): The path to the SQLite database file where tokens will be stored.
+            db_path: SQLite database path used to persist access and refresh tokens.
+
         Raises:
-            RuntimeError: If the database path is empty or if required environment variables are not set.
+            RuntimeError: If the required environment variables are missing.
         """
 
         def _require_env_var(name: str) -> str:
-            """Check if an environment variable is set and return its value."""
+            """Return the required environment variable or raise a clear error."""
             value: str | None = os.getenv(name)
             if not value:
                 msg: str = f"The '{name}' environment variable has not been set."
@@ -106,19 +103,13 @@ class TokenManager:
 
         logger.debug("Initializing '%s'", self.__class__.__name__)
 
-        # Initialize the token storage backend
         self.storage: TokenStorage = TokenStorage(db_path)
         logger.debug("Token storage initialized")
 
-        # Load client ID and secret from environment variables.
-        # These are required for OAuth2 authentication with the Twitch API.
-        # Example:
-        #   export TWITCH_API_CLIENT_ID="your_client_id"
-        #   export TWITCH_API_CLIENT_SECRET="your_client_secret"
         self.client_id: str = _require_env_var("TWITCH_API_CLIENT_ID")
         self.client_secret: str = _require_env_var("TWITCH_API_CLIENT_SECRET")
 
-        # Initialize IDs and tokens; populated during the OAuth authorization flow.
+        # Populated during the OAuth authorization flow.
         self.bot_id: str = ""
         self.owner_id: str = ""
         self.user_access_token: str = ""
@@ -145,25 +136,22 @@ class TokenManager:
         """Exit async context; no resources are managed by TokenManager itself."""
         _ = exc_type, exc_val, exc_tb
 
-    # -----------------------------------
-    # Token storage and management
-    # -----------------------------------
     def load_tokens(self) -> dict[str, Any]:
-        """Load tokens from the storage."""
+        """Load the raw token payload from the SQLite storage backend."""
         with self.storage:
             return self.storage.load_tokens()
 
     def save_tokens(self, data: dict[str, Any]) -> None:
-        """Save tokens to the storage."""
+        """Persist the raw token payload to SQLite storage."""
         with self.storage:
             self.storage.save_tokens(data)
 
-    # -----------------------------------
-    # Token conversion helpers
-    # -----------------------------------
-
     def converted_load_tokens(self) -> dict[str, dict[str, Any]]:
-        """Load tokens from storage and convert to the format used by Bot class."""
+        """Convert the DB payload into the format used by the TwitchIO Bot instance.
+
+        Returns an empty dict when the persisted token payload is incomplete.
+        The caller is responsible for handling missing or invalid data.
+        """
         raw_tokens: dict[str, Any] = self.load_tokens()
 
         try:
@@ -172,14 +160,9 @@ class TokenManager:
                     "user_id": self.bot_id,
                     "token": raw_tokens["access_token"],
                     "refresh": raw_tokens["refresh_token"],
-                    # There is no need to pass 'last_validated', as this is generated internally by TwitchIO.
-                    # "last_validated": TimeUtils.convert_epoch_to_iso8601(
-                    #     raw_tokens["obtained_at"], with_timezone=False
-                    # ),
                 }
             }
         except KeyError as err:
-            # Since error handling is performed by the caller, an empty dictionary is returned.
             msg = f"Failed to convert loaded tokens: {err}"
             logger.error(msg)
             return {}
@@ -187,19 +170,13 @@ class TokenManager:
         return converted_tokens
 
     def converted_save_tokens(self, tokens: dict[str, dict[str, Any]]) -> None:
-        """Convert tokens from the format used by Bot class and save to storage.
+        """Convert TwitchIO token data into the SQLite payload and persist it.
 
-        Args:
-            tokens (dict[str, dict[str, Any]]): The token data in the format used by the Bot class,
-                typically containing entries keyed by bot user IDs.
-
-        Warning:
-            Do not call this method using the value returned by converted_load_tokens() directly as an argument.
-            First, set the necessary information from the Bot class's token management and token validation data,
-            then call it.
+        The input format is the bot-local structure used by TwitchIO, while the
+        stored format is the lightweight DB schema used by TokenStorage.
+        This method intentionally skips writes when the bot token is absent.
         """
         if self.bot_id not in tokens:
-            # If the token for the Bot ID is not found, do not save and log a warning.
             msg = f"The token for Bot ID {self.bot_id} could not be found. The save operation will be skipped."
             logger.warning(msg)
             return
@@ -216,7 +193,6 @@ class TokenManager:
                 "token_type": "bearer",
             }
         except KeyError as err:
-            # If token conversion fails, do not save and log the error.
             msg = f"Failed to convert tokens for Bot ID {self.bot_id}: {err}"
             logger.error(msg)
             return
@@ -343,12 +319,11 @@ class TokenManager:
         }
 
         async with aiohttp.ClientSession(raise_for_status=True) as session, session.post(url, data=params) as resp:
-            # OAuth token endpoints expect form data.
             data: dict[str, Any] = await resp.json()
         if "access_token" not in data:
             msg: str = "Token exchange failed: API did not return access_token."
             raise RuntimeError(msg)
-        data["obtained_at"] = time.time()  # It seems that this data isn't being used.
+        data["obtained_at"] = time.time()
         return data
 
     async def _refresh_access_token(self, refresh_token: str) -> dict[str, Any]:
@@ -431,7 +406,6 @@ class TokenManager:
         async with Client(client_id=self.client_id, client_secret=self.client_secret) as client:
             await client.login()
             users: list[User] = await client.fetch_users(logins=[owner_name, bot_name])
-            # The order of fetch_users results is not guaranteed.
             for user in users:
                 name: str | None = getattr(user, "name", None)
                 if name is None:
@@ -448,7 +422,6 @@ class TokenManager:
                 elif uname == bot_name:
                     bot_id = uid
 
-        # If either owner_id or bot_id is not found, raise an error.
         if not owner_id:
             msg = f"Owner '{owner_name}' not found."
             raise RuntimeError(msg)
@@ -457,7 +430,6 @@ class TokenManager:
             raise RuntimeError(msg)
 
         logger.debug("Owner ID: %s, Bot ID: %s", owner_id, bot_id)
-        # Return the user IDs as a UserIDs instance
         return UserIDs(owner_id=owner_id, bot_id=bot_id)
 
     async def _run_oauth_for_bot(
@@ -491,7 +463,6 @@ class TokenManager:
             code = self._get_authorization_code_via_browser()
         tokens: dict[str, Any] = await self._exchange_code_for_tokens(code)
 
-        # Validate that the newly obtained token actually belongs to the bot account.
         new_access_token: str = tokens.get("access_token", "")
         if new_access_token:
             token_user_id: str = await self._validate_access_token_user_id(new_access_token)
