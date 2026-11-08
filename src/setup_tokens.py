@@ -28,13 +28,13 @@ TOKEN_DB_FILE: Final[str] = __token_db_file__
 
 
 def check_python_version() -> None:
-    """Check if Python version is 3.13 or later.
+    """Check if Python version is 3.14 or later.
 
     Raises:
-        RuntimeError: If Python version is below 3.13.
+        RuntimeError: If Python version is below 3.14.
     """
-    if sys.version_info < (3, 13):
-        msg = "Python 3.13 or later is required"
+    if sys.version_info < (3, 14):
+        msg = "Python 3.14 or later is required"
         raise RuntimeError(msg)
 
 

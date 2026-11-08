@@ -155,7 +155,7 @@ class CevioCore(Interface):
 
         if self.linkedstartup:
             logger.info("%s is starting up...", self.cevio_name)
-            result = self.cevio.StartHost(True)
+            result = self.cevio.StartHost(True)  # noqa: FBT003
             if result != 0:
                 logger.error("Failed to start %s. Result: %s", self.cevio_name, result)
                 _cleanup()
