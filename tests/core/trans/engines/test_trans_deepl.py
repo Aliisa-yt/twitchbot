@@ -27,9 +27,13 @@ class DummyLanguage:
 class DummyLanguageExtended:
     SPANISH = "es"
     SPANISH_LATIN_AMERICAN: str = "es-419"
+    SPANISH_SPAIN: str = "es-ES"
     ENGLISH: str = "en"
     ENGLISH_AMERICAN: str = "en-US"
     ENGLISH_BRITISH: str = "en-GB"
+    FRENCH: str = "fr"
+    FRENCH_FRANCE: str = "fr-FR"
+    FRENCH_CANADA: str = "fr-CA"
     PORTUGUESE: str = "pt"
     PORTUGUESE_EUROPEAN: str = "pt-PT"
     PORTUGUESE_BRAZILIAN: str = "pt-BR"
@@ -263,6 +267,7 @@ def test_target_codes_match_default_language_codes(monkeypatch: pytest.MonkeyPat
     target_codes = trans_deepl_module.DeeplTranslation._target_codes
     assert target_codes["es"].upper() == trans_deepl_module._DEFAULT_SPANISH_CODE.upper()
     assert target_codes["en"].upper() == trans_deepl_module._DEFAULT_ENGLISH_CODE.upper()
+    assert target_codes["fr"].upper() == trans_deepl_module._DEFAULT_FRENCH_CODE.upper()
     assert target_codes["pt"].upper() == trans_deepl_module._DEFAULT_PORTUGUESE_CODE.upper()
     assert target_codes["zh"].upper() == trans_deepl_module._DEFAULT_CHINESE_CODE.upper()
     assert source_codes["zh-CN"] == "ZH"
@@ -276,6 +281,7 @@ def test_target_codes_follow_changed_default_language_codes(monkeypatch: pytest.
     monkeypatch.setattr(trans_deepl_module, "Language", DummyLanguageExtended)
     monkeypatch.setattr(trans_deepl_module, "_DEFAULT_SPANISH_CODE", "es-419")
     monkeypatch.setattr(trans_deepl_module, "_DEFAULT_ENGLISH_CODE", "en-GB")
+    monkeypatch.setattr(trans_deepl_module, "_DEFAULT_FRENCH_CODE", "fr-CA")
     monkeypatch.setattr(trans_deepl_module, "_DEFAULT_PORTUGUESE_CODE", "pt-BR")
     monkeypatch.setattr(trans_deepl_module, "_DEFAULT_CHINESE_CODE", "zh-Hans")
     monkeypatch.setattr(trans_deepl_module, "_DEFAULT_GERMAN_CODE", "de-DE")
@@ -287,9 +293,10 @@ def test_target_codes_follow_changed_default_language_codes(monkeypatch: pytest.
     target_codes = trans_deepl_module.DeeplTranslation._target_codes
     assert target_codes["es"].upper() == trans_deepl_module._DEFAULT_SPANISH_CODE.upper()
     assert target_codes["en"].upper() == trans_deepl_module._DEFAULT_ENGLISH_CODE.upper()
+    assert target_codes["fr"].upper() == trans_deepl_module._DEFAULT_FRENCH_CODE.upper()
     assert target_codes["pt"].upper() == trans_deepl_module._DEFAULT_PORTUGUESE_CODE.upper()
     assert target_codes["zh"].upper() == trans_deepl_module._DEFAULT_CHINESE_CODE.upper()
-    # Confirm that the _DEFAULT_CHINESE_CODE setting does not have any effect.
+    # Confirm that the default code overrides do not affect compatibility aliases.
     assert target_codes["zh-CN"].upper() == DummyLanguageExtended.CHINESE_SIMPLIFIED.upper()
     assert target_codes["zh-TW"].upper() == DummyLanguageExtended.CHINESE_TRADITIONAL.upper()
     assert target_codes["de"].upper() == trans_deepl_module._DEFAULT_GERMAN_CODE.upper()
