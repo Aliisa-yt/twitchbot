@@ -43,11 +43,12 @@ _EXPECTED_DEEPL_VERSION: Final[str] = "1.33.0"
 
 _DEEPL_DEFAULT_CHAR_LIMIT: Final[int] = 500000  # Default character limit for DeepL if not provided by the API
 
-_DEFAULT_SPANISH_CODE: Final[Literal["es", "es-419"]] = "es"
-_DEFAULT_ENGLISH_CODE: Final[Literal["en-US", "en-GB"]] = "en-US"
-_DEFAULT_PORTUGUESE_CODE: Final[Literal["pt-BR", "pt-PT"]] = "pt-PT"
-_DEFAULT_CHINESE_CODE: Final[Literal["zh", "zh-Hans", "zh-Hant"]] = "zh"
 _DEFAULT_GERMAN_CODE: Final[Literal["de", "de-DE", "de-CH"]] = "de"
+_DEFAULT_ENGLISH_CODE: Final[Literal["en", "en-US", "en-GB"]] = "en"
+_DEFAULT_SPANISH_CODE: Final[Literal["es", "es-ES", "es-419"]] = "es"
+_DEFAULT_FRENCH_CODE: Final[Literal["fr", "fr-FR", "fr-CA"]] = "fr"
+_DEFAULT_PORTUGUESE_CODE: Final[Literal["pt", "pt-BR", "pt-PT"]] = "pt"
+_DEFAULT_CHINESE_CODE: Final[Literal["zh", "zh-Hans", "zh-Hant"]] = "zh"
 
 
 class DeeplTranslation(TransInterface):
@@ -113,11 +114,12 @@ class DeeplTranslation(TransInterface):
             target_codes[code] = code.upper()
 
         target_code_overrides: dict[str, str] = {
-            "es": _DEFAULT_SPANISH_CODE,
+            "de": _DEFAULT_GERMAN_CODE,
             "en": _DEFAULT_ENGLISH_CODE,
+            "es": _DEFAULT_SPANISH_CODE,
+            "fr": _DEFAULT_FRENCH_CODE,
             "pt": _DEFAULT_PORTUGUESE_CODE,
             "zh": _DEFAULT_CHINESE_CODE,
-            "de": _DEFAULT_GERMAN_CODE,
         }
         for source_code, target_code in target_code_overrides.items():
             if source_code in source_codes:
