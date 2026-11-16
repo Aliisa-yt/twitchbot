@@ -172,9 +172,9 @@ addopts = "-ra"
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 filterwarnings = [
-    "ignore:There is no current event loop:DeprecationWarning",
     "ignore:coroutine .* was never awaited:RuntimeWarning",
-    "ignore:'asyncio.iscoroutinefunction' is deprecated:DeprecationWarning",
+    "ignore:_pytest\\.python\\.CallSpec2 has been renamed to CallSpec:pytest.PytestRemovedIn10Warning",
+    "ignore:Inheritance class AiohttpAdapter from web\\.Application is discouraged:DeprecationWarning",
 ]
 
 [tool.coverage.run]
