@@ -33,7 +33,7 @@ dependencies = [
     "types-pywin32==312.0.0.20261104; platform_system == 'Windows'",
     "types-PyYAML==6.0.12.20261103",
     "types-requests==2.33.0.20261030",
-    "types-setuptools==84.0.0.20261006",
+    "types-setuptools==84.2.0.20261104",
     "typing-inspect==0.9.0",
     "typing_extensions==4.16.0",
 ]
@@ -172,9 +172,9 @@ addopts = "-ra"
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 filterwarnings = [
-    "ignore:There is no current event loop:DeprecationWarning",
     "ignore:coroutine .* was never awaited:RuntimeWarning",
-    "ignore:'asyncio.iscoroutinefunction' is deprecated:DeprecationWarning",
+    "ignore:_pytest\\.python\\.CallSpec2 has been renamed to CallSpec:pytest.PytestRemovedIn10Warning",
+    "ignore:Inheritance class AiohttpAdapter from web\\.Application is discouraged:DeprecationWarning",
 ]
 
 [tool.coverage.run]
