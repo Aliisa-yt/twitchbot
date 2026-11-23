@@ -1,7 +1,7 @@
 ---
 name: onnx-runtime-setting
 description: ONNX Runtime のインストールと設定に関するガイドライン
-keywords: [onnx, onnxruntime, installation, setup, python, pip]
+keywords: [onnx, onnxruntime, installation, setup, python, uv]
 ---
 
 共通規約は [.github/copilot-instructions.md](../../copilot-instructions.md) を参照してください。
@@ -9,9 +9,9 @@ keywords: [onnx, onnxruntime, installation, setup, python, pip]
 
 ## 1. インストール（Python）
 
-**本リポジトリで使用しているバージョン: `onnxruntime==1.24.4`**
+**本リポジトリで使用しているバージョン: `onnxruntime==1.32.0`**
 
-> **注意**: メジャーバージョンアップ時は API 互換性を必ず公式ドキュメントで確認してください。
+依存関係は `pyproject.toml` で管理し、正確な解決結果は `uv.lock` に記録します。バージョンを変更する場合は `uv add` を使用し、環境の同期には `uv sync` を使用してください。
 
 用途に応じてパッケージを使い分けます。
 
@@ -20,14 +20,22 @@ keywords: [onnx, onnxruntime, installation, setup, python, pip]
 - DirectML (Windows, Sustained Engineering): `onnxruntime-directml`
 
 ```powershell
-pip install onnxruntime==1.24.4
+uv sync
+```
+
+この依存関係は `pyproject.toml` で固定されています。固定バージョンを変更する場合は、次のコマンドを使用してください。
+
+```powershell
+uv add "onnxruntime==<version>"
 ```
 
 補足:
 
-- 本リポジトリの `requirements.txt` は CPU 版 `onnxruntime` を採用しています。
-- CUDA 利用時は CUDA/cuDNN の互換性を公式表で必ず確認してください。
-- `onnxruntime-gpu` は、PyTorch と CUDA/cuDNN のメジャーバージョンが一致していることが重要です。
+- 本リポジトリは CPU 版 `onnxruntime` を依存関係に指定しています。
+- CPU/GPU/DirectML の各パッケージは同じ `onnxruntime` Python モジュールを提供します。同一環境に複数の実装を混在させず、利用する実行プロバイダーに対応したパッケージを選んでください。
+- CUDA 利用時は、使用する ONNX Runtime のバージョンに対応した CUDA/cuDNN の組み合わせを公式互換性表で確認してください。PyTorch との連携も同表の案内に従ってください。
+- DirectML は Sustained Engineering モードです。新しい Windows アプリケーションでは WinML が推奨されています。
+- このリポジトリのバージョンを変更する場合は `pyproject.toml` と `uv.lock` の両方を更新してください（通常は `uv add "onnxruntime==<version>"` が lockfile も更新します）。
 
 ## 2. 推論の基本
 
@@ -105,29 +113,36 @@ quantize_dynamic("model_fp32.onnx", "model_int8.onnx")
 - `onnx_threads` から `intra_op_num_threads` を設定する。
 - `inter_op_num_threads = 1` と `ORT_SEQUENTIAL` で並列過多を避ける。
 - `session.intra_op.allow_spinning = 0` と `session.inter_op.allow_spinning = 0` を設定し、待機時 CPU 負荷を抑制する。
-- Silero 特有の前置コンテキスト（16kHz で 64 サンプル、8kHz で 32 サンプル）を毎ウィンドウに連結する。
+- Silero 特有の前置コンテキスト（16 kHz で 64 サンプル、8 kHz で 32 サンプル）を各ウィンドウに連結する。
 - state 入出力をキャッシュして、次回推論に引き継ぐ。
 
-実装イメージ:
+現行実装の SessionOptions 設定:
 
 ```python
 providers = ["CPUExecutionProvider"]
-so = ort.SessionOptions()
-so.intra_op_num_threads = min(max(0, onnx_threads), 8)  # 0 は自動設定（OS に依存）、1-8 は指定スレッド数、8 を超える値は 8 として扱う
-so.inter_op_num_threads = 1
-so.execution_mode = ort.ExecutionMode.ORT_SEQUENTIAL
-so.add_session_config_entry("session.intra_op.allow_spinning", "0")
-so.add_session_config_entry("session.inter_op.allow_spinning", "0")
+session_options = ort.SessionOptions()
+session_options.intra_op_num_threads = max(1, int(onnx_threads))
+session_options.inter_op_num_threads = 1
+session_options.execution_mode = ort.ExecutionMode.ORT_SEQUENTIAL
+session_options.add_session_config_entry("session.intra_op.allow_spinning", "0")
+session_options.add_session_config_entry("session.inter_op.allow_spinning", "0")
 
-session = ort.InferenceSession(model_path, sess_options=so, providers=providers)
+session = ort.InferenceSession(
+    str(model_path),
+    sess_options=session_options,
+    providers=providers,
+)
 ```
+
+現行の公式 Python API でも、上記の `InferenceSession`、`SessionOptions`、provider 選択、および `session.run()` の基本的な使い方が案内されています。このため、これらの例を ONNX Runtime 1.32.0 向けに変更する必要はありません。将来バージョン固有の変更を行う場合は、実装前にリリースノートと provider の互換性資料を確認してください。
 
 ## 7. トラブルシューティング
 
 - `ImportError` / DLL エラー: インストールしたパッケージ種別（CPU/GPU/DirectML）と環境が一致しているか確認。
-- CUDA 利用時に provider が出ない: `ort.get_available_providers()` で有効 provider を確認。
+- CUDA 利用時に provider が出ない: `ort.get_available_providers()` と `session.get_providers()` で利用可能/有効な provider を確認。
 - Windows + CUDA で DLL 解決失敗: PATH、または `onnxruntime.preload_dlls()` の利用を検討。
 - 想定より CPU 使用率が高い: `intra_op_num_threads` と `allow_spinning` の設定を見直す。
+- 依存関係が反映されない: 仮想環境を有効化して `uv sync` を実行し、使用中の interpreter がプロジェクトの `.venv` であることを確認。
 
 ## 8. 参照先
 
@@ -135,4 +150,6 @@ session = ort.InferenceSession(model_path, sess_options=so, providers=providers)
 - Python API Summary: <https://onnxruntime.ai/docs/api/python/api_summary.html>
 - Execution Providers: <https://onnxruntime.ai/docs/execution-providers/>
 - CUDA EP: <https://onnxruntime.ai/docs/execution-providers/CUDA-ExecutionProvider.html>
+- Compatibility: <https://onnxruntime.ai/docs/reference/compatibility.html>
 - Quantization: <https://onnxruntime.ai/docs/performance/model-optimizations/quantization.html>
+- Release notes: <https://github.com/microsoft/onnxruntime/releases>
