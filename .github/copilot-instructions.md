@@ -43,7 +43,9 @@
 ## 作業開始時の必須手順
 - 変更対象に対応する SKILL を最初に読む。
 - 複数ドメインへ跨る変更では、関連 SKILL をすべて確認してから実装する。
-- Windows でコマンドを手動実行する場合は、最初に `& .\.venv\Scripts\Activate.ps1` を実行する。
+- Windows で PowerShell コマンドを手動実行する場合は、シェル開始時に `& .\.venv\Scripts\Activate.ps1` を実行する。
+- 別の Python 環境へ切り替えた場合、または `Get-Command python` の参照先が `.venv\Scripts\python.exe` でない場合は再度有効化する。
+- ファイル閲覧などコマンド実行を伴わないツールには venv 有効化は不要。
 - Windows の詳細なコマンド手順は `windows-workflow` SKILL を参照する。
 
 ## プロジェクト規約
@@ -72,7 +74,7 @@
 - 命名規約、マネージャー実装、インターフェース契約、各ドメイン仕様は該当 SKILL を参照する。
 
 ## 変更完了時チェック（共通）
-- 変更したファイルに対して `ruff check .` / `mypy .` の影響範囲を確認する。
+- 変更したファイルに対して `ruff check .` / `mypy --explicit-package-bases .` の影響範囲を確認する。
 - 影響範囲に応じて `pytest tests/` もしくは対象テストを実行する。
 - ドキュメント変更を伴う場合は、関連する SKILL / `docs/` の記述整合を確認する。
 - Windows 実行手順に関わる変更では、`windows-workflow` SKILL との矛盾がないことを確認する。

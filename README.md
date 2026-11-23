@@ -38,7 +38,11 @@ Modular Twitch chat bot with translation, TTS, STT, cache, and GUI support. It s
 ### Local Execution
 1) Set the environment variables above.
 2) Run `src/setup_tokens.py` if you haven't already (see Setup section).
-3) From the repo root: `python src/twitchbot.py [--owner OWNER_NAME] [--bot BOT_NAME] [--debug] [--gui|--no-gui]`
+3) Activate the virtual environment and run from the repo root:
+   ```powershell
+   & .\.venv\Scripts\Activate.ps1
+   python src/twitchbot.py [--owner OWNER_NAME] [--bot BOT_NAME] [--debug] [--gui|--no-gui]
+   ```
    If `twitchbot.ini` is already configured, you can run `python src/twitchbot.py` without arguments.
    - `--owner OWNER_NAME` (optional): Twitch channel owner name; overrides `twitchbot.ini`
    - `--bot BOT_NAME` (optional): Bot account name; overrides `twitchbot.ini`
@@ -51,6 +55,7 @@ Modular Twitch chat bot with translation, TTS, STT, cache, and GUI support. It s
 ### Build Executable with PyInstaller
 The `.spec` file is provided; build the EXE from the repo root:
 ```powershell
+& .\.venv\Scripts\Activate.ps1
 pyinstaller twitchbot.spec --clean
 ```
 The output executable will be in the `dist/twitchbot/` directory.
@@ -77,11 +82,13 @@ Key configuration sections in `twitchbot.ini`:
 
 ### Run Tests
 ```powershell
+& .\.venv\Scripts\Activate.ps1
 pytest -q
 ```
 
 For coverage report:
 ```powershell
+& .\.venv\Scripts\Activate.ps1
 coverage run -m pytest tests/ -v
 coverage report
 coverage html  # generates HTML report in htmlcov/
@@ -89,9 +96,10 @@ coverage html  # generates HTML report in htmlcov/
 
 ### Linting and Type Checking
 ```powershell
+& .\.venv\Scripts\Activate.ps1
 ruff check .
 ruff format .
-mypy .
+mypy --explicit-package-bases .
 ```
 
 All settings are configured in [pyproject.toml](pyproject.toml).

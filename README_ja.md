@@ -36,7 +36,11 @@
 ### ローカル実行
 1) 上記の環境変数を設定します。
 2) まだ実行していない場合は `src/setup_tokens.py` を実行します（セットアップセクションを参照）。
-3) リポジトリのルートから実行: `python src/twitchbot.py [--owner OWNER_NAME] [--bot BOT_NAME] [--debug] [--gui|--no-gui]`
+3) 仮想環境を有効化して、リポジトリのルートから実行します：
+   ```powershell
+   & .\.venv\Scripts\Activate.ps1
+   python src/twitchbot.py [--owner OWNER_NAME] [--bot BOT_NAME] [--debug] [--gui|--no-gui]
+   ```
    `twitchbot.ini` を設定済みであれば、引数なしで `python src/twitchbot.py` を実行しても構いません。
    - `--owner OWNER_NAME`（オプション）: Twitch チャンネルオーナー名。`twitchbot.ini` の設定を上書きします
    - `--bot BOT_NAME`（オプション）: ボットアカウント名。`twitchbot.ini` の設定を上書きします
@@ -49,6 +53,7 @@
 ### PyInstaller で実行ファイルをビルド
 `.spec` ファイルが提供されています。リポジトリのルートから EXE をビルドします：
 ```powershell
+& .\.venv\Scripts\Activate.ps1
 pyinstaller twitchbot.spec --clean
 ```
 出力される実行ファイルは `dist/twitchbot/` ディレクトリに生成されます。
@@ -75,11 +80,13 @@ pyinstaller twitchbot.spec --clean
 
 ### テストの実行
 ```powershell
+& .\.venv\Scripts\Activate.ps1
 pytest -q
 ```
 
 カバレッジレポートを生成する場合：
 ```powershell
+& .\.venv\Scripts\Activate.ps1
 coverage run -m pytest tests/ -v
 coverage report
 coverage html  # htmlcov/ に HTML レポートを生成
@@ -87,9 +94,10 @@ coverage html  # htmlcov/ に HTML レポートを生成
 
 ### リントと型チェック
 ```powershell
+& .\.venv\Scripts\Activate.ps1
 ruff check .
 ruff format .
-mypy .
+mypy --explicit-package-bases .
 ```
 
 すべての設定は [pyproject.toml](pyproject.toml) に記述されています。
