@@ -10,7 +10,9 @@ keywords: [windows, powershell, venv, activate, pytest, coverage, pyinstaller, r
 
 ## 1. 最重要ルール（毎回共通）
 
-- すべてのコマンド実行前に、必ず venv を有効化する。
+- 手動で PowerShell コマンドを実行する場合は、シェル開始時に一度 venv を有効化する。
+- 途中で別の Python 実行環境へ切り替えた場合、または `python` の参照先が `.venv\Scripts\python.exe` でない場合は再有効化する。
+- リポジトリルート外でコマンドを実行する場合は、先にリポジトリルートへ移動するか、Activate.ps1 を絶対パスで指定する。
 - 実行シェルは PowerShell を前提とする。
 - venv 未有効化が疑われる場合は、まず有効化を再実行してから再試行する。
 
@@ -31,14 +33,14 @@ Set-Location D:\workspace\twitchbot
 
 ## 3. ローカル実行（Bot 起動）
 
-- Twitch API の環境変数を設定してから `twitchbot.py` を実行する。
+- Twitch API の環境変数を設定してから `src\twitchbot.py` を実行する。
 - トラブルシュート時は `--debug` を付ける。
 
 ```powershell
 & .\.venv\Scripts\Activate.ps1
 $env:TWITCH_API_CLIENT_ID = "<id>"
 $env:TWITCH_API_CLIENT_SECRET = "<secret>"
-python .\twitchbot.py --owner <owner_name> --bot <bot_name> --debug
+python .\src\twitchbot.py --owner <owner_name> --bot <bot_name> --debug
 ```
 
 ## 4. テスト実行（pytest / coverage）
@@ -117,8 +119,13 @@ Get-Command python
 - ツール実行に失敗した場合は、原因を簡単に切り分けたうえで代替手段へ切り替え、再発防止のために使用可否をこのリストへ反映する。
 - 使用不可にリストされているツールは、ツールの動作内容により追加インストールし、使用可能にする可能性があります。
 
-- **使用可**: PowerShell、venv、pytest、coverage、PyInstaller、ruff、mypy
-- **使用不可**: WSL、Conda、Docker、runTests、tail
+- **使用可**: PowerShell、venv、uv、Git、pytest、coverage、PyInstaller、ruff、mypy
+- **使用不可**: bash/Git Bash、WSL、Conda、Docker、runTests、tail
+
+  - 現在の環境では `uv 0.13.9`、`Git 2.53.0.windows.2`、Python 3.14.10 が確認済みです。
+  - Python パッケージツールは `.venv` 内の実行ファイルを優先します。uv はグローバルに存在しますが、依存関係の同期時のみ使用します。
+  - WSL はコマンド自体は存在しますが、有効なディストリビューションが登録されておらず、`wsl --status` は終了コード 50 で失敗しました。
+  - bash、Conda、Docker は現在の PATH から実行できません。`tail` はネイティブの PowerShell コマンドレットではなく、代替として `Get-Content -Wait -Tail` を使用します。
 
 ## 11. 使用不可ツールの代替手段
 
