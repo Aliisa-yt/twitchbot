@@ -67,6 +67,7 @@ TranslateExceptionError
 - `TranslateNonRetriableError`: 恒久的な失敗。該当エンジンを利用不可として、以降そのエンジンへリクエストしません。
 - `TranslateRetriableError`: 一時的な障害の可能性がある分類です。同一要求を即時再送せず、エンジンを利用可能なままにして次の独立したリクエストを許可します。
 - `TranslateExceptionError`: 未分類またはその他の翻訳エラーです。恒久 / 一時の分類やエンジン可用性を暗黙に決めず、上位側の扱いを別途定義します。
+- `QUOTA_UNKNOWN` を含む根拠不足の共通分類は `TranslateExceptionError` とします。quota 超過や rate limit と断定せず、短い rate-limit cooldown で解消したものとも扱いません。
 - `NotSupportedLanguagesError`: 未対応言語が確定したときに使用し、利用者へ明示します。
 
 ### STT のドメイン例外
@@ -82,9 +83,10 @@ STTExceptionError
 - `STTNonRetriableError`: 恒久的な失敗。該当エンジンを利用不可として、以降そのエンジンへリクエストしません。
 - `STTRetriableError`: 一時的な障害の可能性がある分類です。同一セグメントは自動再送せず、エンジンを利用可能なままにして次の独立したリクエストを許可します。
 - `STTExceptionError`: 未分類またはその他の STT エラーです。エラーを握りつぶしたり、根拠なく恒久 / 一時に分類したりしません。
+- `QUOTA_UNKNOWN` を含む根拠不足の共通分類は `STTExceptionError` とします。quota 超過や rate limit と断定せず、短い cooldown やエンジン利用不可を共通分類だけから決めません。
 - `STTNotAvailableError`: 初期化・利用可能状態を表す既存エラーです。API の一時障害を表す `STTRetriableError` とは区別します。
 
-`STTQuotaExceededError` は恒久的なクォータ超過として扱います。`NotSupportedLanguagesError` は Translation の分類です。STT は未対応言語を判定できる API 詳細が確認できない限り、同名の分類を導入しません。
+`STTQuotaExceededError` は詳細から確定した恒久的なクォータ超過に限ります。`NotSupportedLanguagesError` は Translation の分類です。STT は未対応言語を判定できる API 詳細が確認できない限り、同名の分類を導入しません。
 
 ## 4. API status / detail の分類方法
 
@@ -93,14 +95,20 @@ STTExceptionError
 1. `RetryError` は通常の `GoogleAPICallError` と分けて扱い、`.cause` の型・status・API detail を確認する。
 2. transport と API 仕様から HTTP status / gRPC status、および構造化された error detail / reason を取得する。
 3. API が定義する reason を優先して、レート制限、クォータ超過、不正リクエスト、認証・権限、一時障害などへ分類する。
-4. status は分かるが詳細が不足する場合は、下記の標準的な初期分類を適用する。response body の解析自体に失敗した場合や status も不明な場合は、基底ドメイン例外として上位へ返す。
+4. status は分かるが詳細が不足する場合は、下記の標準的な初期分類を適用する。`RESOURCE_EXHAUSTED` は status を識別できても quota の種類が不明なら `QUOTA_UNKNOWN` とする。response body の解析自体に失敗した場合や status も不明な場合は `UNKNOWN` とし、基底ドメイン例外として上位へ返す。
 5. Translation / STT ごとの契約に従ってドメイン例外へ変換する。変換後も原因例外を chain して保持する。
 
-共通分類情報を持つ場合は、たとえば次のような `APIErrorType` と `APIErrorInfo` を用意できます。実際の status / detail の取得方法は API と transport ごとに異なるため、共通クラス内で固定の属性や文章形式を仮定しないでください。
+共通分類情報は、たとえば次のような `APIErrorType` と `APIErrorInfo` で表します。実際の status / detail の取得方法は API と transport ごとに異なるため、共通クラス内で固定の属性や文章形式を仮定しないでください。`QUOTA_UNKNOWN` は quota/resource exhaustion status が識別できるが種類を特定できない場合、`UNKNOWN` は status / detail の取得・解釈に失敗し分類根拠が不足する場合です。
 
 ```python
 from dataclasses import dataclass
 from enum import Enum, auto
+
+
+class APITransport(Enum):
+    HTTP = auto()
+    GRPC = auto()
+    UNKNOWN = auto()
 
 
 class APIErrorType(Enum):
@@ -118,13 +126,17 @@ class APIErrorType(Enum):
 @dataclass(frozen=True, slots=True)
 class APIErrorInfo:
     error_type: APIErrorType
+    transport: APITransport
     http_status: int | None
     grpc_status: str | None
     reason: str | None
-    transient: bool
+    detail_types: tuple[str, ...]
+    retry_after_seconds: float | None
+    retry_after_source: str | None
+    transient: bool | None
 ```
 
-`transient` は次の独立した要求を受け付けられる一時障害かを表す情報であり、自動再試行の指示ではありません。ログに出すためだけの生の例外メッセージや request body はこの情報へ含めず、原因例外自体は例外 chain で保持します。
+`reason` は安全性と安定性を確認できた構造化識別子だけを保持し、`detail_types` も型名などの allowlist 済み識別情報に限ります。任意の detail payload は保持しません。`retry_after_seconds` と `retry_after_source` は実際に取得できた場合だけ設定し、source は `HTTP Retry-After` / `gRPC RetryInfo` などの固定値に限ります。`transient` は次の独立した要求を利用可能なまま扱える根拠がある場合の情報で、根拠不足なら `None` とします。これは自動再試行の指示ではありません。ログに出すためだけの生の例外メッセージや request body はこの情報へ含めず、原因例外自体は例外 chain で保持します。
 
 ### status / detail ごとの初期分類
 
@@ -133,15 +145,18 @@ class APIErrorInfo:
 | HTTP 429 / `TooManyRequests` | `RATE_LIMIT` | `*RateLimitError` / `*RetriableError`。次の独立要求を許可し、取得可能な `Retry-After` を cooldown に反映 |
 | `ResourceExhausted` と一時的レート制限を示す detail | `RATE_LIMIT` | `*RateLimitError` / `*RetriableError` |
 | `ResourceExhausted` と確定可能なクォータ超過 detail | `DAILY_QUOTA` または API 固有の quota 分類 | `*QuotaExceededError` / `*NonRetriableError` |
-| `ResourceExhausted` だが detail から原因を特定できない | `QUOTA_UNKNOWN` | 保守的に `*NonRetriableError`。日次超過と断定せず、短い rate-limit cooldown で解消したものとも扱わない |
-| HTTP 4xx（429 を除く） | API 仕様に従う。該当仕様がなければ恒久的エラー | `*NonRetriableError`。解析不能または Translation の未対応言語を確定できない場合は基底例外 |
+| `ResourceExhausted` だが detail から原因を特定できない | `QUOTA_UNKNOWN` | `*ExceptionError`。日次超過・一時障害のどちらとも断定せず、status だけを根拠に短い cooldown を適用しない |
+| HTTP 4xx（429 を除く） | API 仕様と構造化 detail に従う。曖昧で分類できない場合は `UNKNOWN` | 確定した恒久エラーは `*NonRetriableError`。解析不能または Translation の未対応言語を確定できない場合は基底例外 |
 | HTTP 5xx、`ServiceUnavailable`、`InternalServerError` | `SERVICE_UNAVAILABLE` など一時障害 | `*RetriableError`。エンジンを利用可能なままにし、同一要求は即時再送しない |
 | `DeadlineExceeded` | `TIMEOUT` | API の意味と操作の冪等性に従い一時障害として扱う。副作用のある操作は結果不明の可能性も考慮 |
 | `BadRequest` | `INVALID_REQUEST` 等 | Translation は次項に従って未対応言語かを別途判定 |
-| HTTP 401 / 403 | `AUTHENTICATION` / `PERMISSION_DENIED`。明示的な quota reason があれば quota 分類 | API 固有仕様に従い恒久エラーとして扱う |
+| HTTP 401 | `AUTHENTICATION` | API 固有仕様に従い恒久エラーとして扱う |
+| HTTP 403 | 構造化 detail と API 固有仕様に従う。Translation v2 で quota / permission を区別できない場合は `UNKNOWN` | 根拠不足なら基底ドメイン例外。quota / permission のどちらかを status だけで断定しない |
 | status / detail を特定できない | `UNKNOWN` | `TranslateExceptionError` / `STTExceptionError`。恒久 / 一時や可用性を推測しない |
 
 HTTP / gRPC の表現は SDK により同じ例外クラスへ写像される場合があります。特に `ResourceExhausted` と `TooManyRequests` を分ける際は transport と status を確認してください。API 仕様により上の初期分類と異なる根拠が得られた場合は、その根拠を優先します。
+
+Cloud Translation v2 は quota 超過にも HTTP 403 を使う一方、調査時点で安定した構造化 detail による quota / permission の区別は確認できていません。構造化 detail 等の根拠がない 403 は `UNKNOWN` とし、エラーメッセージの部分文字列から quota を推定しません。
 
 ### Translation `BadRequest` と未対応言語
 
@@ -162,6 +177,13 @@ STT は配信時のリアルタイム処理です。同一音声セグメント�
 - プロセッサは失敗したセグメントを再送せず、次のセグメント処理へ進みます。一時音声ファイルの cleanup は成功・失敗に関わらず行います。
 - `STTRetriableError` は同一要求の再送を意味しません。エンジンを利用可能なままにし、次の独立した要求を受け付ける分類です。
 - 失敗した音声を再送するかどうかはユーザーに委ねます。再認識が必要な場合は、ユーザーが発話をやり直します。
+
+### STT 同期認識の `ResourceExhausted`
+
+- 同期 `recognize()` の `ResourceExhausted` は、detail が明示的な rate limit を示す場合に限り `RATE_LIMIT` とします。quota の種類が不明なら `QUOTA_UNKNOWN` とし、想定するライブ認識量だけを根拠に一律で分単位 rate limit としたり、最低 cooldown を設定したりしません。
+- quota 超過を確定できる構造化 detail があれば `STTQuotaExceededError` へ変換します。種類を特定できない場合は `STTExceptionError` とし、恒久 quota とも一時 rate limit とも断定しません。
+- `RetryInfo` / `Retry-After` が取得できる場合は、値と取得元を安全な共通情報として保持します。これだけを根拠に同一要求の自動再送や恒久 / 一時分類を決めず、明示された API 契約に従って次の独立要求を扱います。取得不能な場合に任意の固定 cooldown を補いません。
+- API version / operation、transport、status、取得できた安全な reason / detail type、待機情報の値と取得元など、原因調査に必要な最小情報を記録します。quota上限や error detail の扱いは変更され得るため、`ResourceExhausted` が多発した場合はログと最新の公式資料に基づき、分類・cooldown・SDK retry 方針を再評価します。リクエスト本文、音声、認識結果、資格情報、token、生の例外メッセージは記録しません。
 
 ## 6. Translation の rate limit
 
@@ -185,6 +207,7 @@ STT は配信時のリアルタイム処理です。同一音声セグメント�
 - Google Cloud SDK / REST の例外を API status と error detail に基づいて分類し、適切な Translation / STT ドメイン例外へ変換する。
 - Translation の `BadRequest` を一律未対応言語とせず、detail に基づいて判定する。
 - `ResourceExhausted` と HTTP 429 / `Retry-After` を区別し、次の独立要求の cooldown / 可用性を分類どおりに扱う。
+- STT 同期認識の `ResourceExhausted` は、構造化 detail に基づいて分類する。quota の種類が不明な場合は `QUOTA_UNKNOWN` / `STTExceptionError` とし、status や想定 workload だけから rate limit、固定 cooldown、恒久 quota を推測しない。
 - `STTProcessor` に同一セグメントの retry loop を設けず、失敗後も次のキュー項目を処理し、一時音声ファイルを cleanup する。
 - SDK 内部 retry / timeout の値が、API の仕様とリアルタイム要件に矛盾しないことを確認する。
 - 未分類エラーを握りつぶさず、根拠のない恒久 / 一時分類や再試行を行わない。
@@ -198,7 +221,7 @@ STT は配信時のリアルタイム処理です。同一音声セグメント�
 2. **SDK policy / timeout 値:** Speech の `recognize` と recognizer 管理 API ごとの SDK 既定値、およびリアルタイム要件を満たす明示値。
 3. **`ExceptionError` の可用性:** detail が不足し恒久 / 一時を確定できない `TranslateExceptionError` / `STTExceptionError` を、該当エンジンの可用性へどう反映するか。
 4. **操作固有の `NotFound` / `AlreadyExists` / `Cancelled`:** Speech recognizer の取得・作成・認識それぞれで、正常系、設定エラー、キャンセルのどれに該当するか。
-5. **`Retry-After` の伝達:** 使用する SDK / REST transport から値を安全に取得できるか、次の独立リクエストをどの層で待機・抑制するか。
+5. **`Retry-After` の伝達:** 使用する SDK / REST transport から値を安全に取得できるか、取得元と数値を共通情報へ保持できるかを確認する。値が取得できない場合に固定 cooldown を補わず、特に `QUOTA_UNKNOWN` を status や workload だけで rate limit と扱わない。
 6. **Translation `BadRequest`:** API が返す具体的な詳細から未対応言語を確実に特定できる条件。
 
 ## 10. ログとプライバシー
@@ -224,8 +247,8 @@ class GoogleAPIErrorHandler:
 
 - `get_transport_status` / `get_structured_details` は対象 API と transport の仕様に合わせて実装します。全 API に共通する `.errors`、`.details`、`.error_info` 属性があると仮定しません。
 - まず構造化された reason / detail を確認します。例外メッセージの部分文字列検索は不安定なため、API が安定した形式を保証し、その対応表を検証できる場合に限り補助として使います。汎用的な単語一致だけで日次クォータとレート制限を断定しません。
-- `ResourceExhausted` の原因が不明なら `QUOTA_UNKNOWN` とし、恒久的なクォータ超過と断定しません。ただし Translation / STT の運用契約では保守的に `*NonRetriableError` とし、短い cooldown で回復した扱いにしません。
-- `HTTP 429` は `RATE_LIMIT` とします。`HTTP 403` は明示的な quota detail がなければ `PERMISSION_DENIED` とします。
+- `ResourceExhausted` の原因が不明なら `QUOTA_UNKNOWN` とし、`TranslateExceptionError` / `STTExceptionError` で上位へ返します。恒久的なクォータ超過とも一時的 rate limit とも断定せず、status だけを根拠に短い cooldown を適用しません。
+- `HTTP 429` は `RATE_LIMIT` とします。`HTTP 403` は API 固有の構造化 detail に従い、Translation v2 のように quota / permission を区別できない場合は `UNKNOWN` とします。
 - `BadRequest` の共通分類は不正リクエストまでです。Translation の未対応言語判定は Translation 固有の変換処理で行います。
 - 分類結果の `transient` は一時障害の情報です。アプリ側の同一要求 retry や SDK の retry policy を有効化するフラグとして使いません。
 - `APIErrorInfo` に request body、音声、認証情報、生の例外メッセージを格納・出力しません。原因例外は `raise ... from exc` などで保持し、必要な安全な属性だけを記録します。
@@ -236,17 +259,18 @@ class GoogleAPIErrorHandler:
 |---|---|---|
 | Translation: API detail が一時 rate limit を示す | `RATE_LIMIT` | True |
 | Translation: API detail が日次 quota 超過を示す | `DAILY_QUOTA` | False |
-| Speech: `RESOURCE_EXHAUSTED` だが quota の詳細不明 | `QUOTA_UNKNOWN` | False |
+| Speech: `RESOURCE_EXHAUSTED` だが quota の詳細不明 | `QUOTA_UNKNOWN` | None |
 | HTTP 400 `BadRequest` | `INVALID_REQUEST` | False |
-| HTTP 403 Permission Denied（quota detail なし） | `PERMISSION_DENIED` | False |
+| Translation v2: HTTP 403 で quota / permission の構造化 detail なし | `UNKNOWN` | None |
 | HTTP 429 `TooManyRequests` | `RATE_LIMIT` | True |
 | HTTP 503 `ServiceUnavailable` | `SERVICE_UNAVAILABLE` | True |
 | `DeadlineExceeded` | `TIMEOUT` | True |
 
-この表の `transient=True` は、同一要求を自動再送する意味ではありません。次の独立した要求に対してエンジンを利用可能なままにできるかを示す分類情報です。
+この表の `transient=True` は、同一要求を自動再送する意味ではありません。次の独立した要求に対してエンジンを利用可能なままにできる根拠があることを示します。`None` は一時 / 恒久の根拠不足を表します。
 
 ## 12. 参考資料
 
 - [google-api-core Exceptions](https://googleapis.dev/python/google-api-core/latest/exceptions.html)
+- [google-api-core Exceptions fork先](https://github.com/googleapis/google-cloud-python)
 - [Cloud Speech-to-Text エラーメッセージ](https://docs.cloud.google.com/speech-to-text/docs/v1/error-messages)
 - [Cloud Translation クォータ](https://docs.cloud.google.com/translate/quotas)
