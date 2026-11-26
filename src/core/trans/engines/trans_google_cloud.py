@@ -11,8 +11,6 @@ from google.api_core.exceptions import (
     BadRequest,
     GoogleAPIError,
     PermissionDenied,
-    ResourceExhausted,
-    TooManyRequests,
     Unauthenticated,
     Unauthorized,
 )
@@ -20,12 +18,16 @@ from google.auth.credentials import AnonymousCredentials
 from google.auth.transport.requests import AuthorizedSession
 from google.cloud import translate_v2 as translate
 
+from core.google_api_errors import APIErrorType, classify_google_api_error
 from core.trans.trans_interface import (
     EngineAttributes,
     NotSupportedLanguagesError,
     Result,
     TransInterface,
     TranslateExceptionError,
+    TranslateNonRetriableError,
+    TranslateRetriableError,
+    TranslationQuotaExceededError,
     TranslationRateLimitError,
 )
 from models.translation_models import CharacterQuota
@@ -84,6 +86,7 @@ class GoogleCloudTranslation(TransInterface):
         """Initialize the Google Cloud Translation engine."""
         super().__init__()
         self.__inst: translate.Client | None = None
+        self.__available = True
 
     @property
     def _inst(self) -> translate.Client:
@@ -128,7 +131,7 @@ class GoogleCloudTranslation(TransInterface):
     @property
     @override
     def is_available(self) -> bool:
-        return True
+        return self.__available
 
     @staticmethod
     @override
@@ -200,6 +203,41 @@ class GoogleCloudTranslation(TransInterface):
             msg = f"Failed to initialize Google Cloud Translation client: {err}"
             raise RuntimeError(msg) from err
 
+    def _convert_google_error(self, err: Exception, context: str) -> TranslateExceptionError:  # noqa: PLR0911
+        """Convert a Google API exception to the translation domain exception hierarchy."""
+        info = classify_google_api_error(err)
+        reason_upper = info.reason.upper() if info.reason else ""
+
+        if isinstance(err, BadRequest):
+            unsupported_markers = (
+                "UNSUPPORTED_LANGUAGE",
+                "SOURCE_LANGUAGE_NOT_SUPPORTED",
+                "TARGET_LANGUAGE_NOT_SUPPORTED",
+            )
+            if any(marker in reason_upper for marker in unsupported_markers):
+                return NotSupportedLanguagesError(f"{context}: unsupported language")
+            return TranslateNonRetriableError(f"{context}: invalid request")
+
+        if info.error_type == APIErrorType.RATE_LIMIT:
+            return TranslationRateLimitError(f"{context}: rate limited", info.retry_after_seconds)
+        if info.error_type == APIErrorType.DAILY_QUOTA:
+            self.__available = False
+            return TranslationQuotaExceededError(f"{context}: quota exceeded")
+        if info.error_type in {
+            APIErrorType.SERVICE_UNAVAILABLE,
+            APIErrorType.TIMEOUT,
+        }:
+            return TranslateRetriableError(f"{context}: temporary API failure")
+        if info.error_type in {
+            APIErrorType.AUTHENTICATION,
+            APIErrorType.PERMISSION_DENIED,
+        }:
+            self.__available = False
+            return TranslateNonRetriableError(f"{context}: authentication or permission failure")
+        if info.error_type == APIErrorType.INVALID_REQUEST:
+            return TranslateNonRetriableError(f"{context}: invalid request")
+        return TranslateExceptionError(f"{context}: unknown API failure")
+
     def _create_api_key_session(self, api_key: str) -> APIKeySession:
         """Create a custom HTTP session that adds API key to all requests.
 
@@ -234,16 +272,12 @@ class GoogleCloudTranslation(TransInterface):
         try:
             detection = await asyncio.to_thread(self._inst.detect_language, content)
             logger.debug("Language detection result: %s", detection)
-        except (TooManyRequests, ResourceExhausted) as err:
-            logger.error("Google API rate limit during language detection: %s", err)
-            msg = f"Language detection rate limited: {err}"
-            raise TranslationRateLimitError(msg) from err
         except GoogleAPIError as err:
-            logger.error("Google API error during language detection: %s", err)
-            msg = f"Language detection failed: {err}"
-            raise TranslateExceptionError(msg) from err
+            logger.error("Google API error during language detection (%s)", type(err).__name__)
+            domain_error = self._convert_google_error(err, "Language detection")
+            raise domain_error from err
         except Exception:
-            logger.exception("Unexpected non-Google error during language detection: %s", content[:50])
+            logger.exception("Unexpected non-Google error during language detection")
             raise
         else:
             detected_lang = detection["language"].lower()
@@ -284,20 +318,12 @@ class GoogleCloudTranslation(TransInterface):
             translation_result = await asyncio.to_thread(
                 self._inst.translate, content, target_language=tgt_lang, format_="text", source_language=src_lang
             )
-        except BadRequest as err:
-            logger.error("Invalid language code: %s", err)
-            msg = f"Unsupported language pair (src: '{src_lang}', tgt: '{tgt_lang}'): {err}"
-            raise NotSupportedLanguagesError(msg) from err
-        except (TooManyRequests, ResourceExhausted) as err:
-            logger.error("Google API rate limit during translation: %s", err)
-            msg = f"Translation rate limited: {err}"
-            raise TranslationRateLimitError(msg) from err
         except GoogleAPIError as err:
-            logger.error("Google API error during translation: %s", err)
-            msg = f"Translation failed: {err}"
-            raise TranslateExceptionError(msg) from err
+            logger.error("Google API error during translation (%s)", type(err).__name__)
+            domain_error = self._convert_google_error(err, "Translation")
+            raise domain_error from err
         except Exception:
-            logger.exception("Unexpected non-Google error during translation: %s", content[:50])
+            logger.exception("Unexpected non-Google error during translation")
             raise
         else:
             translated_text = translation_result["translatedText"]

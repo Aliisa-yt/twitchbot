@@ -17,6 +17,8 @@ __all__: list[str] = [
     "Result",
     "TransInterface",
     "TranslateExceptionError",
+    "TranslateNonRetriableError",
+    "TranslateRetriableError",
     "TranslationQuotaExceededError",
     "TranslationRateLimitError",
 ]
@@ -77,16 +79,28 @@ class TranslateExceptionError(Exception):
     """An error occurred during the translation process."""
 
 
-class NotSupportedLanguagesError(TranslateExceptionError):
+class TranslateNonRetriableError(TranslateExceptionError):
+    """A permanent translation failure."""
+
+
+class TranslateRetriableError(TranslateExceptionError):
+    """A temporary translation failure; the next independent request may be tried."""
+
+
+class NotSupportedLanguagesError(TranslateNonRetriableError):
     """An unsupported language code was specified."""
 
 
-class TranslationQuotaExceededError(TranslateExceptionError):
+class TranslationQuotaExceededError(TranslateNonRetriableError):
     """The translatable character quota has been exceeded."""
 
 
-class TranslationRateLimitError(TranslateExceptionError):
+class TranslationRateLimitError(TranslateRetriableError):
     """The translation request was rate-limited by the API."""
+
+    def __init__(self, message: str, retry_after_seconds: float | None = None) -> None:
+        super().__init__(message)
+        self.retry_after_seconds = retry_after_seconds
 
 
 class TransInterface(ABC):

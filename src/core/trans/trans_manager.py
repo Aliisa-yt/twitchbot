@@ -19,7 +19,9 @@ from core.trans.trans_interface import (
     Result,
     TransInterface,
     TranslateExceptionError,
+    TranslateNonRetriableError,
     TranslationQuotaExceededError,
+    TranslationRateLimitError,
 )
 from models.cache_models import TranslationCacheEntry
 from models.re_models import ONE_LANGUAGE_DESIGNATION_PATTERN, TWO_LANGUAGE_DESIGNATIONS_PATTERN
@@ -230,7 +232,7 @@ class TransManager:
             return True
         return False
 
-    def _register_rate_limit(self) -> None:
+    def _register_rate_limit(self, retry_after_seconds: float | None = None) -> None:
         """Register a rate-limit event and update the cooldown period accordingly."""
         if not ADAPTIVE_LIMITER_ENABLED:
             return
@@ -244,6 +246,8 @@ class TransManager:
 
         backoff: float = ADAPTIVE_LIMITER_BASE_COOLDOWN_SEC * (2 ** (self._rate_limit_error_count - 1))
         backoff = min(backoff, ADAPTIVE_LIMITER_MAX_COOLDOWN_SEC)
+        if retry_after_seconds is not None:
+            backoff = max(backoff, retry_after_seconds)
 
         self._rate_limit_until = max(self._rate_limit_until, now + backoff)
 
@@ -264,12 +268,13 @@ class TransManager:
             return False
 
         if is_rate_limited:
-            self._register_rate_limit()
+            retry_after_seconds = err.retry_after_seconds if isinstance(err, TranslationRateLimitError) else None
+            self._register_rate_limit(retry_after_seconds)
             logger.warning("Translation rate limit detected: %s", err)
             return True
         return False
 
-    async def detect_language(self, trans_info: TranslationInfo) -> bool:  # noqa: C901, PLR0911
+    async def detect_language(self, trans_info: TranslationInfo) -> bool:  # noqa: C901, PLR0911, PLR0912
         """Detect the language of the content and set language information.
 
         This method uses the active translation engine to detect the language of the content.
@@ -304,9 +309,14 @@ class TransManager:
             )
         except TranslationQuotaExceededError as err:
             logger.error("Translation quota exceeded: %s", err)
+            self.refresh_active_engine_list()
             return False
         except NotSupportedLanguagesError as err:
             logger.error("Language detection failed: %s", err)
+            return False
+        except TranslateNonRetriableError as err:
+            logger.error("Language detection permanent failure: %s", err)
+            self.refresh_active_engine_list()
             return False
         except TranslateExceptionError as err:
             if not self._handle_rate_limit_error(trans_info, err):
@@ -443,6 +453,7 @@ class TransManager:
         """
         if isinstance(err, TranslationQuotaExceededError):
             logger.error("%s quota exceeded: %s", context, err)
+            self.refresh_active_engine_list()
         elif isinstance(err, NotSupportedLanguagesError):
             logger.error(
                 "%s unsupported language pair (src: '%s', tgt: '%s'): %s",
@@ -451,6 +462,9 @@ class TransManager:
                 trans_info.tgt_lang,
                 err,
             )
+        elif isinstance(err, TranslateNonRetriableError):
+            logger.error("%s permanent failure: %s", context, err)
+            self.refresh_active_engine_list()
         elif isinstance(err, TranslateExceptionError):
             if not self._handle_rate_limit_error(trans_info, err):
                 logger.error("%s failed: %s", context, err)
