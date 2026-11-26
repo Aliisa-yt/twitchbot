@@ -1,5 +1,6 @@
 """Unit tests for core.trans.trans_manager module."""
 
+import time
 from datetime import UTC, datetime
 from types import SimpleNamespace
 from typing import TYPE_CHECKING, ClassVar, cast, override
@@ -253,6 +254,21 @@ async def test_detect_language_handles_rate_limit_error(config: Config) -> None:
 
     assert result is False
     assert manager._rate_limit_until > 0  # noqa: SLF001
+
+
+@pytest.mark.asyncio
+async def test_detect_language_rate_limit_retry_after_extends_cooldown(config: Config) -> None:
+    DummyEngine.detect_error = TranslationRateLimitError("rate limit", retry_after_seconds=12.0)
+    manager = TransManager(config)
+    await manager.initialize()
+    trans_info = TranslationInfo(content="hello")
+    trans_info.engine = manager.current_engine_instance
+
+    result: bool = await manager.detect_language(trans_info)
+
+    assert result is False
+    remaining = manager._rate_limit_until - time.monotonic()  # noqa: SLF001
+    assert remaining >= 11.0
 
 
 @pytest.mark.asyncio
