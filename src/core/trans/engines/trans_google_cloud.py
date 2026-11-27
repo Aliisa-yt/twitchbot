@@ -18,7 +18,6 @@ from google.auth.credentials import AnonymousCredentials
 from google.auth.transport.requests import AuthorizedSession
 from google.cloud import translate_v2 as translate
 
-from core.google_api_errors import APIErrorType, classify_google_api_error
 from core.trans.trans_interface import (
     EngineAttributes,
     NotSupportedLanguagesError,
@@ -31,6 +30,7 @@ from core.trans.trans_interface import (
     TranslationRateLimitError,
 )
 from models.translation_models import CharacterQuota
+from utils.google_api_errors import APIErrorInfo, APIErrorType, classify_google_api_error
 from utils.logger_utils import LoggerUtils
 
 if TYPE_CHECKING:
@@ -205,7 +205,7 @@ class GoogleCloudTranslation(TransInterface):
 
     def _convert_google_error(self, err: Exception, context: str) -> TranslateExceptionError:  # noqa: PLR0911
         """Convert a Google API exception to the translation domain exception hierarchy."""
-        info = classify_google_api_error(err)
+        info: APIErrorInfo = classify_google_api_error(err)
         reason_upper = info.reason.upper() if info.reason else ""
 
         if isinstance(err, BadRequest):
@@ -274,7 +274,7 @@ class GoogleCloudTranslation(TransInterface):
             logger.debug("Language detection result: %s", detection)
         except GoogleAPIError as err:
             logger.error("Google API error during language detection (%s)", type(err).__name__)
-            domain_error = self._convert_google_error(err, "Language detection")
+            domain_error: TranslateExceptionError = self._convert_google_error(err, "Language detection")
             raise domain_error from err
         except Exception:
             logger.exception("Unexpected non-Google error during language detection")
@@ -320,7 +320,7 @@ class GoogleCloudTranslation(TransInterface):
             )
         except GoogleAPIError as err:
             logger.error("Google API error during translation (%s)", type(err).__name__)
-            domain_error = self._convert_google_error(err, "Translation")
+            domain_error: TranslateExceptionError = self._convert_google_error(err, "Translation")
             raise domain_error from err
         except Exception:
             logger.exception("Unexpected non-Google error during translation")

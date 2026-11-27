@@ -13,7 +13,10 @@ from core.stt.stt_interface import (
     STTInterface,
     STTNonRetriableError,
     STTNotAvailableError,
+    STTQuotaExceededError,
+    STTRateLimitError,
     STTResult,
+    STTRetriableError,
 )
 from core.stt.stt_manager import STTManager
 
@@ -25,8 +28,11 @@ __all__: list[str] = [
     "STTNonRetriableError",
     "STTNotAvailableError",
     "STTProcessor",
+    "STTQuotaExceededError",
+    "STTRateLimitError",
     "STTRecorder",
     "STTResult",
+    "STTRetriableError",
     "STTSegment",
     "SegmentMode",
 ]

@@ -8,6 +8,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, ClassVar
 
+from utils.google_api_errors import APIErrorInfo, APIErrorType, classify_google_api_error
 from utils.logger_utils import LoggerUtils
 
 if TYPE_CHECKING:
@@ -22,7 +23,10 @@ __all__: list[str] = [
     "STTInterface",
     "STTNonRetriableError",
     "STTNotAvailableError",
+    "STTQuotaExceededError",
+    "STTRateLimitError",
     "STTResult",
+    "STTRetriableError",
 ]
 
 logger: logging.Logger = LoggerUtils.get_logger(__name__)
@@ -72,6 +76,41 @@ class STTNotAvailableError(STTExceptionError):
 
 class STTNonRetriableError(STTExceptionError):
     """Raised when retrying an STT request is not expected to recover."""
+
+
+class STTRetriableError(STTExceptionError):
+    """Raised for a transient STT failure without retrying the same segment."""
+
+
+class STTQuotaExceededError(STTNonRetriableError):
+    """Raised when Google Cloud STT quota exhaustion is confirmed."""
+
+
+class STTRateLimitError(STTRetriableError):
+    """Raised for a confirmed transient Google Cloud STT rate limit."""
+
+
+def convert_google_stt_error(err: Exception) -> STTExceptionError:
+    """Convert a Google API exception into the STT domain exception hierarchy."""
+    info: APIErrorInfo = classify_google_api_error(err)
+    detail = (
+        f"type={type(err).__name__}, transport={info.transport.name.lower()}, "
+        f"http_status={info.http_status}, grpc_status={info.grpc_status}"
+    )
+
+    if info.error_type == APIErrorType.RATE_LIMIT:
+        return STTRateLimitError(detail)
+    if info.error_type == APIErrorType.DAILY_QUOTA:
+        return STTQuotaExceededError(detail)
+    if info.error_type in {
+        APIErrorType.INVALID_REQUEST,
+        APIErrorType.AUTHENTICATION,
+        APIErrorType.PERMISSION_DENIED,
+    }:
+        return STTNonRetriableError(detail)
+    if info.error_type in {APIErrorType.SERVICE_UNAVAILABLE, APIErrorType.TIMEOUT}:
+        return STTRetriableError(detail)
+    return STTExceptionError(detail)
 
 
 class STTInterface(ABC):
