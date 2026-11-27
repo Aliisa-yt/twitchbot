@@ -23,9 +23,6 @@ __all__: list[str] = [
     "TranslationRateLimitError",
 ]
 
-# logger: logging.Logger = LoggerUtils.get_logger(__name__)
-# logger.addHandler(logging.NullHandler())
-
 
 @dataclass
 class EngineAttributes:
@@ -100,7 +97,7 @@ class TranslationRateLimitError(TranslateRetriableError):
 
     def __init__(self, message: str, retry_after_seconds: float | None = None) -> None:
         super().__init__(message)
-        self.retry_after_seconds = retry_after_seconds
+        self.retry_after_seconds: float | None = retry_after_seconds
 
 
 class TransInterface(ABC):
