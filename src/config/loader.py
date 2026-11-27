@@ -424,8 +424,6 @@ class ConfigLoader:
             # STT
             _NumericRule("STT.SAMPLE_RATE", lambda: stt.SAMPLE_RATE, 8000, condition=is_stt_enabled),
             _NumericRule("STT.CHANNELS", lambda: stt.CHANNELS, 1, condition=is_stt_enabled),
-            _NumericRule("STT.RETRY_MAX", lambda: stt.RETRY_MAX, 0, condition=is_stt_enabled),
-            _NumericRule("STT.RETRY_BACKOFF_MS", lambda: stt.RETRY_BACKOFF_MS, 0, condition=is_stt_enabled),
             _RequiredNotEmptyRule("STT.INPUT_DEVICE", lambda: stt.INPUT_DEVICE, condition=is_stt_enabled),
             _RequiredNotEmptyRule("STT.LANGUAGE", lambda: stt.LANGUAGE, condition=is_stt_enabled),
             # VAD

@@ -384,11 +384,10 @@ def test_stt_enabled_silero_with_empty_model_path_raises_config_value_error(tmp_
         ConfigLoader(config_filename=str(ini_path), script_name="test")
 
 
-@pytest.mark.parametrize(("retry_max", "retry_backoff_ms"), [(0, 0), (1, 100)])
-def test_stt_retry_boundary_values_do_not_raise(tmp_path: Path, retry_max: int, retry_backoff_ms: int) -> None:
+def test_stt_legacy_retry_settings_are_ignored(tmp_path: Path) -> None:
     ini_path: Path = _write_ini(
         tmp_path,
-        f"""
+        """
         [TWITCH]
         OWNER_NAME = "owner1"
 
@@ -404,8 +403,8 @@ def test_stt_retry_boundary_values_do_not_raise(tmp_path: Path, retry_max: int, 
         ENGINE = "google_cloud_stt"
         INPUT_DEVICE = "default"
         LANGUAGE = "ja-JP"
-        RETRY_MAX = {retry_max}
-        RETRY_BACKOFF_MS = {retry_backoff_ms}
+        RETRY_MAX = not-an-integer
+        RETRY_BACKOFF_MS = not-an-integer
 
         [VAD]
         MODE = "level"
@@ -413,39 +412,6 @@ def test_stt_retry_boundary_values_do_not_raise(tmp_path: Path, retry_max: int, 
     )
 
     loader = ConfigLoader(config_filename=str(ini_path), script_name="test")
-    assert retry_max == loader.config.STT.RETRY_MAX
-    assert retry_backoff_ms == loader.config.STT.RETRY_BACKOFF_MS
-
-
-@pytest.mark.parametrize(("retry_max", "retry_backoff_ms"), [(-1, 0), (0, -1)])
-def test_stt_negative_retry_values_raise_config_value_error(
-    tmp_path: Path, retry_max: int, retry_backoff_ms: int
-) -> None:
-    ini_path: Path = _write_ini(
-        tmp_path,
-        f"""
-        [TWITCH]
-        OWNER_NAME = "owner1"
-
-        [BOT]
-        BOT_NAME = "bot1"
-        COLOR = "blue"
-
-        [TRANSLATION]
-        ENGINE = ["google"]
-
-        [STT]
-        ENABLED = True
-        ENGINE = "google_cloud_stt"
-        INPUT_DEVICE = "default"
-        LANGUAGE = "ja-JP"
-        RETRY_MAX = {retry_max}
-        RETRY_BACKOFF_MS = {retry_backoff_ms}
-
-        [VAD]
-        MODE = "level"
-        """,
-    )
-
-    with pytest.raises(ConfigValueError):
-        ConfigLoader(config_filename=str(ini_path), script_name="test")
+    assert loader.config.STT.ENABLED is True
+    assert not hasattr(loader.config.STT, "RETRY_MAX")
+    assert not hasattr(loader.config.STT, "RETRY_BACKOFF_MS")

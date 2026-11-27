@@ -113,8 +113,6 @@ Section names and keys are recommended to be uppercase. Lines starting with `#` 
 | LANGUAGE | str | STT language locale (for example `ja-JP`). |
 | INTERIM_RESULT | bool | `True`: Uses interim/partial recognition results where supported.<br>`False`: Final results only. |
 | FORWARD_TO_TTS | bool / None | Controls whether STT results are forwarded to TTS. `None` uses internal default behavior. |
-| RETRY_MAX | int | Maximum retry attempts for STT initialization/reconnect flow. |
-| RETRY_BACKOFF_MS | int | Backoff time (ms) between retries. |
 | GOOGLE_CLOUD_STT_V2_LOCATION | str | Google Cloud STT v2 location (for example `global`). |
 | GOOGLE_CLOUD_STT_V2_MODEL | str | Google Cloud STT v2 recognition model. |
 | GOOGLE_CLOUD_STT_V2_RECOGNIZER | str | Google Cloud STT v2 recognizer resource shortcut. |

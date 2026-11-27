@@ -23,6 +23,7 @@ files: ./config/loader.py
 - 読み込み後、次の順で処理する。
 	- Config のデフォルト値を初期化。
 	- INI に存在するキーのみ上書き（未定義キーは既定値を維持）。
+	- Config モデルに存在しない INI キーは無視し、旧設定との互換性を保つ。
 	- CAST から VOICE_PARAMETERS を自動構築。
 	- CLI 引数 override を適用（owner, bot, debug）。
 	- 最終バリデーションを実行。
@@ -95,8 +96,6 @@ files: ./config/loader.py
 	- LEVELS_VAD.START >= LEVELS_VAD.STOP（VAD.MODE=level のとき）
 	- SILERO_VAD.THRESHOLD は 0.0 から 1.0（VAD.MODE=silero_onnx のとき）
 	- SILERO_VAD.ONNX_THREADS は 0 から 8（VAD.MODE=silero_onnx のとき）
-	- RETRY_MAX >= 0
-	- RETRY_BACKOFF_MS >= 0
 - 違反は ConfigValueError。
 
 ## 7. 例外・警告方針

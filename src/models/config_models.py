@@ -183,8 +183,6 @@ class STT:
     LANGUAGE: str = "ja-JP"
     INTERIM_RESULT: bool = False  # Unused configuration items.
     FORWARD_TO_TTS: bool | None = None
-    RETRY_MAX: int = 3
-    RETRY_BACKOFF_MS: int = 500
     GOOGLE_CLOUD_STT_V2_LOCATION: str = ""
     GOOGLE_CLOUD_STT_V2_MODEL: str = ""
     GOOGLE_CLOUD_STT_V2_RECOGNIZER: str = ""

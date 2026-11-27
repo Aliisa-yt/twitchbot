@@ -112,8 +112,6 @@
 | MUTE | bool | `True`: STT 入力をミュートします。<br>`False`: 通常キャプチャします。 |
 | LANGUAGE | str | STT 言語ロケール（例: `ja-JP`）。 |
 | FORWARD_TO_TTS | bool / None | STT 結果を TTS へ転送するかを制御します。`None` は内部既定動作を使います。 |
-| RETRY_MAX | int | STT 初期化/再接続時の最大再試行回数。 |
-| RETRY_BACKOFF_MS | int | 再試行間隔のバックオフ時間（ミリ秒）。 |
 | GOOGLE_CLOUD_STT_V2_LOCATION | str | Google Cloud STT v2 のロケーション（例: `global`）。 |
 | GOOGLE_CLOUD_STT_V2_MODEL | str | Google Cloud STT v2 の認識モデル名。 |
 | GOOGLE_CLOUD_STT_V2_RECOGNIZER | str | Google Cloud STT v2 の recognizer 指定用ショートカット。 |
