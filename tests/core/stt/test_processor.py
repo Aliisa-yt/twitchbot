@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, call, patch
 
 import pytest
 
@@ -58,8 +58,6 @@ class TestProcessorOptions:
     def test_defaults(self) -> None:
         opts = ProcessorOptions()
         assert opts.language == "ja-JP"
-        assert opts.retry_max == 3
-        assert opts.retry_backoff_ms == 500
 
 
 # ---------------------------------------------------------------------------
@@ -100,6 +98,38 @@ class TestSTTProcessorRun:
         await processor.run()
 
         assert processed == [segment]
+
+    async def test_run_continues_to_next_segment_after_transcription_failure(self, tmp_path: Path) -> None:
+        queue: asyncio.Queue[STTSegment] = asyncio.Queue()
+        event = asyncio.Event()
+        failed_segment = _make_segment(tmp_path / "failed.pcm")
+        successful_segment = _make_segment(tmp_path / "successful.pcm")
+        await queue.put(failed_segment)
+        await queue.put(successful_segment)
+        result = STTResult(text="hello", language="ja-JP")
+
+        async def stop_after_result(_result: STTResult) -> None:
+            event.set()
+
+        processor = STTProcessor(
+            queue,
+            event,
+            _make_engine(),
+            ProcessorOptions(),
+            stop_after_result,
+        )
+
+        with (
+            patch(
+                "asyncio.to_thread",
+                new=AsyncMock(side_effect=[STTExceptionError("temporary failure"), result]),
+            ) as mock_transcribe,
+            patch("core.stt.processor.FileUtils.remove") as mock_remove,
+        ):
+            await processor.run()
+
+        assert mock_transcribe.await_count == 2
+        assert mock_remove.call_args_list == [call(failed_segment.audio_path), call(successful_segment.audio_path)]
 
 
 # ---------------------------------------------------------------------------
@@ -156,7 +186,7 @@ class TestProcessSegment:
         on_result = AsyncMock()
         processor = STTProcessor(asyncio.Queue(), asyncio.Event(), engine, ProcessorOptions(), on_result)
 
-        # STTNonRetriableError causes _transcribe_with_retry to return None.
+        # STTNonRetriableError causes _transcribe_once to return None.
         with (
             patch("asyncio.to_thread", new=AsyncMock(side_effect=STTNonRetriableError("fail"))),
             patch("core.stt.processor.FileUtils.remove"),
@@ -195,14 +225,14 @@ class TestProcessSegment:
 
 
 # ---------------------------------------------------------------------------
-# STTProcessor._transcribe_with_retry
+# STTProcessor._transcribe_once
 # ---------------------------------------------------------------------------
 
 
-class TestTranscribeWithRetry:
+class TestTranscribeOnce:
     async def test_engine_none_returns_none(self) -> None:
         processor = STTProcessor(asyncio.Queue(), asyncio.Event(), None, ProcessorOptions())
-        result = await processor._transcribe_with_retry(_make_stt_input())
+        result = await processor._transcribe_once(_make_stt_input())
         assert result is None
 
     async def test_success_on_first_attempt_returns_result(self) -> None:
@@ -210,105 +240,46 @@ class TestTranscribeWithRetry:
         processor = STTProcessor(asyncio.Queue(), asyncio.Event(), _make_engine(), ProcessorOptions())
 
         with patch("asyncio.to_thread", new=AsyncMock(return_value=expected)):
-            result = await processor._transcribe_with_retry(_make_stt_input())
+            result = await processor._transcribe_once(_make_stt_input())
 
         assert result == expected
 
     async def test_non_retriable_error_returns_none_without_retry(self) -> None:
-        processor = STTProcessor(asyncio.Queue(), asyncio.Event(), _make_engine(), ProcessorOptions(retry_max=3))
+        processor = STTProcessor(asyncio.Queue(), asyncio.Event(), _make_engine(), ProcessorOptions())
 
         with patch("asyncio.to_thread", new=AsyncMock(side_effect=STTNonRetriableError("bad"))) as mock_thread:
-            result = await processor._transcribe_with_retry(_make_stt_input())
+            result = await processor._transcribe_once(_make_stt_input())
 
         assert result is None
         assert mock_thread.call_count == 1  # No retry occurred.
 
     async def test_not_available_error_breaks_loop_returns_none(self) -> None:
-        processor = STTProcessor(asyncio.Queue(), asyncio.Event(), _make_engine(), ProcessorOptions(retry_max=3))
+        processor = STTProcessor(asyncio.Queue(), asyncio.Event(), _make_engine(), ProcessorOptions())
 
         with patch("asyncio.to_thread", new=AsyncMock(side_effect=STTNotAvailableError("offline"))) as mock_thread:
-            result = await processor._transcribe_with_retry(_make_stt_input())
+            result = await processor._transcribe_once(_make_stt_input())
 
         assert result is None
         assert mock_thread.call_count == 1  # Breaks immediately without retry.
 
-    async def test_stt_exception_retries_and_exhausts_returns_none(self) -> None:
-        retry_max = 3
-        processor = STTProcessor(
-            asyncio.Queue(),
-            asyncio.Event(),
-            _make_engine(),
-            ProcessorOptions(retry_max=retry_max, retry_backoff_ms=0),
-        )
+    async def test_stt_exception_calls_engine_once_and_returns_none(self) -> None:
+        processor = STTProcessor(asyncio.Queue(), asyncio.Event(), _make_engine(), ProcessorOptions())
 
-        with (
-            patch("asyncio.to_thread", new=AsyncMock(side_effect=STTExceptionError("transient"))) as mock_thread,
-            patch("asyncio.sleep"),
-        ):
-            result = await processor._transcribe_with_retry(_make_stt_input())
+        with patch("asyncio.to_thread", new=AsyncMock(side_effect=STTExceptionError("failure"))) as mock_thread:
+            result = await processor._transcribe_once(_make_stt_input())
 
         assert result is None
-        assert mock_thread.call_count == retry_max
-
-    async def test_stt_exception_succeeds_on_second_attempt(self) -> None:
-        expected = STTResult(text="ok", language="ja-JP")
-        processor = STTProcessor(
-            asyncio.Queue(),
-            asyncio.Event(),
-            _make_engine(),
-            ProcessorOptions(retry_max=3, retry_backoff_ms=0),
-        )
-
-        with (
-            patch(
-                "asyncio.to_thread",
-                new=AsyncMock(side_effect=[STTExceptionError("transient"), expected]),
-            ) as mock_thread,
-            patch("asyncio.sleep"),
-        ):
-            result = await processor._transcribe_with_retry(_make_stt_input())
-
-        assert result == expected
-        assert mock_thread.call_count == 2
+        mock_thread.assert_awaited_once()
 
     async def test_unexpected_exception_returns_none_without_retry(self) -> None:
-        processor = STTProcessor(asyncio.Queue(), asyncio.Event(), _make_engine(), ProcessorOptions(retry_max=3))
+        processor = STTProcessor(asyncio.Queue(), asyncio.Event(), _make_engine(), ProcessorOptions())
 
         with patch("asyncio.to_thread", new=AsyncMock(side_effect=ValueError("unexpected"))) as mock_thread:
-            result = await processor._transcribe_with_retry(_make_stt_input())
+            result = await processor._transcribe_once(_make_stt_input())
 
         assert result is None
         assert mock_thread.call_count == 1  # No retry for non-STT exceptions.
 
-    async def test_backoff_sleep_called_with_exponential_delays(self) -> None:
-        # retry_max=3 → attempts 1,2,3. Sleeps after attempt 1 and 2 only.
-        processor = STTProcessor(
-            asyncio.Queue(),
-            asyncio.Event(),
-            _make_engine(),
-            ProcessorOptions(retry_max=3, retry_backoff_ms=500),
-        )
-
-        with (
-            patch("asyncio.to_thread", new=AsyncMock(side_effect=STTExceptionError("err"))),
-            patch("asyncio.sleep") as mock_sleep,
-        ):
-            await processor._transcribe_with_retry(_make_stt_input())
-
-        # attempt 1 → sleep(0.5 * 2^0 = 0.5), attempt 2 → sleep(0.5 * 2^1 = 1.0), attempt 3 → exhausted (no sleep)
-        assert mock_sleep.call_count == 2
-        mock_sleep.assert_any_call(0.5)
-        mock_sleep.assert_any_call(1.0)
-
-    async def test_retry_max_zero_clamped_to_one_attempt(self) -> None:
-        # max(1, 0) == 1, so exactly one attempt is made even when retry_max=0.
-        processor = STTProcessor(asyncio.Queue(), asyncio.Event(), _make_engine(), ProcessorOptions(retry_max=0))
-
-        with patch("asyncio.to_thread", new=AsyncMock(side_effect=STTExceptionError("err"))) as mock_thread:
-            result = await processor._transcribe_with_retry(_make_stt_input())
-
-        assert result is None
-        assert mock_thread.call_count == 1
 
 
 # ---------------------------------------------------------------------------

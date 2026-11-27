@@ -207,9 +207,7 @@ class STTManager:
     def _build_processor_options(self, *, stt_config: STT | None) -> ProcessorOptions:
         """Build processor options from STT configuration values."""
         language: str = str(getattr(stt_config, "LANGUAGE", "ja-JP"))
-        retry_max: int = int(getattr(stt_config, "RETRY_MAX", 3))
-        retry_backoff_ms: int = int(getattr(stt_config, "RETRY_BACKOFF_MS", 500))
-        return ProcessorOptions(language=language, retry_max=retry_max, retry_backoff_ms=retry_backoff_ms)
+        return ProcessorOptions(language=language)
 
     def set_level_event_callback(self, callback: LevelEventCallback | None) -> None:
         """Set callback for STT level events.

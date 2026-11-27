@@ -79,8 +79,6 @@ def _make_config(*, enabled: bool = True) -> SimpleNamespace:
         CHANNELS=1,
         INPUT_DEVICE="default",
         LANGUAGE="ja-JP",
-        RETRY_MAX=3,
-        RETRY_BACKOFF_MS=500,
         MUTE=False,
     )
     vad = SimpleNamespace(MODE="level", PRE_BUFFER_MS=300, POST_BUFFER_MS=500, MAX_SEGMENT_SEC=20)

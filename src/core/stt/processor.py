@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Final
+from typing import TYPE_CHECKING
 
 from core.stt.stt_interface import (
     STTExceptionError,
@@ -28,15 +28,9 @@ __all__: list[str] = ["ProcessorOptions", "STTProcessor"]
 
 logger: logging.Logger = LoggerUtils.get_logger(__name__)
 
-DEFAULT_RETRY_MAX: Final[int] = 3
-DEFAULT_RETRY_BACKOFF_MS: Final[int] = 500
-
-
 @dataclass(frozen=True)
 class ProcessorOptions:
     language: str = "ja-JP"
-    retry_max: int = DEFAULT_RETRY_MAX
-    retry_backoff_ms: int = DEFAULT_RETRY_BACKOFF_MS
 
 
 class STTProcessor:
@@ -83,7 +77,7 @@ class STTProcessor:
                 sample_rate=segment.sample_rate,
                 channels=segment.channels,
             )
-            result: STTResult | None = await self._transcribe_with_retry(stt_input)
+            result: STTResult | None = await self._transcribe_once(stt_input)
             if result is None:
                 return
 
@@ -92,54 +86,37 @@ class STTProcessor:
         finally:
             self._cleanup_segment_file(segment.audio_path)
 
-    async def _transcribe_with_retry(self, stt_input: STTInput) -> STTResult | None:
-        # Keep a defensive check even though callers currently guard this path.
+    async def _transcribe_once(self, stt_input: STTInput) -> STTResult | None:
         engine: STTInterface | None = self._engine
         if engine is None:
             logger.error("STT engine is not initialized")
             return None
-
-        attempts: int = max(1, self._options.retry_max)
-
-        for attempt in range(1, attempts + 1):
-            try:
-                return await asyncio.to_thread(engine.transcribe, stt_input)
-            except STTNonRetriableError as err:
-                logger.error(
-                    "STT non-retriable transcribe error (language=%s): %s",
-                    stt_input.language,
-                    err,
-                )
-                return None
-            except STTNotAvailableError as err:
-                logger.warning(
-                    "STT engine became unavailable during transcribe (language=%s): %s",
-                    stt_input.language,
-                    err,
-                )
-                break
-            except STTExceptionError as err:
-                # Retry only STT-domain failures that are not explicitly marked as non-retriable.
-                logger.warning(
-                    "STT transcribe failed (attempt=%d/%d, language=%s): %s",
-                    attempt,
-                    attempts,
-                    stt_input.language,
-                    err,
-                )
-                if attempt >= attempts:
-                    logger.error("STT transcribe exhausted retries; segment=%s", stt_input.audio_path)
-                    return None
-
-                backoff_sec: float = (self._options.retry_backoff_ms / 1000) * (2 ** (attempt - 1))
-                await asyncio.sleep(backoff_sec)
-            except Exception:  # noqa: BLE001
-                logger.exception(
-                    "Unexpected non-STT exception during transcribe; no retry (language=%s)",
-                    stt_input.language,
-                )
-                break
-
+        try:
+            return await asyncio.to_thread(engine.transcribe, stt_input)
+        except STTNonRetriableError as err:
+            logger.error(
+                "STT non-retriable transcribe error (language=%s): %s",
+                stt_input.language,
+                type(err).__name__,
+            )
+        except STTNotAvailableError as err:
+            logger.warning(
+                "STT engine became unavailable during transcribe (language=%s): %s",
+                stt_input.language,
+                type(err).__name__,
+            )
+        except STTExceptionError as err:
+            logger.warning(
+                "STT transcribe failed (language=%s): %s",
+                stt_input.language,
+                type(err).__name__,
+            )
+        except Exception as err:  # noqa: BLE001
+            logger.error(
+                "Unexpected non-STT exception during transcribe (language=%s): %s",
+                stt_input.language,
+                type(err).__name__,
+            )
         return None
 
     def _cleanup_segment_file(self, file_path: Path) -> None:
