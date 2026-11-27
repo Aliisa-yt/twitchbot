@@ -2,10 +2,16 @@ from types import SimpleNamespace
 from typing import TYPE_CHECKING, Any, cast, override
 
 import pytest
+from google.api_core.exceptions import InvalidArgument, TooManyRequests
 
 import core.stt.engines.google_cloud_speech_to_text_v2 as stt_v2_module
 from core.stt.engines.google_cloud_speech_to_text_v2 import GoogleCloudSpeechToTextV2
-from core.stt.stt_interface import STTInput, STTNonRetriableError, STTNotAvailableError
+from core.stt.stt_interface import (
+    STTInput,
+    STTNonRetriableError,
+    STTNotAvailableError,
+    STTRateLimitError,
+)
 from utils.file_utils import FileUtils
 
 if TYPE_CHECKING:
@@ -121,16 +127,20 @@ class _FakeClient:
         return self._response
 
 
-class _InvalidArgumentError(Exception):
-    pass
-
-
 class _FailingClient(_FakeClient):
     @override
     def recognize(self, *, request: Any) -> Any:
         self.last_request = request
         msg = "invalid"
-        raise _InvalidArgumentError(msg)
+        raise InvalidArgument(msg)
+
+
+class _RateLimitedClient(_FakeClient):
+    @override
+    def recognize(self, *, request: Any) -> Any:
+        self.last_request = request
+        msg = "rate limited"
+        raise TooManyRequests(msg)
 
 
 def test_initialize_enables_engine_with_credentials_file(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
@@ -440,3 +450,33 @@ def test_transcribe_raises_non_retriable_error_for_invalid_argument(monkeypatch:
 
     with pytest.raises(STTNonRetriableError):
         engine.transcribe(STTInput(audio_path=pcm_file, language="ja-JP", sample_rate=16000, channels=1))
+
+
+def test_transcribe_raises_rate_limit_error_for_too_many_requests(
+    monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    creds_file = tmp_path / "gcp.json"
+    creds_file.write_text('{"project_id": "test-project"}', encoding="utf-8")
+    monkeypatch.setenv("GOOGLE_APPLICATION_CREDENTIALS", str(creds_file))
+
+    fake_client = _RateLimitedClient(response=SimpleNamespace(results=[]), recognizer_exists=True)
+    engine = GoogleCloudSpeechToTextV2()
+    monkeypatch.setattr(engine, "_import_speech_module", _fake_speech_module)
+    monkeypatch.setattr(engine, "_create_client", lambda _module: fake_client)
+
+    config = SimpleNamespace(
+        STT=SimpleNamespace(
+            GOOGLE_CLOUD_STT_V2_LOCATION="global",
+            GOOGLE_CLOUD_STT_V2_MODEL="latest_short",
+            GOOGLE_CLOUD_STT_V2_RECOGNIZER="existing-recognizer",
+        )
+    )
+    engine.initialize(config=cast("Config", config))
+
+    pcm_file = tmp_path / "sample.pcm"
+    pcm_file.write_bytes(b"\x00\x00\x01\x00")
+
+    with pytest.raises(STTRateLimitError) as exc_info:
+        engine.transcribe(STTInput(audio_path=pcm_file, language="ja-JP", sample_rate=16000, channels=1))
+
+    assert exc_info.value.__cause__ is not None

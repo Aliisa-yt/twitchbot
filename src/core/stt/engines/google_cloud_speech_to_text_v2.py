@@ -10,9 +10,9 @@ from core.stt.stt_interface import (
     STTExceptionError,
     STTInput,
     STTInterface,
-    STTNonRetriableError,
     STTNotAvailableError,
     STTResult,
+    convert_google_stt_error,
 )
 from core.stt.stt_location_model_loader import (
     STABLE_LOCATIONS,
@@ -32,17 +32,6 @@ if TYPE_CHECKING:
 __all__: list[str] = ["GoogleCloudSpeechToTextV2"]
 
 logger: logging.Logger = LoggerUtils.get_logger(__name__)
-
-NON_RETRIABLE_GOOGLE_ERROR_NAMES: frozenset[str] = frozenset(
-    {
-        "InvalidArgument",
-        "PermissionDenied",
-        "Unauthenticated",
-        "FailedPrecondition",
-        "OutOfRange",
-        "Unimplemented",
-    }
-)
 
 STT_V2_SUPPORTED_LANGUAGES_FILE: Path = FileUtils.resource_path("data/stt/google-cloud-stt-v2_supported-languages.txt")
 STT_V2_PREFERRED_LOCATIONS: tuple[str, ...] = ("global", "us", "eu", "us-central1")
@@ -572,16 +561,7 @@ class GoogleCloudSpeechToTextV2(STTInterface):
             response = client.recognize(request=request)
             return self._extract_results(getattr(response, "results", []))
         except Exception as err:  # noqa: BLE001
-            if self._is_non_retriable_google_error(err):
-                msg = f"Google Cloud STT V2 non-retriable request error: {type(err).__name__}: {err}"
-                raise STTNonRetriableError(msg) from err
-            msg = f"Google Cloud STT V2 request failed: {err}"
-            raise STTExceptionError(msg) from err
-
-    @staticmethod
-    def _is_non_retriable_google_error(err: Exception) -> bool:
-        error_name: str = type(err).__name__
-        return any(name in error_name for name in NON_RETRIABLE_GOOGLE_ERROR_NAMES)
+            raise convert_google_stt_error(err) from err
 
     @staticmethod
     def _extract_results(results: list[Any]) -> tuple[list[str], list[float]]:

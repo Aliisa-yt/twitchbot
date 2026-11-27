@@ -15,6 +15,7 @@ from core.stt.stt_interface import (
     STTNonRetriableError,
     STTNotAvailableError,
     STTResult,
+    convert_google_stt_error,
 )
 from utils.logger_utils import LoggerUtils
 
@@ -27,18 +28,6 @@ if TYPE_CHECKING:
 __all__: list[str] = ["GoogleCloudSpeechToText"]
 
 logger: logging.Logger = LoggerUtils.get_logger(__name__)
-
-NON_RETRIABLE_GOOGLE_ERROR_NAMES: frozenset[str] = frozenset(
-    {
-        "InvalidArgument",
-        "PermissionDenied",
-        "Unauthenticated",
-        "FailedPrecondition",
-        "OutOfRange",
-        "Unimplemented",
-    }
-)
-
 
 class GoogleCloudSpeechToText(STTInterface):
     """Google Cloud Speech-to-Text engine.
@@ -223,11 +212,7 @@ class GoogleCloudSpeechToText(STTInterface):
             response = client.recognize(config=config, audio=audio)
             return self._extract_results(getattr(response, "results", []), object_mode=True)
         except Exception as err:  # noqa: BLE001
-            if self._is_non_retriable_google_error(err):
-                msg = f"Google Cloud STT non-retriable request error: {type(err).__name__}: {err}"
-                raise STTNonRetriableError(msg) from err
-            msg = f"Google Cloud STT request failed: {err}"
-            raise STTExceptionError(msg) from err
+            raise convert_google_stt_error(err) from err
 
     def _recognize_by_api_key(self, stt_input: STTInput, pcm_data: bytes) -> tuple[list[str], list[float]]:
         """Run recognition via the Google Cloud REST API using an API key.
@@ -262,17 +247,7 @@ class GoogleCloudSpeechToText(STTInterface):
         except STTNonRetriableError:
             raise
         except Exception as err:  # noqa: BLE001
-            if self._is_non_retriable_google_error(err):
-                msg = f"Google Cloud STT REST non-retriable request error: {type(err).__name__}: {err}"
-                raise STTNonRetriableError(msg) from err
-            msg = f"Google Cloud STT REST request failed: {err}"
-            raise STTExceptionError(msg) from err
-
-    @staticmethod
-    def _is_non_retriable_google_error(err: Exception) -> bool:
-        """Check whether an exception class maps to a non-retriable Google API error."""
-        error_name: str = type(err).__name__
-        return any(name in error_name for name in NON_RETRIABLE_GOOGLE_ERROR_NAMES)
+            raise convert_google_stt_error(err) from err
 
     @staticmethod
     def _extract_results(results: list[Any], *, object_mode: bool) -> tuple[list[str], list[float]]:
@@ -333,10 +308,8 @@ class GoogleCloudSpeechToText(STTInterface):
         try:
             with request.urlopen(http_request, timeout=30) as response:  # noqa: S310
                 body = response.read().decode("utf-8")
-        except error.HTTPError as err:
-            error_body = err.read().decode("utf-8", errors="ignore")
-            msg = f"HTTP {err.code}: {error_body}"
-            raise STTExceptionError(msg) from err
+        except error.HTTPError:
+            raise
         except error.URLError as err:
             msg = f"Network error: {err.reason}"
             raise STTExceptionError(msg) from err

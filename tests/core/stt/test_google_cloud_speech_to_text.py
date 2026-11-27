@@ -2,11 +2,18 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 from typing import TYPE_CHECKING, Any, cast
+from urllib import error
 
 import pytest
+from google.api_core.exceptions import InvalidArgument, TooManyRequests
 
 from core.stt.engines.google_cloud_speech_to_text import GoogleCloudSpeechToText
-from core.stt.stt_interface import STTInput, STTNonRetriableError, STTNotAvailableError
+from core.stt.stt_interface import (
+    STTInput,
+    STTNonRetriableError,
+    STTNotAvailableError,
+    STTRateLimitError,
+)
 
 if TYPE_CHECKING:
     from config.loader import Config
@@ -43,15 +50,18 @@ class _FakeClient:
         return self._response
 
 
-class _InvalidArgumentError(Exception):
-    pass
-
-
 class _FailingClient:
     def recognize(self, *, config: Any, audio: Any) -> Any:
         _ = config, audio
         msg = "invalid"
-        raise _InvalidArgumentError(msg)
+        raise InvalidArgument(msg)
+
+
+class _RateLimitedClient:
+    def recognize(self, *, config: Any, audio: Any) -> Any:
+        _ = config, audio
+        msg = "rate limited"
+        raise TooManyRequests(msg)
 
 
 def test_initialize_enables_engine_with_credentials_file(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
@@ -192,3 +202,42 @@ def test_transcribe_raises_non_retriable_error_for_invalid_argument(monkeypatch:
 
     with pytest.raises(STTNonRetriableError):
         engine.transcribe(STTInput(audio_path=pcm_file, language="ja-JP", sample_rate=16000, channels=1))
+
+
+def test_transcribe_raises_rate_limit_error_for_too_many_requests(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
+    creds_file = tmp_path / "gcp.json"
+    creds_file.write_text("{}", encoding="utf-8")
+    monkeypatch.setenv("GOOGLE_APPLICATION_CREDENTIALS", str(creds_file))
+
+    engine = GoogleCloudSpeechToText()
+    monkeypatch.setattr(engine, "_import_speech_module", _fake_speech_module)
+    monkeypatch.setattr(engine, "_create_client", lambda _module: _RateLimitedClient())
+    engine.initialize(config=cast("Config", SimpleNamespace()))
+
+    pcm_file = tmp_path / "sample.pcm"
+    pcm_file.write_bytes(b"\x00\x00\x01\x00")
+
+    with pytest.raises(STTRateLimitError):
+        engine.transcribe(STTInput(audio_path=pcm_file, language="ja-JP", sample_rate=16000, channels=1))
+
+
+def test_transcribe_raises_rate_limit_error_for_rest_http_429(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
+    monkeypatch.delenv("GOOGLE_APPLICATION_CREDENTIALS", raising=False)
+    monkeypatch.setenv("GOOGLE_CLOUD_API_OAUTH", "dummy_api_key")
+
+    engine = GoogleCloudSpeechToText()
+    engine.initialize(config=cast("Config", SimpleNamespace()))
+
+    def raise_http_429(*, url: str, payload: dict[str, Any]) -> dict[str, Any]:
+        _ = url, payload
+        raise error.HTTPError(url, 429, "Too Many Requests", {}, None)
+
+    monkeypatch.setattr(engine, "_post_json", raise_http_429)
+
+    pcm_file = tmp_path / "sample.pcm"
+    pcm_file.write_bytes(b"\x00\x00\x01\x00")
+
+    with pytest.raises(STTRateLimitError) as exc_info:
+        engine.transcribe(STTInput(audio_path=pcm_file, language="ja-JP", sample_rate=16000, channels=1))
+
+    assert exc_info.value.__cause__ is not None
